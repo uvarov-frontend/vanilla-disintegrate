@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Vanilla Disintegrate interactive demo" />
+    <title>Vanilla Disintegrate</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <span class="eyebrow">Framework-agnostic · TypeScript · Web Animations API</span>
+        <h1>Vanilla <em>Disintegrate</em></h1>
+        <p>Turn any DOM element into rising particles while the surrounding layout closes smoothly.</p>
+        <div class="controls">
+          <label><input id="sound" type="checkbox" checked /> Sound</label>
+          <button id="reset" class="secondary" type="button">Reset cards</button>
+        </div>
+      </header>
+
+      <section aria-labelledby="demo-title">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">Live demo</span>
+            <h2 id="demo-title">Remove a card</h2>
+          </div>
+          <code>await effect.remove(card)</code>
+        </div>
+        <div id="stories" class="stories"></div>
+        <div id="empty" class="empty" hidden>
+          <strong>Everything is gone.</strong>
+          <span>Reset the cards to run it again.</span>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>
