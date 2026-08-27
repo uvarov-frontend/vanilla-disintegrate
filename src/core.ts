@@ -315,10 +315,10 @@ export class CoreDisintegrator {
     const overlay = document.createElement('div');
     overlay.setAttribute('aria-hidden', 'true');
     Object.assign(overlay.style, {
-      contain: 'strict',
       height: `${rect.height}px`,
       isolation: 'isolate',
       left: `${rect.left}px`,
+      overflow: 'visible',
       pointerEvents: 'none',
       position: 'fixed',
       top: `${rect.top}px`,

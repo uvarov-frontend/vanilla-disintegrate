@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { CoreDisintegrator } from '../src/core';
+import type { DisintegrationContext } from '../src/types';
 import { resolvedAnimation } from './setup';
 
 function rect(top: number, height = 80, left = 0, width = 240): DOMRect {
@@ -53,7 +54,10 @@ function createList() {
 describe('CoreDisintegrator', () => {
   it('disintegrates the target and only pulls following siblings into place', async () => {
     const capture = vi.fn().mockResolvedValue(snapshot());
-    const onStart = vi.fn();
+    const onStart = vi.fn((context: DisintegrationContext) => {
+      expect(context.overlay?.style.contain).toBe('');
+      expect(context.overlay?.style.overflow).toBe('visible');
+    });
     const onComplete = vi.fn();
     const { target, previousAnimate, followingAnimate } = createList();
     const effect = new CoreDisintegrator({

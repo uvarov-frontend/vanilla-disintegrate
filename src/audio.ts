@@ -44,15 +44,17 @@ export class SoundPlayer {
   }
 
   play(fallbackDurationSeconds: number) {
-    if (this.options === false || this.context === null || this.buffer === null) return noop;
-    const options = this.options;
+    if (this.options === false) return noop;
+    this.preload();
     const context = this.context;
-    const buffer = this.buffer;
+    if (context === null) return noop;
+    const options = this.options;
     let playbackSource: AudioBufferSourceNode | null = null;
     let cancelled = false;
 
     const start = () => {
-      if (cancelled) return;
+      const buffer = this.buffer;
+      if (cancelled || buffer === null) return;
       this.stop();
       const source = context.createBufferSource();
       const gain = context.createGain();
@@ -84,11 +86,13 @@ export class SoundPlayer {
       source.stop(endsAt);
     };
 
-    if (context.state === 'running') {
+    const startWhenReady = async () => {
+      await this.loadPromise;
+      if (cancelled || this.buffer === null) return;
+      if (context.state !== 'running') await context.resume();
       start();
-    } else {
-      void context.resume().then(start).catch(this.onError);
-    }
+    };
+    void startWhenReady().catch(this.onError);
 
     return () => {
       cancelled = true;
