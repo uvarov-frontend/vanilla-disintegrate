@@ -4,6 +4,15 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    allow:
+      - dependency-type: production
+      - dependency-type: development
+        update-types:
+          - version-update:semver-minor
+          - version-update:semver-patch
     groups:
       development-dependencies:
         dependency-type: development
+        update-types:
+          - minor
+          - patch
