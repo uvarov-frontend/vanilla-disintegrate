@@ -2,6 +2,8 @@
 
 A lightweight, framework-agnostic TypeScript plugin that turns any DOM element into rising particles and smoothly closes the space it occupied. It is the polished “Thanos snap” effect extracted from a production interface—not a timing-only CSS imitation.
 
+<img width="1134" height="855" alt="Screen-Recording-2026-08-27-12-36-42" src="https://github.com/user-attachments/assets/c333d6f6-4cbf-4fd4-8865-7611872ea98b" />
+
 [![CI](https://github.com/uvarov-frontend/vanilla-disintegrate/actions/workflows/ci.yml/badge.svg)](https://github.com/uvarov-frontend/vanilla-disintegrate/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/vanilla-disintegrate.svg)](https://www.npmjs.com/package/vanilla-disintegrate)
 [![license](https://img.shields.io/npm/l/vanilla-disintegrate.svg)](./LICENSE)
