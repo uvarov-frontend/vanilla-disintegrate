@@ -8,6 +8,10 @@ A lightweight, framework-agnostic TypeScript plugin that turns any DOM element i
 [![npm](https://img.shields.io/npm/v/vanilla-disintegrate.svg)](https://www.npmjs.com/package/vanilla-disintegrate)
 [![license](https://img.shields.io/npm/l/vanilla-disintegrate.svg)](./LICENSE)
 
+## Live demo
+
+Try the interactive demo at [uvarov-frontend.github.io/vanilla-disintegrate](https://uvarov-frontend.github.io/vanilla-disintegrate/).
+
 ## Documentation map
 
 - [Install](#install)
