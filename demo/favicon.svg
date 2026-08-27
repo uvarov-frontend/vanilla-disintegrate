@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="particle-gradient" x1="12" y1="52" x2="54" y2="8" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff8c7d" />
+      <stop offset="1" stop-color="#8a3ffc" />
+    </linearGradient>
+    <mask id="disintegrated-card">
+      <rect width="64" height="64" fill="#000" />
+      <rect x="11" y="18" width="40" height="35" rx="10" fill="#fff" />
+      <circle cx="45" cy="20" r="5" fill="#000" />
+      <circle cx="51" cy="27" r="3" fill="#000" />
+      <circle cx="39" cy="18" r="2.5" fill="#000" />
+    </mask>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#0b0910" />
+  <rect
+    x="11"
+    y="18"
+    width="40"
+    height="35"
+    rx="10"
+    fill="url(#particle-gradient)"
+    mask="url(#disintegrated-card)"
+  />
+  <g fill="url(#particle-gradient)">
+    <circle cx="42" cy="12" r="3.5" />
+    <circle cx="51" cy="17" r="2.75" />
+    <circle cx="55" cy="9" r="2" />
+    <circle cx="48" cy="6" r="1.5" />
+  </g>
+</svg>
