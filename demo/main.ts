@@ -1,4 +1,4 @@
-import Disintegrator from '../src';
+import Disintegrator, { type ParticleOptions } from '../src';
 
 import './style.css';
 
@@ -12,6 +12,66 @@ const stories = requiredElement<HTMLElement>('#stories');
 const empty = requiredElement<HTMLElement>('#empty');
 const sound = requiredElement<HTMLInputElement>('#sound');
 const reset = requiredElement<HTMLButtonElement>('#reset');
+const presetPicker = requiredElement<HTMLElement>('#presets');
+const presetCode = requiredElement<HTMLElement>('#preset-code');
+
+type PresetKey = 'balanced' | 'quick' | 'vapor' | 'scatter';
+
+interface AnimationPreset {
+  code: string;
+  particles?: ParticleOptions;
+}
+
+const presets: Record<PresetKey, AnimationPreset> = {
+  balanced: {
+    code: 'particles: defaults',
+  },
+  quick: {
+    code: 'duration: 500 · stagger: 90',
+    particles: {
+      frames: 24,
+      repetitions: 2,
+      duration: 500,
+      stagger: 90,
+      horizontalDrift: 32,
+      rise: [35, 75],
+      rotation: 9,
+      endScale: 0.95,
+      origin: 'left',
+      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+    },
+  },
+  vapor: {
+    code: 'rise: 100–190 · duration: 1050',
+    particles: {
+      frames: 40,
+      repetitions: 2,
+      duration: 1050,
+      stagger: 280,
+      horizontalDrift: 30,
+      rise: [100, 190],
+      rotation: 8,
+      endScale: 0.78,
+      origin: 'random',
+      easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+    },
+  },
+  scatter: {
+    code: 'drift: 100 · rotation: 36',
+    particles: {
+      frames: 36,
+      repetitions: 2,
+      duration: 780,
+      stagger: 110,
+      horizontalDrift: 100,
+      rise: [50, 135],
+      rotation: 36,
+      endScale: 0.7,
+      origin: 'random',
+      easing: 'ease-out',
+    },
+  },
+};
 
 const cards = [
   ['The Last Lighthouse', 'A2 · 8 min', 'linear-gradient(145deg, #fb8a78, #8a3ffc)'],
@@ -20,13 +80,22 @@ const cards = [
   ['The Clockmaker’s Garden', 'A2 · 9 min', 'linear-gradient(145deg, #84e07b, #248a70)'],
 ] as const;
 
-const effect = new Disintegrator({
-  sound: true,
-  onTrigger: () => navigator.vibrate?.(8),
-  onError: (error) => console.error('[vanilla-disintegrate]', error),
-});
+function createEffect(preset: AnimationPreset) {
+  return new Disintegrator({
+    sound: true,
+    ...(preset.particles === undefined ? {} : { particles: preset.particles }),
+    onTrigger: () => navigator.vibrate?.(8),
+    onError: (error) => console.error('[vanilla-disintegrate]', error),
+  });
+}
 
+let activePreset: PresetKey = 'balanced';
+let effect = createEffect(presets[activePreset]);
 let unregister: () => void = () => undefined;
+
+function isPresetKey(value: string): value is PresetKey {
+  return value in presets;
+}
 
 function renderCards() {
   unregister();
@@ -61,6 +130,30 @@ stories.addEventListener('click', (event) => {
 });
 
 reset.addEventListener('click', renderCards);
-window.addEventListener('pagehide', () => effect.destroy(), { once: true });
+presetPicker.addEventListener('click', (event) => {
+  const button = (event.target as Element).closest<HTMLButtonElement>('[data-preset]');
+  const preset = button?.dataset.preset;
+  if (!button || !preset || !isPresetKey(preset) || preset === activePreset) return;
+
+  unregister();
+  effect.destroy();
+  activePreset = preset;
+  effect = createEffect(presets[activePreset]);
+  presetCode.textContent = presets[activePreset].code;
+
+  for (const candidate of presetPicker.querySelectorAll<HTMLButtonElement>('[data-preset]')) {
+    candidate.setAttribute('aria-pressed', String(candidate === button));
+  }
+
+  renderCards();
+});
+window.addEventListener(
+  'pagehide',
+  () => {
+    unregister();
+    effect.destroy();
+  },
+  { once: true },
+);
 
 renderCards();

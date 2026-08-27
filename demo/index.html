@@ -16,6 +16,24 @@
         <span class="eyebrow">Framework-agnostic · TypeScript · Web Animations API</span>
         <h1>Vanilla <em>Disintegrate</em></h1>
         <p>Turn any DOM element into rising particles while the surrounding layout closes smoothly.</p>
+        <div id="presets" class="presets" aria-label="Animation style">
+          <button class="preset" type="button" data-preset="balanced" aria-pressed="true">
+            <strong>Balanced</strong>
+            <span>The polished default</span>
+          </button>
+          <button class="preset" type="button" data-preset="quick">
+            <strong>Quick snap</strong>
+            <span>Short and responsive</span>
+          </button>
+          <button class="preset" type="button" data-preset="vapor">
+            <strong>Soft vapor</strong>
+            <span>Slow upward evaporation</span>
+          </button>
+          <button class="preset" type="button" data-preset="scatter">
+            <strong>Wild scatter</strong>
+            <span>Wide, energetic particles</span>
+          </button>
+        </div>
         <div class="controls">
           <label><input id="sound" type="checkbox" checked /> Sound</label>
           <button id="reset" class="secondary" type="button">Reset cards</button>
@@ -28,7 +46,7 @@
             <span class="eyebrow">Live demo</span>
             <h2 id="demo-title">Remove a card</h2>
           </div>
-          <code>await effect.remove(card)</code>
+          <code id="preset-code" aria-live="polite">particles: defaults</code>
         </div>
         <div id="stories" class="stories"></div>
         <div id="empty" class="empty" hidden>
