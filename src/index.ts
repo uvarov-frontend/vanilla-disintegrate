@@ -1,10 +1,10 @@
+import bundledSoundUrl from './sounds/disintegrate.mp3?url&no-inline';
+
 import { createSnapdomCapture, type SnapdomOptions } from './capture';
 import { CoreDisintegrator } from './core';
 import type { CoreDisintegratorOptions, DisintegrationHandle, SoundOptions, SnapshotCapture } from './types';
 
-declare const __VANILLA_DISINTEGRATE_MODULE_URL__: string;
-
-export const defaultSoundUrl = new URL('./sounds/disintegrate.mp3', __VANILLA_DISINTEGRATE_MODULE_URL__).href;
+export const defaultSoundUrl = bundledSoundUrl;
 
 export interface DisintegratorOptions extends Omit<CoreDisintegratorOptions, 'capture' | 'sound'> {
   /** Override the built-in SnapDOM capture implementation. */

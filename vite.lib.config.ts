@@ -7,6 +7,17 @@ export default defineConfig(({ mode }) => {
   const isCommonJs = mode.endsWith('cjs');
   const isCore = mode.startsWith('core');
   return {
+    experimental: {
+      renderBuiltUrl(filename, context) {
+        if (context.hostType !== 'js' || !filename.endsWith('.mp3')) return;
+        const soundPath = JSON.stringify(`./${filename}`);
+        return {
+          runtime: isCommonJs
+            ? `new URL(${soundPath}, typeof document === "undefined" ? "file:///" : document.currentScript?.src || document.baseURI).href`
+            : `new URL(${soundPath}, import.meta.url).href`,
+        };
+      },
+    },
     plugins:
       mode !== 'es'
         ? []
@@ -18,11 +29,6 @@ export default defineConfig(({ mode }) => {
               insertTypesEntry: true,
             }),
           ],
-    define: {
-      __VANILLA_DISINTEGRATE_MODULE_URL__: isCommonJs
-        ? '(typeof document === "undefined" ? "file:///" : document.currentScript?.src || document.baseURI)'
-        : 'import.meta.url',
-    },
     build: {
       target: 'es2020',
       emptyOutDir: mode === 'es',
@@ -36,6 +42,10 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         external: ['@zumer/snapdom'],
         output: {
+          assetFileNames: (asset) =>
+            asset.names.some((name) => name.endsWith('.mp3'))
+              ? 'sounds/disintegrate.mp3'
+              : 'assets/[name]-[hash][extname]',
           exports: 'named',
         },
       },

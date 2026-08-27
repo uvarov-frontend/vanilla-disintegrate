@@ -3,9 +3,14 @@ import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  define: {
-    __VANILLA_DISINTEGRATE_MODULE_URL__:
-      '(typeof document === "undefined" ? "file:///" : document.currentScript?.src || document.baseURI)',
+  experimental: {
+    renderBuiltUrl(filename, context) {
+      if (context.hostType !== 'js' || !filename.endsWith('.mp3')) return;
+      const soundPath = JSON.stringify(`./${filename}`);
+      return {
+        runtime: `new URL(${soundPath}, typeof document === "undefined" ? "file:///" : document.currentScript?.src || document.baseURI).href`,
+      };
+    },
   },
   build: {
     target: 'es2020',
@@ -19,6 +24,14 @@ export default defineConfig({
       formats: ['iife'],
       fileName: () => 'vanilla-disintegrate.iife.min.js',
     },
-    rollupOptions: { output: { exports: 'named' } },
+    rollupOptions: {
+      output: {
+        assetFileNames: (asset) =>
+          asset.names.some((name) => name.endsWith('.mp3'))
+            ? 'sounds/disintegrate.mp3'
+            : 'assets/[name]-[hash][extname]',
+        exports: 'named',
+      },
+    },
   },
 });

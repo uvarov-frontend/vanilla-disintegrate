@@ -56,7 +56,7 @@
   "packageManager": "npm@10.8.2",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --config vite.lib.config.ts --mode es && vite build --config vite.lib.config.ts --mode core-es && vite build --config vite.lib.config.ts --mode cjs && vite build --config vite.lib.config.ts --mode core-cjs && vite build --config vite.iife.config.ts && node scripts/copy-sound.mjs",
+    "build": "vite build --config vite.lib.config.ts --mode es && vite build --config vite.lib.config.ts --mode core-es && vite build --config vite.lib.config.ts --mode cjs && vite build --config vite.lib.config.ts --mode core-cjs && vite build --config vite.iife.config.ts",
     "build:demo": "vite build",
     "check": "npm run format && npm run lint && npm run typecheck && npm run test && npm run build && npm run smoke && npm run build:demo && npm run size",
     "format": "prettier . --check",
