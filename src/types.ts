@@ -107,11 +107,18 @@ export type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
 export interface SoundOptions {
   /** URL or decoded audio data to play. */
   readonly src: SoundSource;
+  /**
+   * Plays the decoded source backwards, aligned so its final moment lands on the
+   * end of the animation. Lets a restoration phase reuse the removal recording
+   * instead of shipping a second file. Phases stay independent: giving each one
+   * its own `src` keeps working.
+   */
+  readonly reverse?: boolean;
   /** Linear output gain from `0` to `1`. Defaults to `0.32`. */
   readonly gain?: number;
   /** Optional source duration in seconds. */
   readonly duration?: number;
-  /** Fade-out duration in seconds. */
+  /** Fade duration in seconds: applied on the way out, or on the way in when `reverse` is set. */
   readonly fadeDuration?: number;
   /** Start delay in milliseconds. */
   readonly delay?: number;

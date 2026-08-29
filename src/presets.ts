@@ -1,5 +1,5 @@
 import christmasSoundUrl from './sounds/christmas-wind.mp3?url&no-inline';
-import dustSoundUrl from './sounds/disintegrate.mp3?url&no-inline';
+import dustSoundUrl from './sounds/dust.mp3?url&no-inline';
 
 import { defineEffect } from './effects';
 import { createParticleAnimation, createParticleRestoreAnimation } from './particle-renderer';
@@ -51,7 +51,7 @@ export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> =
     },
     restore: {
       animate: createParticleRestoreAnimation(particlePresets.dust),
-      sound: null,
+      sound: { src: dustSoundUrl, reverse: true },
     },
   }),
   vapor: defineEffect({
@@ -81,7 +81,7 @@ export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> =
     },
     restore: {
       animate: createParticleRestoreAnimation(particlePresets.wind),
-      sound: null,
+      sound: { src: christmasSoundUrl, gain: 0.52, reverse: true },
     },
   }),
 });

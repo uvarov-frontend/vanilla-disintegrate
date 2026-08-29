@@ -223,7 +223,7 @@ Install your chosen capture library separately; this example uses `npm install h
 
 ### Sound
 
-Effect audio is opt-in. `dust.remove` and `wind.remove` carry built-in sounds that `sound: true` turns on:
+Effect audio is opt-in. `dust` and `wind` carry built-in sounds on both phases — the restoration reuses the removal recording through the `reverse` option instead of bundling a second file — and `sound: true` turns them on:
 
 ```ts
 const effects = new Disintegrator({ effect: 'dust', sound: true });

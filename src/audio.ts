@@ -14,9 +14,21 @@ function isAudioBuffer(source: SoundSource): source is AudioBuffer {
   return typeof AudioBuffer !== 'undefined' && source instanceof AudioBuffer;
 }
 
+/** Copies rather than reversing in place: the source may be an application-owned buffer. */
+function reverseBuffer(buffer: AudioBuffer, context: BaseAudioContext) {
+  const reversed = context.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+  for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
+    const samples = reversed.getChannelData(channel);
+    samples.set(buffer.getChannelData(channel));
+    samples.reverse();
+  }
+  return reversed;
+}
+
 export class SoundPlayer {
   private context: AudioContext | null = null;
   private readonly buffers = new Map<SoundSource, Promise<AudioBuffer>>();
+  private readonly reversedBuffers = new Map<SoundSource, Promise<AudioBuffer>>();
   private readonly activeSources = new Set<AudioBufferSourceNode>();
   private generation = 0;
 
@@ -51,7 +63,8 @@ export class SoundPlayer {
     }
 
     const start = async () => {
-      const buffer = await this.load(options.src, context);
+      const reverse = options.reverse === true;
+      const buffer = await this.load(options.src, context, reverse);
       if (cancelled || generation !== this.generation || context.state === 'closed') return;
       if (context.state !== 'running') await context.resume();
       if (cancelled || generation !== this.generation) return;
@@ -71,9 +84,23 @@ export class SoundPlayer {
 
       playback.buffer = buffer;
       playback.playbackRate.value = playbackRate;
-      gain.gain.setValueAtTime(gainValue, startedAt);
-      gain.gain.setValueAtTime(gainValue, endsAt - fadeDuration);
-      gain.gain.linearRampToValueAtTime(0, endsAt);
+      /*
+       * A removal recording opens on its transient and trails off, so trimming it
+       * to the animation drops the tail. Reversed, that transient sits at the end
+       * of the buffer instead, so the playback window is taken from the end and
+       * the fade moves to the start — otherwise the trim, and then the fade,
+       * would remove the very moment the restoration is built around.
+       */
+      const offset = reverse ? Math.max(0, buffer.duration - duration * playbackRate) : 0;
+      if (reverse) {
+        gain.gain.setValueAtTime(0, startedAt);
+        gain.gain.linearRampToValueAtTime(gainValue, startedAt + fadeDuration);
+        gain.gain.setValueAtTime(gainValue, endsAt);
+      } else {
+        gain.gain.setValueAtTime(gainValue, startedAt);
+        gain.gain.setValueAtTime(gainValue, endsAt - fadeDuration);
+        gain.gain.linearRampToValueAtTime(0, endsAt);
+      }
       playback.connect(gain);
       gain.connect(context.destination);
       source = playback;
@@ -87,7 +114,7 @@ export class SoundPlayer {
         },
         { once: true },
       );
-      playback.start(startedAt);
+      playback.start(startedAt, offset);
       playback.stop(endsAt);
     };
 
@@ -130,6 +157,7 @@ export class SoundPlayer {
     for (const source of this.activeSources) this.stop(source);
     this.activeSources.clear();
     this.buffers.clear();
+    this.reversedBuffers.clear();
     const context = this.context;
     this.context = null;
     if (context !== null && context.state !== 'closed') void context.close().catch(noop);
@@ -143,7 +171,22 @@ export class SoundPlayer {
     return this.context;
   }
 
-  private load(source: SoundSource, context: AudioContext) {
+  private load(source: SoundSource, context: AudioContext, reverse: boolean) {
+    if (!reverse) return this.loadForward(source, context);
+    const cached = this.reversedBuffers.get(source);
+    if (cached !== undefined) return cached;
+
+    const promise = this.loadForward(source, context)
+      .then((buffer) => reverseBuffer(buffer, context))
+      .catch((error: unknown) => {
+        this.reversedBuffers.delete(source);
+        throw error;
+      });
+    this.reversedBuffers.set(source, promise);
+    return promise;
+  }
+
+  private loadForward(source: SoundSource, context: AudioContext) {
     if (isAudioBuffer(source)) return Promise.resolve(source);
     const cached = this.buffers.get(source);
     if (cached !== undefined) return cached;
