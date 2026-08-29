@@ -339,10 +339,17 @@
   color: #d8d2dc;
 }
 
+/* Only the container scrolls; the page never does. */
+.table-scroll {
+  margin: 24px 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
 .page-content table {
   width: 100%;
   max-width: 100%;
-  margin: 24px 0;
+  margin: 0;
   border-collapse: collapse;
   color: var(--muted);
   font-size: 13px;
@@ -366,6 +373,22 @@
  */
 .page-content :is(th, td) code {
   overflow-wrap: anywhere;
+}
+
+@media (max-width: 790px) {
+  /*
+   * Below this width four columns would be squeezed to about 40px each, which
+   * breaks an identifier into one letter per line. Keep the columns usable and
+   * let the container scroll instead.
+   */
+  .page-content table {
+    min-width: 560px;
+  }
+
+  /* Wide enough for the longest option name to wrap at most once. */
+  .page-content :is(th, td):first-child {
+    min-width: 132px;
+  }
 }
 
 .page-content th {

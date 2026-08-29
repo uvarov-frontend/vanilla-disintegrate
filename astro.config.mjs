@@ -4,6 +4,7 @@ import node from '@astrojs/node';
 import { defineConfig } from 'astro/config';
 
 import externalLinks from './docs/src/lib/rehype-external-links.mjs';
+import tableScroll from './docs/src/lib/rehype-table-scroll.mjs';
 
 export default defineConfig({
   adapter: node({ mode: 'standalone' }),
@@ -17,7 +18,7 @@ export default defineConfig({
     routing: 'manual',
   },
   markdown: {
-    processor: unified({ rehypePlugins: [externalLinks] }),
+    processor: unified({ rehypePlugins: [externalLinks, tableScroll] }),
     shikiConfig: {
       theme: 'github-dark-default',
     },
