@@ -66,8 +66,9 @@ jobs:
           port: ${{ secrets.PORT }}
           key: ${{ secrets.KEY }}
           command_timeout: 20m
-          script_stop: true
-          envs: TARGET
+          # TARGET is taken by the action itself, which stores the drone-ssh
+          # binary path in it; a variable of that name never reaches the host.
+          envs: DEPLOY_PATH
           script: |
             set -euo pipefail
 
@@ -75,7 +76,7 @@ jobs:
             NAME=disintegrate_uvarov_tech
             PORT=3501
 
-            cd "$TARGET"
+            cd "$DEPLOY_PATH"
             docker build -f deploy/Dockerfile -t "$IMAGE:latest" .
 
             # Remembered so a failed rollout can be put back on the previous image.
@@ -106,7 +107,7 @@ jobs:
             fi
             exit 1
         env:
-          TARGET: ${{ secrets.TARGET }}
+          DEPLOY_PATH: ${{ secrets.TARGET }}
 
       - name: Verify the public site
         run: |
