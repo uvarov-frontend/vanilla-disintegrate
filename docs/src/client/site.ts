@@ -707,7 +707,9 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
   const idOutput = required<HTMLElement>(root, '[data-id]');
   const instance = track(
     new Disintegrator({
-      preparation: true,
+      // Pulse clones its DOM node and declares needsSnapshot: false, so SnapDOM
+      // preparation would add work that this demo can never use.
+      preparation: kind === 'custom' ? false : true,
       onError: (error) => {
         state.textContent = String(error);
       },

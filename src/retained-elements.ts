@@ -44,6 +44,18 @@ export class RetainedElements {
     return retained.element;
   }
 
+  has(id: RemovalId, element: HTMLElement) {
+    return this.entries.get(id)?.element === element;
+  }
+
+  elementFor(id: RemovalId) {
+    return this.entries.get(id)?.element ?? null;
+  }
+
+  elements() {
+    return [...this.entries.values()].map(({ element }) => element);
+  }
+
   discard(id: RemovalId) {
     const retained = this.entries.get(id);
     if (retained !== undefined) {

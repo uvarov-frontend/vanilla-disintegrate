@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Disintegrator } from '../src/disintegrator';
+import { defineEffect } from '../src/effects';
 
 function rect(): DOMRect {
   return {
@@ -18,7 +19,7 @@ function rect(): DOMRect {
 
 function element() {
   const target = document.createElement('div');
-  Object.defineProperty(target, 'getBoundingClientRect', { value: rect });
+  Object.defineProperty(target, 'getBoundingClientRect', { configurable: true, value: rect });
   document.body.append(target);
   return target;
 }
@@ -60,6 +61,31 @@ describe('snapshot preparation', () => {
 
     expect(capture).toHaveBeenCalledWith(target, expect.objectContaining({ operation: 'prepare' }));
     effect.clearPrepared();
+    effect.destroy();
+  });
+
+  it('applies the capture concurrency budget to explicit preparation', async () => {
+    const resolvers: Array<(value: HTMLCanvasElement) => void> = [];
+    const capture = vi.fn(
+      () =>
+        new Promise<HTMLCanvasElement>((resolve) => {
+          resolvers.push(resolve);
+        }),
+    );
+    const effect = new Disintegrator({
+      capture,
+      preparation: { concurrency: 2, invalidateOnResize: false },
+    });
+    const targets = [element(), element(), element()];
+
+    const preparation = effect.prepare(targets);
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledTimes(2));
+    resolvers[0]?.(snapshot());
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledTimes(3));
+    resolvers[1]?.(snapshot());
+    resolvers[2]?.(snapshot());
+    await preparation;
+
     effect.destroy();
   });
 
@@ -154,6 +180,190 @@ describe('snapshot preparation', () => {
 
     await vi.waitFor(() => expect(capture).toHaveBeenCalledOnce());
     expect(capture).toHaveBeenCalledWith(accepted, expect.objectContaining({ operation: 'prepare' }));
+    effect.destroy();
+  });
+
+  it('cancels an in-flight background snapshot before an operation claims the element', async () => {
+    let resolvePreparation!: (value: HTMLCanvasElement) => void;
+    const pendingPreparation = new Promise<HTMLCanvasElement>((resolve) => {
+      resolvePreparation = resolve;
+    });
+    const capture = vi.fn((_element: HTMLElement, context: { operation: string }) =>
+      context.operation === 'prepare' ? pendingPreparation : Promise.resolve(snapshot()),
+    );
+    const effect = new Disintegrator({
+      capture,
+      preparation: { strategy: 'immediate', invalidateOnResize: false },
+      layout: false,
+      sound: false,
+    });
+    const target = element();
+    effect.register(target);
+    await vi.waitFor(() =>
+      expect(capture).toHaveBeenCalledWith(target, expect.objectContaining({ operation: 'prepare' })),
+    );
+
+    const immediate = defineEffect({
+      remove: { animate: () => Promise.resolve(), sound: null },
+      restore: { animate: () => Promise.resolve(), sound: null },
+    });
+    const removal = effect.remove(target, { effect: immediate });
+
+    await vi.waitFor(() =>
+      expect(capture).toHaveBeenCalledWith(target, expect.objectContaining({ operation: 'remove' })),
+    );
+    resolvePreparation(snapshot());
+    await removal.finished;
+
+    expect(capture).toHaveBeenCalledTimes(2);
+    effect.destroy();
+  });
+
+  it('does not capture a queued preparation while restore owns the element', async () => {
+    const operations: string[] = [];
+    const capture = vi.fn((_element: HTMLElement, context: { operation: string }) => {
+      operations.push(context.operation);
+      return Promise.resolve(snapshot());
+    });
+    const immediate = defineEffect({
+      remove: { animate: () => Promise.resolve(), sound: null },
+      restore: { animate: () => Promise.resolve(), sound: null },
+    });
+    const effect = new Disintegrator({
+      capture,
+      preparation: { strategy: 'immediate', invalidateOnResize: false },
+      effect: immediate,
+      layout: false,
+      sound: false,
+    });
+    const target = element();
+
+    effect.register(target);
+    await effect.restore(target).finished;
+
+    expect(operations).toEqual(['restore']);
+
+    effect.destroy();
+  });
+
+  it('reuses a successful restore snapshot for the following removal', async () => {
+    const operations: string[] = [];
+    const capture = vi.fn((_element: HTMLElement, context: { operation: string }) => {
+      operations.push(context.operation);
+      return Promise.resolve(snapshot());
+    });
+    const immediate = defineEffect({
+      remove: { animate: () => Promise.resolve(), sound: null },
+      restore: { animate: () => Promise.resolve(), sound: null },
+    });
+    const effect = new Disintegrator({
+      capture,
+      preparation: { strategy: 'immediate', invalidateOnResize: false },
+      effect: immediate,
+      layout: false,
+      sound: false,
+    });
+    const target = element();
+
+    effect.register(target);
+    await effect.restore(target).finished;
+    await effect.remove(target).finished;
+
+    expect(operations).toEqual(['restore']);
+    effect.destroy();
+  });
+
+  it('reuses a retained removal snapshot for same-size restoration', async () => {
+    const operations: string[] = [];
+    const source = snapshot();
+    const capture = vi.fn((_element: HTMLElement, context: { operation: string }) => {
+      operations.push(context.operation);
+      return Promise.resolve(source);
+    });
+    const immediate = defineEffect({
+      remove: { animate: () => Promise.resolve(), sound: null },
+      restore: { animate: () => Promise.resolve(), sound: null },
+    });
+    const effect = new Disintegrator({
+      capture,
+      preparation: { strategy: 'immediate', invalidateOnResize: false },
+      effect: immediate,
+      layout: false,
+      sound: false,
+    });
+    const target = element();
+    effect.register(target);
+    await vi.waitFor(() => expect(operations).toEqual(['prepare']));
+
+    const removal = effect.remove(target, { retain: true });
+    await removal.finished;
+    const retained = effect.take(removal.removalId!);
+    document.body.append(retained!);
+    await effect.restore(retained!).finished;
+
+    expect(operations).toEqual(['prepare']);
+    effect.destroy();
+  });
+
+  it('recaptures a retained element when its restoration size changed', async () => {
+    const operations: string[] = [];
+    const capture = vi.fn((_element: HTMLElement, context: { operation: string }) => {
+      operations.push(context.operation);
+      return Promise.resolve(snapshot());
+    });
+    const immediate = defineEffect({
+      remove: { animate: () => Promise.resolve(), sound: null },
+      restore: { animate: () => Promise.resolve(), sound: null },
+    });
+    const effect = new Disintegrator({
+      capture,
+      preparation: { strategy: 'immediate', invalidateOnResize: false },
+      effect: immediate,
+      layout: false,
+      sound: false,
+    });
+    const target = element();
+    effect.register(target);
+    await vi.waitFor(() => expect(operations).toEqual(['prepare']));
+
+    const removal = effect.remove(target, { retain: true });
+    await removal.finished;
+    const retained = effect.take(removal.removalId!);
+    Object.defineProperty(retained!, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ ...rect(), height: 20, width: 20 }),
+    });
+    document.body.append(retained!);
+    await effect.restore(retained!).finished;
+
+    expect(operations).toEqual(['prepare', 'restore']);
+    effect.destroy();
+  });
+
+  it('releases a retained snapshot when its removal id is discarded', async () => {
+    const source = snapshot();
+    const capture = vi.fn().mockResolvedValue(source);
+    const immediate = defineEffect({
+      remove: { animate: () => Promise.resolve(), sound: null },
+      restore: { animate: () => Promise.resolve(), sound: null },
+    });
+    const effect = new Disintegrator({
+      capture,
+      preparation: { strategy: 'immediate', invalidateOnResize: false },
+      effect: immediate,
+      layout: false,
+      sound: false,
+    });
+    const target = element();
+    effect.register(target);
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledOnce());
+
+    const removal = effect.remove(target, { retain: true });
+    await removal.finished;
+    expect(source.width).toBe(10);
+    expect(effect.discard(removal.removalId!)).toBe(true);
+
+    expect(source.width).toBe(0);
     effect.destroy();
   });
 

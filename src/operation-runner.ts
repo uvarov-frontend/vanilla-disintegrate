@@ -50,6 +50,7 @@ interface RunningOperation {
   committed: boolean;
   settled: boolean;
   cancelVisual: () => void;
+  releasePreparation: () => void;
   finish: (status: EffectOperationStatus) => void;
 }
 
@@ -159,10 +160,13 @@ export class OperationRunner {
       committed: false,
       settled: false,
       cancelVisual: noop,
+      releasePreparation: noop,
       finish: (status) => {
         if (running.settled) return;
         running.settled = true;
         running.cancelVisual = noop;
+        running.releasePreparation();
+        running.releasePreparation = noop;
         const activeElement = running.element;
         if (activeElement !== null) this.busy.delete(activeElement);
         running.element = null;
@@ -230,6 +234,11 @@ export class OperationRunner {
       return;
     }
 
+    // An operation owns the target's visual state. Keep a registered element
+    // out of background preparation while restore() conceals it or remove()
+    // captures it, otherwise a transient (including empty) snapshot can enter
+    // the cache.
+    running.releasePreparation = this.preparation.suspend(element);
     const previousPointerEvents = element.style.pointerEvents;
     const restoreRootOpacity = running.kind === 'restore' ? getComputedStyle(element).opacity || '1' : undefined;
     const reveal = running.kind === 'restore' ? concealForRestore(element) : noop;
@@ -330,7 +339,7 @@ export class OperationRunner {
     let stopSound = noop;
     let stopScroll = noop;
     let cleaned = false;
-    const cleanup = (cancel: boolean) => {
+    const cleanup = (cancel: boolean, preserveSnapshot = false) => {
       if (cleaned) return;
       cleaned = true;
       if (cancel) {
@@ -350,7 +359,7 @@ export class OperationRunner {
       stopSound();
       stopScroll();
       overlay.remove();
-      disposeSnapshot(snapshot);
+      if (!preserveSnapshot) disposeSnapshot(snapshot);
     };
     running.cancelVisual = () => {
       cleanup(true);
@@ -392,7 +401,17 @@ export class OperationRunner {
     await Promise.race([Promise.all([animation.finished, layout.finished]), aborted]);
     running.controller.signal.removeEventListener('abort', resolveAbort);
     if (running.settled) return;
-    cleanup(false);
+    // Snapshots are transferred into the same bounded LRU instead of being
+    // duplicated. A retained removal can therefore restore the exact same,
+    // still-valid source without a second SnapDOM capture; a restored element
+    // likewise stays ready for its next removal.
+    const preserveSnapshot =
+      (running.kind === 'restore' && this.preparation.cache(element, snapshot)) ||
+      (running.kind === 'remove' &&
+        running.removalId !== null &&
+        this.retained.has(running.removalId, element) &&
+        this.preparation.cacheRetained(element, snapshot, bounds));
+    cleanup(false, preserveSnapshot);
     if (running.kind === 'restore') {
       reveal();
       element.style.pointerEvents = previousPointerEvents;

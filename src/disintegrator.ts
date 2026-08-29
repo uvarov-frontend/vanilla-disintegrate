@@ -78,12 +78,18 @@ export class Disintegrator {
 
   discard(id: RemovalId) {
     this.assertAlive();
-    return this.retained.discard(id);
+    const element = this.retained.elementFor(id);
+    const discarded = this.retained.discard(id);
+    if (element !== null) this.preparation.invalidate([element]);
+    return discarded;
   }
 
   discardAll() {
     this.assertAlive();
-    return this.retained.discardAll();
+    const elements = this.retained.elements();
+    const count = this.retained.discardAll();
+    this.preparation.invalidate(elements);
+    return count;
   }
 
   destroy() {
