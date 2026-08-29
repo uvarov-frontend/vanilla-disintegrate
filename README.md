@@ -26,7 +26,17 @@ Vanilla Disintegrate is a lightweight TypeScript library for removing and restor
 
 ## Browser Support
 
-Vanilla Disintegrate targets modern evergreen browsers with DOM, Canvas, Web Animations, and `AbortController` support. Initialize it only in the browser: it is not intended to run during server-side rendering.
+Vanilla Disintegrate is built for modern browsers. Its ES2020 output and required Canvas, Web Animations, `AbortController`, and `requestAnimationFrame` APIs define the following support baseline. No polyfills are included.
+
+| ![Chrome](https://raw.githubusercontent.com/alrra/browser-logos/master/src/chrome/chrome_48x48.png) | ![Firefox](https://raw.githubusercontent.com/alrra/browser-logos/master/src/firefox/firefox_48x48.png) | ![Edge](https://raw.githubusercontent.com/alrra/browser-logos/master/src/edge/edge_48x48.png) | ![Opera](https://raw.githubusercontent.com/alrra/browser-logos/master/src/opera/opera_48x48.png) | ![Safari](https://raw.githubusercontent.com/alrra/browser-logos/master/src/safari/safari_48x48.png) |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| 80+ ✔                                                                                               | 74+ ✔                                                                                                  | 80+ ✔                                                                                         | 67+ ✔                                                                                            | 13.1+ ✔                                                                                             |
+
+Current Chrome for Android and iOS Safari are supported under the same engine baseline. Initialize the library only in the browser: it is not intended to run during server-side rendering.
+
+`preparation` progressively enhances the default removal flow. Browsers without `IntersectionObserver`, `ResizeObserver`, or `requestIdleCallback` still run effects; preparation uses the available fallback instead.
+
+SnapDOM captures the rendered element through Canvas. Images, fonts, and stylesheets from another origin must send the appropriate CORS headers or be served through SnapDOM's proxy option; otherwise they may be missing from the snapshot. Safari is supported, though captures that embed fonts or use background and mask images can take longer.
 
 ## Support and Feedback
 
