@@ -7,6 +7,8 @@
 
 Vanilla Disintegrate is a lightweight TypeScript library for removing and restoring DOM elements with a Thanos-snap particle effect. It works with plain JavaScript and any framework that renders DOM, needs no runtime CSS, and gives you four ready-made animation pairs or a contract for creating your own.
 
+**Website and interactive documentation:** [disintegrate.uvarov.tech](https://disintegrate.uvarov.tech)
+
 ## Key Features
 
 - **Thanos-snap effect**: Turn the real appearance of a DOM element into animated particles.
@@ -242,17 +244,17 @@ Call `remove()` or `restore()` from a user gesture such as a click so the librar
 
 ## Documentation
 
-The repository includes a complete, editable documentation site in English, Russian, Chinese, and Korean:
+The complete documentation and interactive demos are available in English, Russian, Chinese, and Korean at [disintegrate.uvarov.tech](https://disintegrate.uvarov.tech):
 
-- [Installation and first effect](./docs/content/en/learn/installation.mdx)
-- [Remove and restore](./docs/content/en/learn/remove-restore.mdx)
-- [Built-in effects](./docs/content/en/learn/effects.mdx)
-- [Retained nodes and memory](./docs/content/en/learn/retention.mdx)
-- [Snapshot preparation](./docs/content/en/learn/preparation.mdx)
-- [Custom effects](./docs/content/en/learn/custom-effects.mdx)
-- [Framework integration](./docs/content/en/learn/frameworks.mdx)
-- [API reference](./docs/content/en/reference/api.mdx)
-- [Audio reference](./docs/content/en/reference/audio.mdx)
+- [Installation and first effect](https://disintegrate.uvarov.tech/docs/learn/installation/)
+- [Remove and restore](https://disintegrate.uvarov.tech/docs/learn/remove-restore/)
+- [Built-in effects](https://disintegrate.uvarov.tech/docs/learn/effects/)
+- [Retained nodes and memory](https://disintegrate.uvarov.tech/docs/learn/retention/)
+- [Snapshot preparation](https://disintegrate.uvarov.tech/docs/learn/preparation/)
+- [Custom effects](https://disintegrate.uvarov.tech/docs/learn/custom-effects/)
+- [Framework integration](https://disintegrate.uvarov.tech/docs/learn/frameworks/)
+- [API reference](https://disintegrate.uvarov.tech/docs/reference/api/)
+- [Audio reference](https://disintegrate.uvarov.tech/docs/reference/audio/)
 
 ## Development
 

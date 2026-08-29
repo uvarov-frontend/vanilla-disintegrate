@@ -13,7 +13,7 @@
     "web-animations",
     "snapdom"
   ],
-  "homepage": "https://github.com/uvarov-frontend/vanilla-disintegrate#readme",
+  "homepage": "https://disintegrate.uvarov.tech",
   "bugs": "https://github.com/uvarov-frontend/vanilla-disintegrate/issues",
   "repository": {
     "type": "git",
@@ -50,9 +50,6 @@
     "CHANGELOG.md"
   ],
   "sideEffects": false,
-  "engines": {
-    "node": ">=20.19"
-  },
   "packageManager": "pnpm@10.18.2",
   "scripts": {
     "dev": "pnpm run build && astro dev",

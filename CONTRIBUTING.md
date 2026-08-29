@@ -2,6 +2,8 @@
 
 Issues and pull requests are welcome.
 
+Development requires Node.js 22.12 or newer and pnpm 10.
+
 1. Fork and clone the repository.
 2. Install dependencies with `pnpm install`.
 3. Run the demo with `pnpm dev`.
