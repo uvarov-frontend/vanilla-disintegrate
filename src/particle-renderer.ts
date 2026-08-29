@@ -636,10 +636,12 @@ function createParticlePhase(options: ParticleOptions, programs: ParticleProgram
   };
 }
 
+/** Creates a particle-based remove phase for a custom effect. */
 export function createParticleAnimation(options: ParticleOptions = {}) {
   return createParticlePhase(options, REMOVE_PROGRAMS);
 }
 
+/** Creates the paired particle-based restore phase for a custom effect. */
 export function createParticleRestoreAnimation(options: ParticleOptions = {}): AnimationFactory {
   return createParticlePhase(options, RESTORE_PROGRAMS);
 }

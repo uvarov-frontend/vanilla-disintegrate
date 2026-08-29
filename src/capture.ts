@@ -13,6 +13,7 @@ const DEFAULT_CAPTURE_OPTIONS: SnapdomOptions = {
   scale: 1,
 };
 
+/** Creates a SnapDOM `toCanvas()` adapter with the library's capture defaults. */
 export function createSnapdomCapture(options: SnapdomOptions = {}): SnapshotCapture {
   const customFilter = options.filter;
   return (element, context) => {

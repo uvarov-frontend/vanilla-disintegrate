@@ -2,6 +2,7 @@ import { createSnapdomCapture, type SnapdomOptions } from './capture';
 import { Disintegrator as CoreDisintegrator } from './disintegrator';
 import type { DisintegratorOptions } from './types';
 
+/** Options for the SnapDOM-enabled entry point. */
 export interface SnapdomDisintegratorOptions extends DisintegratorOptions {
   /** Forwarded to SnapDOM's `toCanvas()` on top of the library's capture defaults. */
   readonly snapdom?: SnapdomOptions;
@@ -12,6 +13,7 @@ export interface SnapdomDisintegratorOptions extends DisintegratorOptions {
  * from `vanilla-disintegrate` instead when you supply your own `capture`.
  */
 export class Disintegrator extends CoreDisintegrator {
+  /** Creates an instance with SnapDOM as its default capture adapter. */
   constructor(options: SnapdomDisintegratorOptions = {}) {
     const { capture, snapdom, ...rest } = options;
     super({ ...rest, capture: capture ?? createSnapdomCapture(snapdom) });

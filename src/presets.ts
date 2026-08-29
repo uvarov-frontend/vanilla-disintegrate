@@ -42,6 +42,7 @@ const particlePresets: Readonly<Record<BuiltInEffect, ParticleOptions>> = Object
   },
 });
 
+/** The four built-in paired effects: `dust`, `vapor`, `scatter` and `wind`. */
 export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> = Object.freeze({
   dust: defineEffect({
     remove: {

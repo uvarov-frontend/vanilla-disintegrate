@@ -82,8 +82,6 @@ export class SnapshotPreparation {
     this.requireCapture();
     await Promise.all(
       elements.map(async (element) => {
-        // Explicit preparation is immediate, but it shares the same capture
-        // budget as background work instead of spawning unbounded captures.
         const resume = this.suspend(element);
         let release: (() => void) | null = null;
         try {
