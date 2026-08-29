@@ -1283,7 +1283,7 @@ code {
   --package-manager-index: 0;
   --package-manager-count: 4;
   width: 100%;
-  max-width: 420px;
+  max-width: 520px;
   margin-top: 18px;
 }
 
@@ -1352,18 +1352,19 @@ code {
 .install-command code {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
   border: 0;
   color: #bbb5c4;
   background: transparent;
   padding: 0 8px;
   font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
   text-align: left;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .install-command button {
+  align-self: center;
   flex: 0 0 auto;
   padding: 6px 9px;
   border: 0;
