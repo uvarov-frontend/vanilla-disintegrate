@@ -134,10 +134,7 @@ describe('snapshot preparation', () => {
     Object.defineProperty(window, 'cancelIdleCallback', { configurable: true, value: vi.fn() });
     const target = element();
     const capture = vi.fn().mockResolvedValue(snapshot());
-    const effect = new Disintegrator({
-      capture,
-      preparation: { strategy: 'visible-idle', invalidateOnResize: false },
-    });
+    const effect = new Disintegrator({ capture });
 
     effect.register(target);
     expect(capture).not.toHaveBeenCalled();
@@ -270,6 +267,26 @@ describe('snapshot preparation', () => {
     await effect.remove(target).finished;
 
     expect(operations).toEqual(['restore']);
+    effect.destroy();
+  });
+
+  it('does not retain operation snapshots for elements that were never registered', async () => {
+    const operations: string[] = [];
+    const capture = vi.fn((_element: HTMLElement, context: { operation: string }) => {
+      operations.push(context.operation);
+      return Promise.resolve(snapshot());
+    });
+    const immediate = defineEffect({
+      remove: { animate: () => Promise.resolve(), sound: null },
+      restore: { animate: () => Promise.resolve(), sound: null },
+    });
+    const effect = new Disintegrator({ capture, effect: immediate, layout: false, sound: false });
+    const target = element();
+
+    await effect.restore(target).finished;
+    await effect.remove(target).finished;
+
+    expect(operations).toEqual(['restore', 'remove']);
     effect.destroy();
   });
 

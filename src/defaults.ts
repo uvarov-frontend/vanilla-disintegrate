@@ -1,4 +1,11 @@
-import type { LayoutOptions, ParticleOptions, PreparationOptions } from './types';
+import type {
+  AudioPreparationOptions,
+  AudioPreparationStrategy,
+  EffectSelection,
+  LayoutOptions,
+  ParticleOptions,
+  PreparationOptions,
+} from './types';
 
 export interface ResolvedParticleOptions {
   readonly motion: NonNullable<ParticleOptions['motion']>;
@@ -37,6 +44,13 @@ export interface ResolvedPreparationOptions {
   readonly cachePixelBudget: number;
 }
 
+export interface ResolvedAudioPreparationOptions {
+  readonly enabled: boolean;
+  readonly strategy: AudioPreparationStrategy;
+  readonly effects?: EffectSelection | readonly EffectSelection[];
+  readonly cacheByteBudget: number;
+}
+
 export const DEFAULT_PARTICLES: ResolvedParticleOptions = {
   motion: 'dust',
   duration: 720,
@@ -58,7 +72,7 @@ export const DEFAULT_LAYOUT: ResolvedLayoutOptions = {
 };
 
 export const DEFAULT_PREPARATION: ResolvedPreparationOptions = {
-  enabled: false,
+  enabled: true,
   strategy: 'visible-idle',
   shouldPrepare: () => true,
   root: null,
@@ -71,6 +85,12 @@ export const DEFAULT_PREPARATION: ResolvedPreparationOptions = {
   scrollSettle: 120,
   animationSettle: 400,
   cachePixelBudget: 8_000_000,
+};
+
+export const DEFAULT_AUDIO_PREPARATION: ResolvedAudioPreparationOptions = {
+  enabled: true,
+  strategy: 'immediate',
+  cacheByteBudget: 8 * 1024 * 1024,
 };
 
 function finiteNumber(
@@ -121,8 +141,8 @@ export function resolveLayout(options: boolean | LayoutOptions | undefined): Res
 }
 
 export function resolvePreparation(options: boolean | PreparationOptions | undefined): ResolvedPreparationOptions {
-  if (options === false || options === undefined) return { ...DEFAULT_PREPARATION };
-  if (options === true) return { ...DEFAULT_PREPARATION, enabled: true };
+  if (options === false) return { ...DEFAULT_PREPARATION, enabled: false };
+  if (options === true || options === undefined) return { ...DEFAULT_PREPARATION };
   return {
     enabled: true,
     strategy: options.strategy ?? DEFAULT_PREPARATION.strategy,
@@ -137,5 +157,19 @@ export function resolvePreparation(options: boolean | PreparationOptions | undef
     scrollSettle: finiteNumber(options.scrollSettle, DEFAULT_PREPARATION.scrollSettle, 0),
     animationSettle: finiteNumber(options.animationSettle, DEFAULT_PREPARATION.animationSettle, 0),
     cachePixelBudget: finiteNumber(options.cachePixelBudget, DEFAULT_PREPARATION.cachePixelBudget, 0),
+  };
+}
+
+export function resolveAudioPreparation(
+  options: false | AudioPreparationStrategy | AudioPreparationOptions | undefined,
+): ResolvedAudioPreparationOptions {
+  if (options === false) return { ...DEFAULT_AUDIO_PREPARATION, enabled: false };
+  if (options === undefined) return { ...DEFAULT_AUDIO_PREPARATION };
+  if (typeof options === 'string') return { ...DEFAULT_AUDIO_PREPARATION, strategy: options };
+  return {
+    enabled: true,
+    strategy: options.strategy ?? DEFAULT_AUDIO_PREPARATION.strategy,
+    ...(options.effects === undefined ? {} : { effects: options.effects }),
+    cacheByteBudget: finiteNumber(options.cacheByteBudget, DEFAULT_AUDIO_PREPARATION.cacheByteBudget, 0),
   };
 }

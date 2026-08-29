@@ -1,4 +1,4 @@
-import { SoundPlayer } from './audio';
+import { SoundPlayer, type PreparedSound } from './audio';
 import { resolveLayout } from './defaults';
 import { LayoutAnimator, type LayoutPlayback } from './layout';
 import { disposeSnapshot, SnapshotPreparation } from './preparation';
@@ -45,6 +45,7 @@ interface RunningOperation {
   readonly retain: boolean;
   readonly detach: RemoveOptions['detach'];
   readonly effect: EffectDefinition;
+  readonly sound: SoundDefinition | null;
   readonly callbacks: readonly EffectCallbacks[];
   readonly controller: AbortController;
   committed: boolean;
@@ -127,7 +128,6 @@ function normalizeAnimation(result: AnimationResult, layer: HTMLElement): Normal
 }
 
 export class OperationRunner {
-  private readonly sound = new SoundPlayer();
   private readonly layout = new LayoutAnimator();
   private readonly active = new Set<RunningOperation>();
   private readonly busy = new WeakSet<HTMLElement>();
@@ -137,6 +137,7 @@ export class OperationRunner {
     private readonly options: DisintegratorOptions,
     private readonly preparation: SnapshotPreparation,
     private readonly retained: RetainedElements,
+    private readonly sound: SoundPlayer,
   ) {}
 
   run(options: RunOptions): EffectOperation {
@@ -144,6 +145,7 @@ export class OperationRunner {
     const { element, effect, kind, removalId, overrides } = options;
     const retain = kind === 'remove' && (overrides as RemoveOptions).retain === true;
     const callbacks = [this.options, overrides] as const;
+    const sound = this.resolveSound(effect[kind].sound ?? null, overrides.sound);
     let resolveFinished: (result: EffectOperationResult) => void = () => undefined;
     const finished = new Promise<EffectOperationResult>((resolve) => {
       resolveFinished = resolve;
@@ -155,6 +157,7 @@ export class OperationRunner {
       retain,
       detach: kind === 'remove' ? (overrides as RemoveOptions).detach : undefined,
       effect,
+      sound,
       callbacks,
       controller: new AbortController(),
       committed: false,
@@ -195,6 +198,9 @@ export class OperationRunner {
     }
     this.busy.add(element);
     this.active.add(running);
+    this.sound.unlock(sound, (error) =>
+      reportCallbackError(error, { operation: kind, element, overlay: null, removalId }, callbacks),
+    );
     void this.start(running, overrides, callbacks);
     return operation;
   }
@@ -208,7 +214,6 @@ export class OperationRunner {
       this.commit(operation);
       operation.finish('cancelled');
     }
-    this.sound.destroy();
   }
 
   private async start(
@@ -248,18 +253,28 @@ export class OperationRunner {
       reveal();
     };
     let snapshot: HTMLCanvasElement | null = null;
+    let preparedSound: PreparedSound;
 
     try {
+      const audio = this.sound.prepare(running.sound).catch((error: unknown) => {
+        if (!running.settled) reportCallbackError(error, emptyContext, callbacks);
+        return null;
+      });
       if (phase.needsSnapshot ?? true) {
-        snapshot = await this.preparation.take(
-          element,
-          running.kind,
-          running.controller.signal,
-          restoreRootOpacity === undefined ? {} : { restoreRootOpacity },
-        );
+        [snapshot, preparedSound] = await Promise.all([
+          this.preparation.take(
+            element,
+            running.kind,
+            running.controller.signal,
+            restoreRootOpacity === undefined ? {} : { restoreRootOpacity },
+          ),
+          audio,
+        ]);
       } else if (running.kind === 'restore') {
         // Let same-turn DOM updates settle before measuring the element's final insertion geometry.
-        await Promise.resolve();
+        [, preparedSound] = await Promise.all([Promise.resolve(), audio]);
+      } else {
+        preparedSound = await audio;
       }
       if (running.settled) {
         disposeSnapshot(snapshot);
@@ -270,7 +285,16 @@ export class OperationRunner {
       if (currentRect.width <= 0 || currentRect.height <= 0) {
         throw new Error('The target element became unmeasurable before the effect started.');
       }
-      await this.play(running, overrides, callbacks, currentRect, snapshot, previousPointerEvents, reveal);
+      await this.play(
+        running,
+        overrides,
+        callbacks,
+        currentRect,
+        snapshot,
+        preparedSound,
+        previousPointerEvents,
+        reveal,
+      );
     } catch (error) {
       disposeSnapshot(snapshot);
       if (running.settled) return;
@@ -288,6 +312,7 @@ export class OperationRunner {
     callbacks: readonly EffectCallbacks[],
     bounds: DOMRectReadOnly,
     snapshot: HTMLCanvasElement | null,
+    preparedSound: PreparedSound,
     previousPointerEvents: string,
     reveal: () => void,
   ) {
@@ -383,7 +408,7 @@ export class OperationRunner {
       layout = this.layout.play(layoutSnapshot, layoutOptions, animation.layoutDelay);
       runCallback('onStart', context, callbacks);
       stopSound = this.sound.play(
-        this.resolveSound(running.effect[running.kind].sound ?? null, overrides.sound),
+        preparedSound,
         animation.duration / 1000,
         { operation: running.kind, element, signal: running.controller.signal },
         (error) => reportCallbackError(error, context, callbacks),

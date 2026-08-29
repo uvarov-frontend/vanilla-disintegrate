@@ -38,6 +38,54 @@ function customEffect(animate = vi.fn(() => Promise.resolve())) {
   });
 }
 
+function mockNativeAudio(decoded: Promise<AudioBuffer> = Promise.resolve(audioBuffer())) {
+  const source = {
+    addEventListener: vi.fn(),
+    buffer: null,
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    playbackRate: { value: 1 },
+    start: vi.fn(),
+    stop: vi.fn(),
+  } as unknown as AudioBufferSourceNode;
+  const context = {
+    close: vi.fn().mockResolvedValue(undefined),
+    createBuffer: vi.fn(() => audioBuffer()),
+    createBufferSource: vi.fn(() => source),
+    createGain: vi.fn(() => ({
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      gain: { linearRampToValueAtTime: vi.fn(), setValueAtTime: vi.fn() },
+    })),
+    currentTime: 0,
+    decodeAudioData: vi.fn(() => decoded),
+    destination: {},
+    resume: vi.fn().mockResolvedValue(undefined),
+    state: 'running',
+  } as unknown as AudioContext;
+  const Context = vi.fn(function AudioContextMock() {
+    return context;
+  });
+  const fetchMock = vi.fn().mockResolvedValue({
+    arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
+    ok: true,
+  });
+  vi.stubGlobal('AudioContext', Context);
+  vi.stubGlobal('fetch', fetchMock);
+  return { Context, context, fetchMock, source };
+}
+
+function audioBuffer(): AudioBuffer {
+  const samples = new Float32Array(8);
+  return {
+    duration: 1,
+    getChannelData: () => samples,
+    length: samples.length,
+    numberOfChannels: 1,
+    sampleRate: samples.length,
+  } as unknown as AudioBuffer;
+}
+
 beforeEach(() => document.body.replaceChildren());
 
 describe('public entries', () => {
@@ -137,6 +185,99 @@ describe('public entries', () => {
     await effect.remove(element).finished;
 
     expect(sound).toHaveBeenCalledOnce();
+    effect.destroy();
+  });
+
+  it('does no audio work while instance sound is disabled', async () => {
+    const { Context, fetchMock } = mockNativeAudio();
+    const effect = new Disintegrator({
+      audioPreparation: { effects: ['dust', 'wind'] },
+      effect: 'dust',
+      sound: false,
+    });
+
+    await Promise.resolve();
+
+    expect(Context).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    effect.destroy();
+  });
+
+  it('automatically prepares only the selected built-in effect', async () => {
+    const { fetchMock } = mockNativeAudio();
+    const effect = new Disintegrator({ effect: 'vapor', sound: true });
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('vapor');
+    effect.destroy();
+  });
+
+  it('can explicitly prepare several effects even while instance sound is disabled', async () => {
+    const { fetchMock } = mockNativeAudio();
+    const effect = new Disintegrator({ sound: false });
+
+    await effect.prepareAudio(['dust', 'scatter', 'vapor', 'wind']);
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    effect.destroy();
+  });
+
+  it('waits for native audio preparation before starting the visual phase', async () => {
+    let resolveAudio!: (buffer: AudioBuffer) => void;
+    const decoded = new Promise<AudioBuffer>((resolve) => {
+      resolveAudio = resolve;
+    });
+    const { fetchMock } = mockNativeAudio(decoded);
+    const animate = vi.fn(() => Promise.resolve());
+    const effect = new Disintegrator({
+      effect: defineEffect({
+        remove: { needsSnapshot: false, animate, sound: { src: '/effect.mp3' } },
+        restore: { needsSnapshot: false, animate, sound: { src: '/effect.mp3', reverse: true } },
+      }),
+      layout: false,
+      sound: true,
+    });
+
+    const operation = effect.remove(target());
+    await Promise.resolve();
+    expect(animate).not.toHaveBeenCalled();
+
+    resolveAudio(audioBuffer());
+    await operation.finished;
+
+    expect(animate).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    effect.destroy();
+  });
+
+  it('continues the visual operation when native audio is unavailable', async () => {
+    const unavailable = new Error('audio unavailable');
+    vi.stubGlobal(
+      'AudioContext',
+      vi.fn(function AudioContextMock() {
+        throw unavailable;
+      }),
+    );
+    const animate = vi.fn(() => Promise.resolve());
+    const onError = vi.fn();
+    const effect = new Disintegrator({
+      audioPreparation: false,
+      effect: defineEffect({
+        remove: { needsSnapshot: false, animate, sound: { src: '/effect.mp3' } },
+        restore: { needsSnapshot: false, animate, sound: null },
+      }),
+      layout: false,
+      onError,
+      sound: true,
+    });
+
+    const result = await effect.remove(target()).finished;
+
+    expect(result.status).toBe('completed');
+    expect(animate).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError).toHaveBeenCalledWith(unavailable, expect.objectContaining({ operation: 'remove' }));
     effect.destroy();
   });
 

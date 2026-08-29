@@ -434,7 +434,14 @@ export class SnapshotPreparation {
     retained: boolean,
     bounds: Pick<DOMRectReadOnly, 'width' | 'height'> = element.getBoundingClientRect(),
   ) {
-    if (!this.options.enabled || this.destroyed || snapshot === null || bounds.width <= 0 || bounds.height <= 0) {
+    if (
+      !this.options.enabled ||
+      this.destroyed ||
+      (!retained && !this.registered.has(element)) ||
+      snapshot === null ||
+      bounds.width <= 0 ||
+      bounds.height <= 0
+    ) {
       return false;
     }
     this.invalidateElement(element, false);

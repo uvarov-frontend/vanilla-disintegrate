@@ -1,4 +1,5 @@
-import { resolvePreparation } from './defaults';
+import { SoundPlayer } from './audio';
+import { resolveAudioPreparation, resolvePreparation } from './defaults';
 import { OperationRunner } from './operation-runner';
 import { SnapshotPreparation } from './preparation';
 import { resolveEffect } from './presets';
@@ -8,6 +9,7 @@ import type {
   EffectTarget,
   EffectTargets,
   DisintegratorOptions,
+  EffectSelection,
   RemovalId,
   RemoveOptions,
   RestoreOptions,
@@ -20,17 +22,26 @@ import type {
 export class Disintegrator {
   private readonly retained = new RetainedElements();
   private readonly preparation: SnapshotPreparation;
+  private readonly sound: SoundPlayer;
   private readonly runner: OperationRunner;
   private destroyed = false;
 
   /** Creates an independent animation instance. Call `destroy()` when its UI is disposed. */
   constructor(private readonly options: DisintegratorOptions = {}) {
+    const audioPreparation = resolveAudioPreparation(options.audioPreparation);
     this.preparation = new SnapshotPreparation(
       options.capture,
       resolvePreparation(options.preparation),
       (error, element) => this.reportBackgroundError(error, element),
     );
-    this.runner = new OperationRunner(options, this.preparation, this.retained);
+    this.sound = new SoundPlayer(audioPreparation.cacheByteBudget);
+    this.runner = new OperationRunner(options, this.preparation, this.retained, this.sound);
+    if (audioPreparation.enabled && options.sound !== undefined && options.sound !== false) {
+      this.sound.schedule(
+        this.resolveSoundDefinitions(audioPreparation.effects ?? options.effect),
+        audioPreparation.strategy,
+      );
+    }
   }
 
   /**
@@ -91,6 +102,24 @@ export class Disintegrator {
     this.preparation.clear();
   }
 
+  /** Immediately fetches and decodes the selected effects' native audio. */
+  prepareAudio(effects: EffectSelection | readonly EffectSelection[] = this.options.effect ?? 'dust') {
+    this.assertAlive();
+    return this.sound.prepareAll(this.resolveSoundDefinitions(effects));
+  }
+
+  /** Releases decoded audio belonging to the selected effects without stopping active playback. */
+  discardPreparedAudio(effects: EffectSelection | readonly EffectSelection[] = this.options.effect ?? 'dust') {
+    this.assertAlive();
+    return this.sound.discard(this.resolveSoundDefinitions(effects));
+  }
+
+  /** Releases every decoded audio buffer while leaving sound configuration unchanged. */
+  clearPreparedAudio() {
+    this.assertAlive();
+    this.sound.clearPrepared();
+  }
+
   /** Returns a retained node and consumes its `RemovalId`; returns `null` when it was already released. */
   take(id: RemovalId) {
     this.assertAlive();
@@ -121,6 +150,7 @@ export class Disintegrator {
     this.destroyed = true;
     this.runner.destroy();
     this.preparation.destroy();
+    this.sound.destroy();
     this.retained.discardAll();
   }
 
@@ -144,6 +174,21 @@ export class Disintegrator {
     } catch {
       // Background preparation remains isolated from application callbacks.
     }
+  }
+
+  private resolveSoundDefinitions(selections: EffectSelection | readonly EffectSelection[] | undefined) {
+    const configuredSound = this.options.sound;
+    if (configuredSound !== undefined && typeof configuredSound !== 'boolean') return [configuredSound];
+    const effects: readonly EffectSelection[] =
+      selections === undefined
+        ? ['dust']
+        : Array.isArray(selections)
+          ? (selections as readonly EffectSelection[])
+          : [selections as EffectSelection];
+    return effects.flatMap((selection) => {
+      const effect = resolveEffect(selection, this.options.effects);
+      return [effect.remove.sound ?? null, effect.restore.sound ?? null];
+    });
   }
 
   private assertAlive() {

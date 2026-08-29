@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveLayout, resolveParticles, resolvePreparation } from '../src/defaults';
+import { resolveAudioPreparation, resolveLayout, resolveParticles, resolvePreparation } from '../src/defaults';
 import type { LayoutOptions } from '../src/types';
 
 describe('option resolvers', () => {
@@ -24,8 +24,9 @@ describe('option resolvers', () => {
     expect(resolveLayout(javascriptInput)).toMatchObject({ enabled: true, duration: 300 });
   });
 
-  it('keeps background preparation disabled unless explicitly enabled', () => {
-    expect(resolvePreparation(undefined).enabled).toBe(false);
+  it('uses visible-idle background preparation unless explicitly disabled', () => {
+    expect(resolvePreparation(undefined)).toMatchObject({ enabled: true, strategy: 'visible-idle' });
+    expect(resolvePreparation(false).enabled).toBe(false);
     expect(resolvePreparation(true)).toMatchObject({ enabled: true, strategy: 'visible-idle', concurrency: 1 });
     expect(resolvePreparation({ strategy: 'idle', concurrency: 20, cachePixelBudget: -1 })).toMatchObject({
       enabled: true,
@@ -33,5 +34,16 @@ describe('option resolvers', () => {
       concurrency: 8,
       cachePixelBudget: 0,
     });
+  });
+
+  it('prepares enabled audio immediately with a bounded decoded cache', () => {
+    expect(resolveAudioPreparation(undefined)).toMatchObject({
+      enabled: true,
+      strategy: 'immediate',
+      cacheByteBudget: 8 * 1024 * 1024,
+    });
+    expect(resolveAudioPreparation(false).enabled).toBe(false);
+    expect(resolveAudioPreparation('idle').strategy).toBe('idle');
+    expect(resolveAudioPreparation({ cacheByteBudget: -1 }).cacheByteBudget).toBe(0);
   });
 });

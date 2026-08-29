@@ -194,7 +194,20 @@ export interface LayoutOptions {
 /** When a registered element should be captured in the background. */
 export type PreparationStrategy = 'immediate' | 'idle' | 'visible-idle';
 
-/** Controls the optional, bounded background snapshot cache. */
+/** When encoded audio should be fetched and decoded before its first playback. */
+export type AudioPreparationStrategy = 'immediate' | 'idle';
+
+/** Controls automatic audio preparation and the decoded-buffer cache. */
+export interface AudioPreparationOptions {
+  /** Starts preparation now or when the browser is idle. Defaults to `immediate`. */
+  readonly strategy?: AudioPreparationStrategy;
+  /** Effects to prepare instead of only the instance's default effect. */
+  readonly effects?: EffectSelection | readonly EffectSelection[];
+  /** LRU capacity for library-owned decoded PCM data. Defaults to 8 MiB. */
+  readonly cacheByteBudget?: number;
+}
+
+/** Controls the bounded background snapshot cache for registered elements. */
 export interface PreparationOptions {
   /** `immediate`, idle time, or only while near the viewport. Defaults to `visible-idle`. */
   readonly strategy?: PreparationStrategy;
@@ -258,8 +271,10 @@ export interface DisintegratorOptions extends EffectCallbacks {
   readonly sound?: boolean | SoundDefinition;
   /** Enables or configures reflow animation for remove operations. */
   readonly layout?: boolean | LayoutOptions;
-  /** Enables background snapshot caching. `false` is the default. */
+  /** Configures background snapshot caching. Registered elements use `visible-idle` by default. */
   readonly preparation?: boolean | PreparationOptions;
+  /** Configures automatic preparation of enabled audio, or disables it with `false`. */
+  readonly audioPreparation?: false | AudioPreparationStrategy | AudioPreparationOptions;
   /** Skips operations when the user requests reduced motion. Defaults to `true`. */
   readonly respectReducedMotion?: boolean;
   /** Container for fixed-position animation overlays. Defaults to `document.body`. */
