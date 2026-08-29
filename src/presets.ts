@@ -1,5 +1,6 @@
 import christmasSoundUrl from './sounds/christmas-wind.mp3?url&no-inline';
 import dustSoundUrl from './sounds/dust.mp3?url&no-inline';
+import scatterSoundUrl from './sounds/scatter.mp3?url&no-inline';
 
 import { defineEffect } from './effects';
 import { createParticleAnimation, createParticleRestoreAnimation } from './particle-renderer';
@@ -67,11 +68,11 @@ export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> =
   scatter: defineEffect({
     remove: {
       animate: createParticleAnimation(particlePresets.scatter),
-      sound: null,
+      sound: { src: scatterSoundUrl },
     },
     restore: {
       animate: createParticleRestoreAnimation(particlePresets.scatter),
-      sound: null,
+      sound: { src: scatterSoundUrl, reverse: true },
     },
   }),
   wind: defineEffect({

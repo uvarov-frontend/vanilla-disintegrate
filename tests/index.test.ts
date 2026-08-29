@@ -49,19 +49,17 @@ describe('public entries', () => {
       expect('sound' in effect.remove).toBe(true);
       expect('sound' in effect.restore).toBe(true);
     }
-    for (const name of ['dust', 'wind'] as const) {
+    for (const name of ['dust', 'wind', 'scatter'] as const) {
       expect(builtInEffects[name].remove.sound).not.toBeNull();
       expect(builtInEffects[name].restore.sound).not.toBeNull();
     }
-    for (const name of ['vapor', 'scatter'] as const) {
-      expect(builtInEffects[name].remove.sound).toBeNull();
-      expect(builtInEffects[name].restore.sound).toBeNull();
-    }
+    expect(builtInEffects.vapor.remove.sound).toBeNull();
+    expect(builtInEffects.vapor.restore.sound).toBeNull();
     expect(
       Object.values(builtInEffects)
         .flatMap((effect) => [effect.remove.sound, effect.restore.sound])
         .filter(Boolean),
-    ).toHaveLength(4);
+    ).toHaveLength(6);
   });
 
   it('uses the capture adapter supplied to the core entry', async () => {
