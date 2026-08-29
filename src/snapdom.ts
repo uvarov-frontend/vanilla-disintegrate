@@ -4,7 +4,10 @@ import type { DisintegratorOptions } from './types';
 
 /** Options for the SnapDOM-enabled entry point. */
 export interface SnapdomDisintegratorOptions extends DisintegratorOptions {
-  /** Forwarded to SnapDOM's `toCanvas()` on top of the library's capture defaults. */
+  /**
+   * Forwarded to SnapDOM's `toCanvas()` on top of the library defaults. Capture
+   * density follows the current display DPR, capped at `2`, unless `dpr` is set.
+   */
   readonly snapdom?: SnapdomOptions;
 }
 

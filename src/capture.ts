@@ -3,15 +3,19 @@ import { snapdom, type SnapdomOptions, type SnapdomPlugin } from '@zumer/snapdom
 import type { SnapshotCapture } from './types';
 
 const DEFAULT_CAPTURE_OPTIONS: SnapdomOptions = {
-  dpr: 1,
   embedFonts: true,
   fast: true,
   filterMode: 'remove',
   outerShadows: false,
-  outerTransforms: false,
+  outerTransforms: true,
   reconcile: true,
   scale: 1,
 };
+
+function resolveCaptureDpr() {
+  const devicePixelRatio = typeof window === 'undefined' ? 1 : window.devicePixelRatio;
+  return Math.min(Math.max(devicePixelRatio || 1, 1), 2);
+}
 
 /** Creates a SnapDOM `toCanvas()` adapter with the library's capture defaults. */
 export function createSnapdomCapture(options: SnapdomOptions = {}): SnapshotCapture {
@@ -32,6 +36,7 @@ export function createSnapdomCapture(options: SnapdomOptions = {}): SnapshotCapt
 
     return snapdom.toCanvas(element, {
       ...DEFAULT_CAPTURE_OPTIONS,
+      dpr: resolveCaptureDpr(),
       ...options,
       ...(plugins === undefined ? {} : { plugins }),
       filter: (node) => {

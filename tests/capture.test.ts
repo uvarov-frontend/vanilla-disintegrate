@@ -15,6 +15,11 @@ import { createSnapdomCapture } from '../src/capture';
 import { Disintegrator as SnapdomDisintegrator } from '../src/snapdom';
 import { Disintegrator as CoreDisintegrator } from '../src/index';
 
+beforeEach(() => {
+  toCanvas.mockClear();
+  Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 1 });
+});
+
 describe('SnapDOM capture adapter', () => {
   it('restores the captured root opacity without revealing the live restore target', async () => {
     const target = document.createElement('article');
@@ -49,6 +54,33 @@ describe('SnapDOM capture adapter', () => {
     const options = toCanvas.mock.calls.at(-1)?.[1] as SnapdomOptions;
     expect(options.plugins).toBeUndefined();
   });
+
+  it('uses a crisp display density without exceeding two physical pixels per CSS pixel', async () => {
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 3 });
+    const capture = createSnapdomCapture();
+
+    await capture(document.createElement('article'), {
+      operation: 'remove',
+      signal: new AbortController().signal,
+    });
+
+    expect(toCanvas).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({ dpr: 2, outerTransforms: true }),
+    );
+  });
+
+  it('allows the application to choose another capture density', async () => {
+    Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 2 });
+    const capture = createSnapdomCapture({ dpr: 1 });
+
+    await capture(document.createElement('article'), {
+      operation: 'remove',
+      signal: new AbortController().signal,
+    });
+
+    expect(toCanvas).toHaveBeenCalledWith(expect.any(HTMLElement), expect.objectContaining({ dpr: 1 }));
+  });
 });
 
 function target() {
@@ -73,7 +105,6 @@ function target() {
 describe('entry points', () => {
   beforeEach(() => {
     document.body.replaceChildren();
-    toCanvas.mockClear();
   });
 
   it('wires SnapDOM as the default capture on the ./snapdom entry', async () => {
