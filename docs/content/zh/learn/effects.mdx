@@ -65,4 +65,4 @@ if (retained) {
 
 ## 声音槽位
 
-每个阶段都有独立声音槽。目前 `dust.remove` 与 `wind.remove` 带有音频，其余六个槽位在素材加入前保持 `null`。`sound: false` 只关闭声音，不改变动画。
+每个阶段都有独立声音槽。目前 `dust.remove` 与 `wind.remove` 带有音频，其余六个槽位在素材加入前保持 `null`。声音需显式开启：`sound: true` 为实例或单次调用启用内置音频，`sound: false` 保持关闭且不改变动画。

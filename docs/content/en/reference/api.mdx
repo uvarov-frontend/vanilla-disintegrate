@@ -12,26 +12,26 @@ The default export is a thin facade over capture, operation rendering, sound, la
 ## Constructor
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 const effects = new Disintegrator(options);
 ```
 
 Important options:
 
-| Option                                          | Type                               | Default         |
-| ----------------------------------------------- | ---------------------------------- | --------------- |
-| `effect`                                        | `EffectSelection`                  | `dust`          |
-| `effects`                                       | `Record<string, EffectDefinition>` | `{}`            |
-| `sound`                                         | `boolean \| SoundDefinition`       | `true`          |
-| `layout`                                        | `boolean \| LayoutOptions`         | `true`          |
-| `preparation`                                   | `boolean \| PreparationOptions`    | `false`         |
-| `respectReducedMotion`                          | `boolean`                          | `true`          |
-| `capture`                                       | `SnapshotCapture`                  | SnapDOM         |
-| `overlayRoot`                                   | `HTMLElement \| () => HTMLElement` | `document.body` |
-| `zIndex`                                        | `number`                           | library default |
-| `random`                                        | `() => number`                     | `Math.random`   |
-| `onTrigger`, `onStart`, `onComplete`, `onError` | callbacks                          | —               |
+| Option                                          | Type                               | Default               |
+| ----------------------------------------------- | ---------------------------------- | --------------------- |
+| `effect`                                        | `EffectSelection`                  | `dust`                |
+| `effects`                                       | `Record<string, EffectDefinition>` | `{}`                  |
+| `sound`                                         | `boolean \| SoundDefinition`       | `false`               |
+| `layout`                                        | `boolean \| LayoutOptions`         | `true`                |
+| `preparation`                                   | `boolean \| PreparationOptions`    | `false`               |
+| `respectReducedMotion`                          | `boolean`                          | `true`                |
+| `capture`                                       | `SnapshotCapture`                  | SnapDOM on `/snapdom` |
+| `overlayRoot`                                   | `HTMLElement \| () => HTMLElement` | `document.body`       |
+| `zIndex`                                        | `number`                           | library default       |
+| `random`                                        | `() => number`                     | `Math.random`         |
+| `onTrigger`, `onStart`, `onComplete`, `onError` | callbacks                          | —                     |
 
 ## remove(target, options?)
 

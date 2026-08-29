@@ -31,7 +31,7 @@ React needs a synchronous state commit because its renderer owns the target node
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 export function DisintegratingCard() {
   const [visible, setVisible] = useState(true);
@@ -94,7 +94,7 @@ Vue batches the state change before the browser paints. `nextTick()` gives `rest
 ```vue
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 const visible = ref(true);
 const card = ref<HTMLElement | null>(null);
@@ -147,7 +147,7 @@ Use `bind:this` for the live node, return `destroy()` from `onMount()`, and awai
 ```svelte
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import Disintegrator from 'vanilla-disintegrate';
+  import Disintegrator from 'vanilla-disintegrate/snapdom';
 
   let visible = true;
   let card: HTMLElement;
@@ -197,7 +197,7 @@ Solid updates a signal-owned branch synchronously. A microtask after `setVisible
 
 ```tsx
 import { createSignal, onCleanup, onMount, Show } from 'solid-js';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 export function DisintegratingCard() {
   const [visible, setVisible] = createSignal(true);
@@ -252,7 +252,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 @Component({
   selector: 'app-disintegrating-card',

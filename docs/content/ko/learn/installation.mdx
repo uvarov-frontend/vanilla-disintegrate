@@ -7,7 +7,7 @@ navTitle: 빠른 시작
 order: 10
 ---
 
-Vanilla Disintegrate는 측정 가능한 모든 DOM 요소에 **타노스 스냅** 파티클 삭제 효과를 더합니다. 패키지에는 SnapDOM 캡처가 기본으로 설정되어 있으며 별도 CSS import가 필요하지 않습니다.
+Vanilla Disintegrate는 측정 가능한 모든 DOM 요소에 **타노스 스냅** 파티클 삭제 효과를 더합니다. `vanilla-disintegrate/snapdom` 진입점이 SnapDOM 캡처를 미리 연결해 두며, 별도 CSS import는 필요하지 않습니다.
 
 ## 설치
 
@@ -15,22 +15,29 @@ Vanilla Disintegrate는 측정 가능한 모든 DOM 요소에 **타노스 스냅
 
 ```bash
 # npm
-npm install vanilla-disintegrate
+npm install vanilla-disintegrate @zumer/snapdom
 
 # Yarn
-yarn add vanilla-disintegrate
+yarn add vanilla-disintegrate @zumer/snapdom
 
 # pnpm
-pnpm add vanilla-disintegrate
+pnpm add vanilla-disintegrate @zumer/snapdom
 
 # Bun
-bun add vanilla-disintegrate
+bun add vanilla-disintegrate @zumer/snapdom
 ```
 
-Vanilla Disintegrate는 요소가 파티클로 나뉘기 전에 [SnapDOM](https://zumerlab.github.io/snapdom/)으로 현재 모습을 캡처합니다. `@zumer/snapdom`은 일반 의존성이므로 패키지 관리자가 자동 설치합니다.
+라이브러리는 요소가 파티클로 나뉘기 전에 현재 모습을 캡처하며, 캡처 라이브러리는 직접 고를 수 있습니다. 패키지는 두 개의 진입점을 제공합니다.
+
+| 진입점                         | 내용                                                                                        | 필요 패키지      |
+| ------------------------------ | ------------------------------------------------------------------------------------------- | ---------------- |
+| `vanilla-disintegrate`         | 코어: 효과, 생명주기, 레이아웃, 사운드. `capture`는 직접 전달합니다.                        | 없음             |
+| `vanilla-disintegrate/snapdom` | 동일한 API에 [SnapDOM](https://zumerlab.github.io/snapdom/)이 기본 `capture`로 연결된 형태. | `@zumer/snapdom` |
+
+두 진입점은 완전히 같은 `Disintegrator` API를 내보냅니다. `@zumer/snapdom`은 선택적 peer 의존성이라 `/snapdom` 진입점을 쓸 때만 설치하면 되고, 코어 진입점은 이를 참조하지 않습니다.
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 const effects = new Disintegrator();
 const card = document.querySelector<HTMLElement>('.card');
@@ -91,8 +98,16 @@ const effects = new Disintegrator({
 });
 ```
 
-전달한 함수는 SnapDOM 캡처 동작을 완전히 대체합니다. SnapDOM 자체는 패키지 의존성이며 정적 ESM 런타임 그래프에도 남습니다.
+전달한 함수는 캡처 동작을 완전히 대체합니다. 이 경로에서는 코어 진입점 `vanilla-disintegrate`를 가져오세요. 런타임 의존성이 없고 SnapDOM도 모듈 그래프에 들어오지 않습니다.
 
 ## 정리
 
 소유 화면이 영구히 폐기될 때 `effects.destroy()`를 호출하세요. 실행 중인 작업과 observer를 중지하고 스냅샷 및 보관된 DOM 참조를 해제합니다.
+
+## 브라우저 지원
+
+코어에는 ES2020 출력, Canvas, Web Animations, `AbortController`, `requestAnimationFrame`이 필요합니다. 네 가지 내장 효과는 **WebGL2**로 파티클을 그리므로 기준선은 Chrome 80+, Firefox 74+, Edge 80+, Opera 67+, Safari 15+입니다.
+
+WebGL2가 없거나 컨텍스트를 만들 수 없는 환경에서 내장 효과는 실패하지 않고 축소 동작합니다. `remove()`는 요소를 그대로 분리하고 `restore()`는 그대로 드러내며, 작업은 `skipped` 상태로 끝나고 원인은 `onError`로 전달됩니다. WAAPI, CSS, Canvas 2D로 만든 사용자 효과는 구형 엔진에서도 그대로 재생됩니다.
+
+실행 중인 내장 효과는 WebGL2 컨텍스트를 하나만 점유하고 작업이 끝나는 즉시 반환하므로, 긴 목록을 지워도 브라우저의 페이지당 컨텍스트 한도에 닿지 않습니다.

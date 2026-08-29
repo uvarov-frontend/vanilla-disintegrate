@@ -7,7 +7,7 @@ navTitle: 快速开始
 order: 10
 ---
 
-Vanilla Disintegrate 为任意可测量的 DOM 元素添加 **灭霸响指**粒子删除效果。包中已默认配置 SnapDOM，而且不需要导入 CSS。
+Vanilla Disintegrate 为任意可测量的 DOM 元素添加 **灭霸响指**粒子删除效果。入口 `vanilla-disintegrate/snapdom` 已接好 SnapDOM 截图，且不需要导入 CSS。
 
 ## 安装
 
@@ -15,22 +15,29 @@ Vanilla Disintegrate 为任意可测量的 DOM 元素添加 **灭霸响指**粒�
 
 ```bash
 # npm
-npm install vanilla-disintegrate
+npm install vanilla-disintegrate @zumer/snapdom
 
 # Yarn
-yarn add vanilla-disintegrate
+yarn add vanilla-disintegrate @zumer/snapdom
 
 # pnpm
-pnpm add vanilla-disintegrate
+pnpm add vanilla-disintegrate @zumer/snapdom
 
 # Bun
-bun add vanilla-disintegrate
+bun add vanilla-disintegrate @zumer/snapdom
 ```
 
-Vanilla Disintegrate 使用 [SnapDOM](https://zumerlab.github.io/snapdom/) 捕获元素当前外观。`@zumer/snapdom` 是普通依赖，包管理器会自动安装。
+库会在元素碎裂前捕获其当前外观，而截图库由你选择。包提供两个入口：
+
+| 入口                           | 内容                                                                               | 依赖             |
+| ------------------------------ | ---------------------------------------------------------------------------------- | ---------------- |
+| `vanilla-disintegrate`         | 核心：效果、生命周期、布局、声音。`capture` 由你提供。                             | 无               |
+| `vanilla-disintegrate/snapdom` | 相同 API，并以 [SnapDOM](https://zumerlab.github.io/snapdom/) 作为默认 `capture`。 | `@zumer/snapdom` |
+
+两个入口导出完全相同的 `Disintegrator` API。`@zumer/snapdom` 是可选 peer 依赖：只有使用 `/snapdom` 入口时才需要安装，核心入口永远不会引用它。
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 const effects = new Disintegrator();
 const card = document.querySelector<HTMLElement>('.card');
@@ -91,8 +98,16 @@ const effects = new Disintegrator({
 });
 ```
 
-传入的函数会完全替代 SnapDOM 的截图行为。SnapDOM 本身仍是包依赖，也是静态 ESM 运行时图的一部分。
+传入的函数会完全替代截图行为。此路径请导入核心入口 `vanilla-disintegrate`：它没有运行时依赖，SnapDOM 也不会进入模块图。
 
 ## 清理
 
 所属页面永久销毁时调用 `effects.destroy()`。它会停止操作和观察器，并释放快照与所有保留的 DOM 引用。
+
+## 浏览器支持
+
+核心需要 ES2020 产物、Canvas、Web Animations、`AbortController` 与 `requestAnimationFrame`。四种内置效果使用 **WebGL2** 绘制粒子，因此基线为：Chrome 80+、Firefox 74+、Edge 80+、Opera 67+ 与 Safari 15+。
+
+在缺少 WebGL2 或无法创建上下文时，内置效果会降级而不是报错：`remove()` 仍会移除元素，`restore()` 仍会显示元素，操作以 `skipped` 状态结束，原因通过 `onError` 传出。基于 WAAPI、CSS 或 Canvas 2D 的自定义效果在旧引擎上照常播放。
+
+每个运行中的内置效果只占用一个 WebGL2 上下文，并在操作结束时立即释放，因此删除长列表也不会触及浏览器的每页上下文上限。

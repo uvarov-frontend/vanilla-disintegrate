@@ -31,7 +31,7 @@ React 必须同步提交它所拥有节点的移除。使用 `flushSync()` 明�
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 export function DisintegratingCard() {
   const [visible, setVisible] = useState(true);
@@ -93,7 +93,7 @@ Vue 会在浏览器绘制前批量应用状态更新。等待 `nextTick()` 后�
 ```vue
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 const visible = ref(true);
 const card = ref<HTMLElement | null>(null);
@@ -139,7 +139,7 @@ async function restoreCard() {
 ```svelte
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import Disintegrator from 'vanilla-disintegrate';
+  import Disintegrator from 'vanilla-disintegrate/snapdom';
 
   let visible = true;
   let card: HTMLElement;
@@ -185,7 +185,7 @@ Solid 会同步更新 signal 控制的分支。恢复时安排一个微任务，
 
 ```tsx
 import { createSignal, onCleanup, onMount, Show } from 'solid-js';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 export function DisintegratingCard() {
   const [visible, setVisible] = createSignal(true);
@@ -236,7 +236,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 @Component({
   selector: 'app-disintegrating-card',

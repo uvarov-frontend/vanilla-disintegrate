@@ -7,10 +7,10 @@ interface Props {
 
 const { locale } = Astro.props;
 const managers = [
-  { id: 'npm', command: 'npm install vanilla-disintegrate' },
-  { id: 'yarn', command: 'yarn add vanilla-disintegrate' },
-  { id: 'pnpm', command: 'pnpm add vanilla-disintegrate' },
-  { id: 'bun', command: 'bun add vanilla-disintegrate' },
+  { id: 'npm', command: 'npm install vanilla-disintegrate @zumer/snapdom' },
+  { id: 'yarn', command: 'yarn add vanilla-disintegrate @zumer/snapdom' },
+  { id: 'pnpm', command: 'pnpm add vanilla-disintegrate @zumer/snapdom' },
+  { id: 'bun', command: 'bun add vanilla-disintegrate @zumer/snapdom' },
 ] as const;
 const copy = {
   en: { label: 'Package manager', copy: 'Copy', copied: 'Copied', failed: 'Copy failed' },

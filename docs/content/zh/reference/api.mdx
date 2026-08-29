@@ -12,22 +12,22 @@ order: 70
 ## 构造函数
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 const effects = new Disintegrator(options);
 ```
 
-| 选项                                            | 类型                               | 默认值          |
-| ----------------------------------------------- | ---------------------------------- | --------------- |
-| `effect`                                        | `EffectSelection`                  | `dust`          |
-| `effects`                                       | `Record<string, EffectDefinition>` | `{}`            |
-| `sound`                                         | `boolean \| SoundDefinition`       | `true`          |
-| `layout`                                        | `boolean \| LayoutOptions`         | `true`          |
-| `preparation`                                   | `boolean \| PreparationOptions`    | `false`         |
-| `respectReducedMotion`                          | `boolean`                          | `true`          |
-| `capture`                                       | `SnapshotCapture`                  | SnapDOM         |
-| `overlayRoot`                                   | `HTMLElement \| () => HTMLElement` | `document.body` |
-| `onTrigger`、`onStart`、`onComplete`、`onError` | 回调                               | —               |
+| 选项                                            | 类型                               | 默认值                |
+| ----------------------------------------------- | ---------------------------------- | --------------------- |
+| `effect`                                        | `EffectSelection`                  | `dust`                |
+| `effects`                                       | `Record<string, EffectDefinition>` | `{}`                  |
+| `sound`                                         | `boolean \| SoundDefinition`       | `false`               |
+| `layout`                                        | `boolean \| LayoutOptions`         | `true`                |
+| `preparation`                                   | `boolean \| PreparationOptions`    | `false`               |
+| `respectReducedMotion`                          | `boolean`                          | `true`                |
+| `capture`                                       | `SnapshotCapture`                  | SnapDOM on `/snapdom` |
+| `overlayRoot`                                   | `HTMLElement \| () => HTMLElement` | `document.body`       |
+| `onTrigger`、`onStart`、`onComplete`、`onError` | 回调                               | —                     |
 
 ## remove(target, options?)
 

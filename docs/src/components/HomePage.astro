@@ -17,7 +17,11 @@ interface Props {
 const { locale } = Astro.props;
 const copy = ui[locale];
 const pathname = Astro.url.pathname;
-const usePackageImport = (source: string) => source.replaceAll("from '../src';", "from 'vanilla-disintegrate';").trim();
+const usePackageImport = (source: string) =>
+  source
+    .replaceAll("from '../src/snapdom';", "from 'vanilla-disintegrate/snapdom';")
+    .replaceAll("from '../src';", "from 'vanilla-disintegrate';")
+    .trim();
 const vortexCodeTabs = [
   {
     id: 'usage',

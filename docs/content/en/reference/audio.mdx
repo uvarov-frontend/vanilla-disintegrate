@@ -7,14 +7,15 @@ navTitle: Audio
 order: 80
 ---
 
-Sound is enabled by default. Each remove and restore phase owns an independent sound definition, so matching visuals do not have to share or reverse one audio track.
+Sound is opt-in: pass `sound: true` to use the built-in audio. Enable it from a user gesture such as a click, because browsers block an `AudioContext` that starts without one. Each remove and restore phase owns an independent sound definition, so matching visuals do not have to share or reverse one audio track.
 
-## Disable sound
+## Enable and disable sound
 
 ```ts
-const silent = new Disintegrator({ sound: false });
+const audible = new Disintegrator({ sound: true });
+const silent = new Disintegrator();
 
-effects.remove(element, { sound: false });
+effects.remove(element, { sound: true });
 ```
 
 An operation-level value overrides the instance for that one call.

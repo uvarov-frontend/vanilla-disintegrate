@@ -12,23 +12,23 @@ order: 70
 ## Конструктор
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 const effects = new Disintegrator(options);
 ```
 
-| Опция                                           | Тип                                | По умолчанию         |
-| ----------------------------------------------- | ---------------------------------- | -------------------- |
-| `effect`                                        | `EffectSelection`                  | `dust`               |
-| `effects`                                       | `Record<string, EffectDefinition>` | `{}`                 |
-| `sound`                                         | `boolean \| SoundDefinition`       | `true`               |
-| `layout`                                        | `boolean \| LayoutOptions`         | `true`               |
-| `preparation`                                   | `boolean \| PreparationOptions`    | `false`              |
-| `respectReducedMotion`                          | `boolean`                          | `true`               |
-| `capture`                                       | `SnapshotCapture`                  | SnapDOM              |
-| `overlayRoot`                                   | `HTMLElement \| () => HTMLElement` | `document.body`      |
-| `zIndex`, `random`                              | число, функция                     | настройки библиотеки |
-| `onTrigger`, `onStart`, `onComplete`, `onError` | callbacks                          | —                    |
+| Опция                                           | Тип                                | По умолчанию          |
+| ----------------------------------------------- | ---------------------------------- | --------------------- |
+| `effect`                                        | `EffectSelection`                  | `dust`                |
+| `effects`                                       | `Record<string, EffectDefinition>` | `{}`                  |
+| `sound`                                         | `boolean \| SoundDefinition`       | `false`               |
+| `layout`                                        | `boolean \| LayoutOptions`         | `true`                |
+| `preparation`                                   | `boolean \| PreparationOptions`    | `false`               |
+| `respectReducedMotion`                          | `boolean`                          | `true`                |
+| `capture`                                       | `SnapshotCapture`                  | SnapDOM on `/snapdom` |
+| `overlayRoot`                                   | `HTMLElement \| () => HTMLElement` | `document.body`       |
+| `zIndex`, `random`                              | число, функция                     | настройки библиотеки  |
+| `onTrigger`, `onStart`, `onComplete`, `onError` | callbacks                          | —                     |
 
 ## remove(target, options?)
 

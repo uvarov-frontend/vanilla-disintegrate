@@ -31,7 +31,7 @@ React가 소유한 노드는 동기적으로 상태에 반영해야 합니다. `
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 export function DisintegratingCard() {
   const [visible, setVisible] = useState(true);
@@ -91,7 +91,7 @@ Vue는 브라우저가 그리기 전에 상태 변경을 일괄 반영합니다.
 ```vue
 <script setup lang="ts">
 import { nextTick, onMounted, onUnmounted, ref } from 'vue';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 const visible = ref(true);
 const card = ref<HTMLElement | null>(null);
@@ -137,7 +137,7 @@ async function restoreCard() {
 ```svelte
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import Disintegrator from 'vanilla-disintegrate';
+  import Disintegrator from 'vanilla-disintegrate/snapdom';
 
   let visible = true;
   let card: HTMLElement;
@@ -183,7 +183,7 @@ Solid는 signal이 소유한 분기를 동기적으로 갱신합니다. 복원�
 
 ```tsx
 import { createSignal, onCleanup, onMount, Show } from 'solid-js';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 export function DisintegratingCard() {
   const [visible, setVisible] = createSignal(true);
@@ -234,7 +234,7 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 @Component({
   selector: 'app-disintegrating-card',

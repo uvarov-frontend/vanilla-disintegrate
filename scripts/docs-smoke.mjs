@@ -129,7 +129,7 @@ try {
   const homeSizes = homePanel.match(/\d+\.\d{2} KiB/g) ?? [];
   assert.equal(homeSizes.length, 6, 'size panel must show minified and gzip sizes for all three variants');
   assert.equal(documentationPanel, '', 'documentation must not render the bundle-size panel');
-  assert.ok(homePanel.includes('<dt>ESM</dt>'));
+  assert.ok(homePanel.includes('<dt>ESM core</dt>'));
   assert.ok(homePanel.includes('<dt>ESM + SnapDOM</dt>'));
   assert.ok(homePanel.includes('<dt>IIFE</dt>'));
 
@@ -141,8 +141,8 @@ try {
   assert.ok(home.includes('data-package-manager="yarn"'));
   assert.ok(home.includes('data-package-manager="pnpm"'));
   assert.ok(home.includes('data-package-manager="bun"'));
-  assert.ok(home.includes('data-package-command="pnpm add vanilla-disintegrate"'));
-  assert.ok(home.includes('data-package-command="bun add vanilla-disintegrate"'));
+  assert.ok(home.includes('data-package-command="pnpm add vanilla-disintegrate @zumer/snapdom"'));
+  assert.ok(home.includes('data-package-command="bun add vanilla-disintegrate @zumer/snapdom"'));
   assert.ok(!installation.includes('class="package-manager-switcher"'));
   assert.ok(home.includes('data-code-tab="effect"'), 'custom demo must expose the full effect source');
   assert.ok(home.includes('data-code-tab="usage"'), 'custom demo must expose reproducible usage code');

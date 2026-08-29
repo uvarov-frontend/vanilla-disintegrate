@@ -41,6 +41,8 @@ await operation.finished;
 
 The element must be connected and have non-zero geometry. The library hides it synchronously, measures its **new final position**, captures it there, runs the restore phase, and then reveals the original node.
 
+Concealment uses a paused Web Animation rather than an inline style, so it survives class and style changes during the effect. One consequence follows from the CSS cascade: an `!important` author declaration outranks animations, so a rule such as `.card { opacity: 1 !important }` on a restore target leaves the live element visible under the particle layer. Drop the `!important` on the target, or restore a wrapper that does not carry it.
+
 ## Animate a completely new element
 
 No previous removal is required. `restore()` is also an entrance animation for newly created DOM.

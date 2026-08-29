@@ -4,7 +4,7 @@ import Disintegrator, {
   type EffectDefinition,
   type EffectOperation,
   type RemovalId,
-} from '../../../src';
+} from '../../../src/snapdom';
 import { particleVortex } from '../../../demo/particle-vortex';
 
 type Locale = 'en' | 'ru' | 'zh' | 'ko';

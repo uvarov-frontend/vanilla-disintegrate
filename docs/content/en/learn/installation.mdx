@@ -7,7 +7,7 @@ navTitle: Quick start
 order: 10
 ---
 
-Vanilla Disintegrate adds a **Thanos-snap** particle deletion effect to any measurable DOM element. The package includes SnapDOM capture by default and requires no CSS import.
+Vanilla Disintegrate adds a **Thanos-snap** particle deletion effect to any measurable DOM element. The `vanilla-disintegrate/snapdom` entry wires SnapDOM capture for you, and no CSS import is required.
 
 ## Installation
 
@@ -15,22 +15,29 @@ Use any supported package manager:
 
 ```bash
 # npm
-npm install vanilla-disintegrate
+npm install vanilla-disintegrate @zumer/snapdom
 
 # Yarn
-yarn add vanilla-disintegrate
+yarn add vanilla-disintegrate @zumer/snapdom
 
 # pnpm
-pnpm add vanilla-disintegrate
+pnpm add vanilla-disintegrate @zumer/snapdom
 
 # Bun
-bun add vanilla-disintegrate
+bun add vanilla-disintegrate @zumer/snapdom
 ```
 
-Vanilla Disintegrate uses [SnapDOM](https://zumerlab.github.io/snapdom/) to capture the current appearance of an element before it is split into particles. `@zumer/snapdom` is a regular package dependency, so your package manager installs it automatically.
+The library captures the current appearance of an element before splitting it into particles, and the capture library is your choice. The package ships two entry points:
+
+| Entry                          | Contents                                                                                         | Requires         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------ | ---------------- |
+| `vanilla-disintegrate`         | Core: effects, lifecycle, layout, audio. You supply `capture`.                                   | Nothing          |
+| `vanilla-disintegrate/snapdom` | The same API with [SnapDOM](https://zumerlab.github.io/snapdom/) wired as the default `capture`. | `@zumer/snapdom` |
+
+Both entries export the identical `Disintegrator` API. `@zumer/snapdom` is an optional peer dependency: install it only for the `/snapdom` entry, and the core entry never reaches for it.
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 const effects = new Disintegrator();
 const card = document.querySelector<HTMLElement>('.card');
@@ -93,7 +100,7 @@ const effects = new Disintegrator({
 });
 ```
 
-The supplied function completely replaces SnapDOM capture behavior. SnapDOM remains a package dependency and part of the static ESM runtime graph.
+The supplied function completely replaces capture. Import the core `vanilla-disintegrate` entry on this path: it has no runtime dependencies, and nothing from SnapDOM enters the module graph.
 
 ## Clean up
 
@@ -102,3 +109,11 @@ Call `destroy()` when the owning view or application is permanently disposed. It
 ```ts
 effects.destroy();
 ```
+
+## Browser support
+
+The core needs ES2020 output, Canvas, Web Animations, `AbortController`, and `requestAnimationFrame`. The four built-in effects draw their particles with **WebGL2**, which sets the baseline: Chrome 80+, Firefox 74+, Edge 80+, Opera 67+, and Safari 15+.
+
+Where WebGL2 is missing or a context cannot be created, the built-in effects degrade instead of failing: `remove()` still detaches the element, `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives the reason. Custom effects built on WAAPI, CSS, or Canvas 2D keep animating on older engines.
+
+Each running built-in effect holds one WebGL2 context and releases it the moment the operation ends, so removing a long list stays well inside the per-page context limit browsers enforce.

@@ -17,8 +17,9 @@ Vanilla Disintegrate is a lightweight TypeScript library for removing and restor
 - **Simple integration**: Create an instance and call `remove(element)` directly from a click handler.
 - **Framework-agnostic**: Use it with vanilla JavaScript, React, Vue, Svelte, Solid, Angular, Web Components, or another DOM renderer.
 - **Custom effects**: Define independent removal and restoration phases with WAAPI, Canvas, SVG, WebGL, CSS, or another animation engine.
-- **Custom capture**: SnapDOM captures elements by default; provide `capture` to use another renderer such as html2canvas.
-- **Sound control**: Built-in effect audio is enabled by default where available; use your own source, `AudioBuffer`, or audio factory when needed.
+- **Custom capture**: The `vanilla-disintegrate/snapdom` entry wires SnapDOM for you; import the core entry to plug in another renderer such as html2canvas.
+- **Zero runtime dependencies**: The core entry ships no dependencies; SnapDOM is an optional peer installed only if you use its entry.
+- **Sound control**: Effect audio is opt-in; enable the built-in sounds with `sound: true`, or supply your own source, `AudioBuffer`, or audio factory.
 - **Optional preparation**: Pre-capture chosen elements in the background with a bounded LRU snapshot cache.
 - **Explicit memory control**: Keep a removed original node only with `retain: true`, then consume it with `take()` or release it with `discard()`.
 - **No runtime CSS**: The library creates and removes its visual layer itself without a stylesheet import.
@@ -26,13 +27,15 @@ Vanilla Disintegrate is a lightweight TypeScript library for removing and restor
 
 ## Browser Support
 
-Vanilla Disintegrate is built for modern browsers. Its ES2020 output and required Canvas, Web Animations, `AbortController`, and `requestAnimationFrame` APIs define the following support baseline. No polyfills are included.
+Vanilla Disintegrate is built for modern browsers. The library core needs ES2020 output, Canvas, Web Animations, `AbortController`, and `requestAnimationFrame`. The four built-in effects render their particles with **WebGL2**, which sets the baseline below. No polyfills are included.
 
 | ![Chrome](https://raw.githubusercontent.com/alrra/browser-logos/master/src/chrome/chrome_48x48.png) | ![Firefox](https://raw.githubusercontent.com/alrra/browser-logos/master/src/firefox/firefox_48x48.png) | ![Edge](https://raw.githubusercontent.com/alrra/browser-logos/master/src/edge/edge_48x48.png) | ![Opera](https://raw.githubusercontent.com/alrra/browser-logos/master/src/opera/opera_48x48.png) | ![Safari](https://raw.githubusercontent.com/alrra/browser-logos/master/src/safari/safari_48x48.png) |
 | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| 80+ ✔                                                                                               | 74+ ✔                                                                                                  | 80+ ✔                                                                                         | 67+ ✔                                                                                            | 13.1+ ✔                                                                                             |
+| 80+ ✔                                                                                               | 74+ ✔                                                                                                  | 80+ ✔                                                                                         | 67+ ✔                                                                                            | 15+ ✔                                                                                               |
 
-Current Chrome for Android and iOS Safari are supported under the same engine baseline. Initialize the library only in the browser: it is not intended to run during server-side rendering.
+Current Chrome for Android and iOS Safari 15+ are supported under the same engine baseline. Initialize the library only in the browser: it is not intended to run during server-side rendering.
+
+Where WebGL2 is missing or a context cannot be created, the built-in effects degrade instead of failing: `remove()` still detaches the element and `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives the reason. Custom effects that do not use WebGL are unaffected, so a WAAPI or CSS phase keeps animating on older engines.
 
 `preparation` progressively enhances the default removal flow. Browsers without `IntersectionObserver`, `ResizeObserver`, or `requestIdleCallback` still run effects; preparation uses the available fallback instead.
 
@@ -48,24 +51,33 @@ If it helps your project, consider giving it a 🌟 star on [GitHub](https://git
 
 ### Installation
 
-Use any supported package manager. SnapDOM is a regular dependency and is installed automatically.
+The core package has no runtime dependencies. Capture is pluggable, so the capture library is installed alongside it — [SnapDOM](https://zumerlab.github.io/snapdom/) for the ready-made adapter:
 
 ```sh
-npm install vanilla-disintegrate
+npm install vanilla-disintegrate @zumer/snapdom
 # or
-yarn add vanilla-disintegrate
+yarn add vanilla-disintegrate @zumer/snapdom
 # or
-pnpm add vanilla-disintegrate
+pnpm add vanilla-disintegrate @zumer/snapdom
 # or
-bun add vanilla-disintegrate
+bun add vanilla-disintegrate @zumer/snapdom
 ```
+
+The package has two entry points:
+
+| Entry                          | Contents                                                          | Install                   |
+| ------------------------------ | ----------------------------------------------------------------- | ------------------------- |
+| `vanilla-disintegrate`         | Core: effects, lifecycle, layout, audio. You supply `capture`.    | No runtime dependencies   |
+| `vanilla-disintegrate/snapdom` | The same API with SnapDOM already wired as the default `capture`. | Requires `@zumer/snapdom` |
+
+Both entries export the identical `Disintegrator` API, so you can start on `/snapdom` and move to the core entry when you bring your own capture adapter. `@zumer/snapdom` is an optional peer dependency: package managers will not install it unless you ask for it, and the core entry never reaches for it.
 
 ### Remove an Element
 
 Call `remove()` while the element is connected and visible. The library captures it, detaches it from the page, and plays the selected effect in an isolated visual layer.
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 const effects = new Disintegrator({
   effect: 'dust',
@@ -196,9 +208,10 @@ effects.remove(card, { effect: fade });
 effects.restore(insertedCard, { effect: fade });
 ```
 
-To replace the default SnapDOM capture, pass an adapter that returns a canvas:
+To use a renderer other than SnapDOM, import the core entry and pass an adapter that returns a canvas:
 
 ```ts
+import Disintegrator from 'vanilla-disintegrate';
 import html2canvas from 'html2canvas';
 
 const effects = new Disintegrator({
@@ -206,7 +219,19 @@ const effects = new Disintegrator({
 });
 ```
 
-Install your chosen capture library separately; this example uses `npm install html2canvas`.
+Install your chosen capture library separately; this example uses `npm install html2canvas`. Nothing from SnapDOM enters your bundle on this path.
+
+### Sound
+
+Effect audio is opt-in. `dust.remove` and `wind.remove` carry built-in sounds that `sound: true` turns on:
+
+```ts
+const effects = new Disintegrator({ effect: 'dust', sound: true });
+
+effects.remove(card, { sound: false });
+```
+
+Enable audio from a user gesture such as a click: browsers block an `AudioContext` that starts without one.
 
 ## Documentation
 

@@ -7,13 +7,14 @@ navTitle: 오디오
 order: 80
 ---
 
-사운드는 기본으로 켜져 있습니다. 각 삭제와 복원 단계는 독립된 사운드 정의를 가지므로 삭제 트랙을 역재생할 필요가 없습니다.
+사운드는 기본으로 꺼져 있습니다. 내장 오디오를 쓰려면 `sound: true`를 전달하세요. 브라우저가 사용자 제스처 없이 시작한 `AudioContext`를 차단하므로 클릭 같은 제스처에서 켜세요. 각 삭제와 복원 단계는 독립된 사운드 정의를 가지므로 삭제 트랙을 역재생할 필요가 없습니다.
 
-## 사운드 끄기
+## 사운드 켜고 끄기
 
 ```ts
-const silent = new Disintegrator({ sound: false });
-effects.remove(element, { sound: false });
+const audible = new Disintegrator({ sound: true });
+const silent = new Disintegrator();
+effects.remove(element, { sound: true });
 ```
 
 작업 수준 값은 해당 호출에서만 인스턴스 설정을 덮어씁니다.

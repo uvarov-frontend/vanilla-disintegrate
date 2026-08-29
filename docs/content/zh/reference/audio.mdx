@@ -7,13 +7,14 @@ navTitle: 音频
 order: 80
 ---
 
-声音默认开启。每个删除与恢复阶段都有独立声音定义，因此恢复音轨无需倒放删除音轨。
+声音默认关闭：传入 `sound: true` 启用内置音频。请在点击等用户手势中启用，因为浏览器会阻止没有手势的 `AudioContext`。每个删除与恢复阶段都有独立声音定义，因此恢复音轨无需倒放删除音轨。
 
-## 关闭声音
+## 开启与关闭声音
 
 ```ts
-const silent = new Disintegrator({ sound: false });
-effects.remove(element, { sound: false });
+const audible = new Disintegrator({ sound: true });
+const silent = new Disintegrator();
+effects.remove(element, { sound: true });
 ```
 
 操作级选项只覆盖当前调用。
