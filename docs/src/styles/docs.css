@@ -343,6 +343,7 @@
 .table-scroll {
   margin: 24px 0;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
   scrollbar-width: thin;
 }
 
@@ -363,31 +364,13 @@
   vertical-align: top;
 }
 
-/*
- * Package names such as `vanilla-disintegrate/snapdom` have no break
- * opportunity, so their min-content width would push the table — and with it
- * the page — wider than the viewport. `anywhere` lets them wrap and, unlike
- * `break-word`, it also lowers the min-content contribution so the table can
- * shrink to the available width. Scoped to code: prose in the same cell keeps
- * normal word wrapping instead of being chopped mid-word.
- */
 .page-content :is(th, td) code {
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 @media (max-width: 790px) {
-  /*
-   * Below this width four columns would be squeezed to about 40px each, which
-   * breaks an identifier into one letter per line. Keep the columns usable and
-   * let the container scroll instead.
-   */
   .page-content table {
-    min-width: 560px;
-  }
-
-  /* Wide enough for the longest option name to wrap at most once. */
-  .page-content :is(th, td):first-child {
-    min-width: 132px;
+    min-width: 720px;
   }
 }
 
