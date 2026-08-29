@@ -185,6 +185,7 @@ const effectNames: Record<BuiltInEffect, string> = {
   vapor: 'Rising vapor',
   wind: 'Christmas wind',
 };
+const builtInEffectNames = Object.keys(effectNames) as BuiltInEffect[];
 
 function required<T extends Element>(root: ParentNode, selector: string) {
   const element = root.querySelector<T>(selector);
@@ -427,7 +428,9 @@ function mountBattle(root: HTMLElement) {
   const retained = new Map<RemovalId, { title: string; effect: BuiltInEffect }>();
   const instance = track(
     new Disintegrator({
+      audioPreparation: { effects: builtInEffectNames },
       preparation: true,
+      sound: true,
       onError: (error) => {
         status.textContent = String(error);
       },
@@ -667,6 +670,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
   const idOutput = required<HTMLElement>(root, '[data-id]');
   const instance = track(
     new Disintegrator({
+      ...(kind === 'built-in' ? { audioPreparation: { effects: builtInEffectNames }, sound: true as const } : {}),
       preparation: true,
       onError: (error) => {
         state.textContent = String(error);

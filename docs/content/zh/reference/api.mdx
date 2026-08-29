@@ -17,23 +17,24 @@ import Disintegrator from 'vanilla-disintegrate/snapdom';
 const effects = new Disintegrator(options);
 ```
 
-| 选项                   | 类型                               | 默认值          | 作用                                             |
-| ---------------------- | ---------------------------------- | --------------- | ------------------------------------------------ |
-| `effect`               | `EffectSelection`                  | `'dust'`        | 操作未指定时使用的效果                           |
-| `effects`              | `Record<string, EffectDefinition>` | `{}`            | 自定义效果，之后可按名称选用                     |
-| `sound`                | `boolean \| SoundDefinition`       | `false`         | `true` 播放各阶段的声音；传定义则替换它们        |
-| `layout`               | `boolean \| LayoutOptions`         | `true`          | 删除后把相邻元素移动到新位置                     |
-| `preparation`          | `boolean \| PreparationOptions`    | `false`         | 在后台提前捕获快照                               |
-| `respectReducedMotion` | `boolean`                          | `true`          | 用户要求减少动效时跳过动画                       |
-| `capture`              | `SnapshotCapture`                  | —               | 把元素变成画布。`/snapdom` 入口已接好 SnapDOM    |
-| `overlayRoot`          | `HTMLElement \| () => HTMLElement` | `document.body` | 动画覆盖层挂载到哪里                             |
-| `zIndex`               | `number`                           | `2147483646`    | 该覆盖层的层级                                   |
-| `random`               | `() => number`                     | `Math.random`   | 种子来源，每次操作调用一次                       |
-| `snapdom`              | `SnapdomOptions`                   | —               | 传给 SnapDOM 的 `toCanvas()`，仅 `/snapdom` 入口 |
-| `onTrigger`            | `(context) => void`                | —               | 校验之后、开始捕获之前                           |
-| `onStart`              | `(context) => void`                | —               | DOM 变更之后，播放开始时                         |
-| `onComplete`           | `(context) => void`                | —               | 视觉阶段正常结束后                               |
-| `onError`              | `(error, context) => void`         | —               | 捕获、动画、声音与回调的错误                     |
+| 选项                   | 类型                                                        | 默认值          | 作用                                             |
+| ---------------------- | ----------------------------------------------------------- | --------------- | ------------------------------------------------ |
+| `effect`               | `EffectSelection`                                           | `'dust'`        | 操作未指定时使用的效果                           |
+| `effects`              | `Record<string, EffectDefinition>`                          | `{}`            | 自定义效果，之后可按名称选用                     |
+| `sound`                | `boolean \| SoundDefinition`                                | `false`         | `true` 播放各阶段的声音；传定义则替换它们        |
+| `layout`               | `boolean \| LayoutOptions`                                  | `true`          | 删除后把相邻元素移动到新位置                     |
+| `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | 在后台准备已注册元素                             |
+| `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'immediate'`   | 只准备已启用的声音；`sound: false` 时不执行工作  |
+| `respectReducedMotion` | `boolean`                                                   | `true`          | 用户要求减少动效时跳过动画                       |
+| `capture`              | `SnapshotCapture`                                           | —               | 把元素变成画布。`/snapdom` 入口已接好 SnapDOM    |
+| `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | 动画覆盖层挂载到哪里                             |
+| `zIndex`               | `number`                                                    | `2147483646`    | 该覆盖层的层级                                   |
+| `random`               | `() => number`                                              | `Math.random`   | 种子来源，每次操作调用一次                       |
+| `snapdom`              | `SnapdomOptions`                                            | —               | 传给 SnapDOM 的 `toCanvas()`，仅 `/snapdom` 入口 |
+| `onTrigger`            | `(context) => void`                                         | —               | 校验之后、开始捕获之前                           |
+| `onStart`              | `(context) => void`                                         | —               | DOM 变更之后，播放开始时                         |
+| `onComplete`           | `(context) => void`                                         | —               | 视觉阶段正常结束后                               |
+| `onError`              | `(error, context) => void`                                  | —               | 捕获、动画、声音与回调的错误                     |
 
 ## remove(target, options?)
 
@@ -76,11 +77,21 @@ effects.clearPrepared();
 
 `register()` 遵循你配置的策略。`prepare()` 会立即捕获，即使后台准备是关闭的；全部元素完成后它不返回任何值。
 
+## 音频准备
+
+```ts
+await effects.prepareAudio(['dust', 'wind']);
+effects.discardPreparedAudio('dust');
+effects.clearPreparedAudio();
+```
+
+实例设置 `sound: true` 后会自动准备默认效果。声音关闭时显式方法仍可使用。解码缓冲区存放在有界 LRU 缓存中。
+
 传一个固定的 `random`，效果就可复现：同一个种子每次都会把粒子排布成一样的样子，视觉回归测试正是靠这一点。
 
 ## destroy()
 
-取消活动操作，停止观察器，释放快照与保留节点。重复调用是安全的；销毁后不能开始新操作。
+取消活动操作，停止观察器，释放快照与解码音频，关闭播放上下文并清除保留节点。重复调用是安全的；销毁后不能开始新操作。
 
 ## EffectOperation
 

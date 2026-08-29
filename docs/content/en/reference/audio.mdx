@@ -7,7 +7,7 @@ navTitle: Audio
 order: 80
 ---
 
-Sound is opt-in: pass `sound: true` to use the built-in audio. Enable it from a user gesture such as a click, because browsers block an `AudioContext` that starts without one. Each remove and restore phase owns an independent sound definition, so matching visuals do not have to share or reverse one audio track.
+Sound is opt-in: pass `sound: true` to use the built-in audio. Call `remove()` or `restore()` from a user gesture such as a click so the library can resume Web Audio playback. Each remove and restore phase owns an independent sound definition, so matching visuals do not have to share or reverse one audio track.
 
 ## Enable and disable sound
 
@@ -19,6 +19,38 @@ effects.remove(element, { sound: true });
 ```
 
 An operation-level value overrides the instance for that one call.
+
+## Prepare before the first interaction
+
+With instance-level `sound: true`, the selected default effect is fetched and decoded immediately. Only that effect is prepared: `effect: 'vapor'` does not load the other three built-in files. Use `idle` when initial rendering matters more than first-interaction readiness:
+
+```ts
+const effects = new Disintegrator({
+  effect: 'vapor',
+  sound: true,
+  audioPreparation: 'idle',
+});
+```
+
+If the UI can choose several effects, list exactly those effects or prepare them explicitly:
+
+```ts
+const effects = new Disintegrator({
+  sound: true,
+  audioPreparation: {
+    strategy: 'immediate',
+    effects: ['dust', 'scatter', 'vapor', 'wind'],
+  },
+});
+
+await effects.prepareAudio(['dust', 'wind']);
+effects.discardPreparedAudio('dust');
+effects.clearPreparedAudio();
+```
+
+`audioPreparation: false` disables automatic work. `prepareAudio()` remains explicit and therefore works even while instance sound is off. If an operation selects an unprepared native sound, the visual and audio wait for decoding and then start together; audio never joins a running built-in animation late. Custom player factories own their loading and are not invoked by preparation.
+
+Decoded forward and reversed buffers share an 8 MiB LRU budget by default. Configure it with `audioPreparation.cacheByteBudget`; `destroy()` releases the complete cache and closes the playback context.
 
 ## Where to put the sound
 
@@ -67,7 +99,7 @@ All four built-in effects use the first row.
 type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
 ```
 
-Strings and `URL` values are fetched and decoded lazily. `ArrayBuffer` is useful when the application already controls loading. `AudioBuffer` is the most direct reusable form when the application owns an `AudioContext`-based asset pipeline.
+Strings and `URL` values are fetched and decoded during automatic, explicit, or on-demand preparation. `ArrayBuffer` is useful when the application already controls loading. `AudioBuffer` is the most direct reusable form when the application owns an `AudioContext`-based asset pipeline.
 
 The library does not force bundled audio into source code as `AudioBuffer`: browser decoding is runtime work, and encoded files remain smaller and cacheable. Internally decoded results can still be reused.
 
@@ -78,8 +110,8 @@ const sound = {
   src: new URL('/sounds/snap.ogg', location.href),
   gain: 0.35,
   delay: 40,
-  duration: 700,
-  fadeDuration: 120,
+  duration: 0.7,
+  fadeDuration: 0.12,
   playbackRate: 1.05,
 };
 

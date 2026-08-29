@@ -9,17 +9,17 @@ order: 50
 
 捕获一个元素要花几毫秒到几百毫秒，取决于它的尺寸、字体和图片。准备把这份工作提前做掉，`remove()` 就能立刻开始绘制。
 
-它默认关闭。不传 `preparation` 时库不会创建任何观察器，只有操作需要快照时才捕获。
+默认策略为 `visible-idle`。库不会自行扫描 DOM：只有将候选元素传给 `register()` 后才会创建观察器并启动后台任务。设置 `preparation: false` 可完全禁用这项工作。
 
-## 启用默认策略
+## 注册候选元素
 
 ```ts
-const effects = new Disintegrator({ preparation: true });
+const effects = new Disintegrator();
 
 const unregister = effects.register(document.querySelectorAll('[data-effects]'));
 ```
 
-`true` 使用 `visible-idle`：元素接近视口且浏览器空闲时才准备。
+默认值与显式设置 `preparation: true` 都使用 `visible-idle`：元素接近视口且浏览器空闲时才准备。
 
 ## 配置条件
 

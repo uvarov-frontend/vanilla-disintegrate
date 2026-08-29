@@ -7,7 +7,7 @@ navTitle: 音频
 order: 80
 ---
 
-声音默认关闭：传入 `sound: true` 启用内置音频。请在点击等用户手势中启用，因为浏览器会阻止没有手势的 `AudioContext`。每个删除与恢复阶段都有独立声音定义，因此恢复音轨无需倒放删除音轨。
+声音默认关闭：传入 `sound: true` 启用内置音频。请从点击等用户手势中调用 `remove()` 或 `restore()`，让库能够恢复 Web Audio 播放。每个删除与恢复阶段都有独立声音定义，因此恢复音轨无需倒放删除音轨。
 
 ## 开启与关闭声音
 
@@ -18,6 +18,38 @@ effects.remove(element, { sound: true });
 ```
 
 操作级选项只覆盖当前调用。
+
+## 在首次交互前准备
+
+实例设置 `sound: true` 后，默认选中的效果会立即获取并解码。只准备该效果：`effect: 'vapor'` 不会加载另外三个内置文件。若首屏渲染比首次交互就绪更重要，可使用 `idle`：
+
+```ts
+const effects = new Disintegrator({
+  effect: 'vapor',
+  sound: true,
+  audioPreparation: 'idle',
+});
+```
+
+如果界面可选择多个效果，请准确列出这些效果，或显式准备：
+
+```ts
+const effects = new Disintegrator({
+  sound: true,
+  audioPreparation: {
+    strategy: 'immediate',
+    effects: ['dust', 'scatter', 'vapor', 'wind'],
+  },
+});
+
+await effects.prepareAudio(['dust', 'wind']);
+effects.discardPreparedAudio('dust');
+effects.clearPreparedAudio();
+```
+
+`audioPreparation: false` 会禁用自动准备。`prepareAudio()` 是显式操作，因此即使实例声音关闭也能工作。若某次操作选择了尚未准备的原生声音，视觉与音频会等待解码完成后同步开始，内置声音不会在动画进行中途加入。自定义播放器工厂自行负责加载，不会在准备阶段被调用。
+
+正向与反向解码缓冲区默认共享 8 MiB 的 LRU 预算。可通过 `audioPreparation.cacheByteBudget` 调整；`destroy()` 会清空全部缓存并关闭播放上下文。
 
 ## 声音放在哪里
 
@@ -66,7 +98,7 @@ new Disintegrator({ sound: { src: '/sounds/snap.mp3' } });
 type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
 ```
 
-字符串与 `URL` 会惰性获取并解码；应用自己加载资源时可传 `ArrayBuffer`；已有音频资源管线时可复用 `AudioBuffer`。
+字符串与 `URL` 会在自动、显式或按需准备时获取并解码；应用自己加载资源时可传 `ArrayBuffer`；已有音频资源管线时可复用 `AudioBuffer`。
 
 库不会把压缩音频文件强制转换并打包成 `AudioBuffer`：解码是浏览器运行时工作，而压缩文件更小且可缓存。
 
@@ -78,8 +110,8 @@ effects.remove(element, {
     src: new URL('/sounds/snap.ogg', location.href),
     gain: 0.35,
     delay: 40,
-    duration: 700,
-    fadeDuration: 120,
+    duration: 0.7,
+    fadeDuration: 0.12,
     playbackRate: 1.05,
   },
 });

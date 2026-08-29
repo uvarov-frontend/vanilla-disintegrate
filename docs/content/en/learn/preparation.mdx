@@ -1,6 +1,6 @@
 ---
 title: Prepare snapshots in the background
-description: Opt into controlled snapshot preparation and tune visibility, idle work, invalidation, and cache size.
+description: Control snapshot preparation with visibility, idle work, invalidation, and a bounded cache.
 locale: en
 section: learn
 navTitle: Snapshot preparation
@@ -9,19 +9,17 @@ order: 50
 
 Capturing an element takes anywhere from a few milliseconds to a few hundred, depending on its size, fonts and images. Preparation does that work ahead of time so `remove()` can start drawing at once.
 
-It is off by default. Without the `preparation` option the library creates no observers and captures only when an operation asks for a snapshot.
+The default policy is `visible-idle`. It does not scan the DOM: observers and background work start only after you pass candidates to `register()`. Set `preparation: false` to disable that work completely.
 
-## Enable the default policy
+## Register candidates
 
 ```ts
-const effects = new Disintegrator({
-  preparation: true,
-});
+const effects = new Disintegrator();
 
 const unregister = effects.register(document.querySelectorAll('[data-effects]'));
 ```
 
-`true` means `visible-idle`: an element is captured once it comes near the viewport and the browser has a free moment.
+The default, and the explicit `preparation: true` value, mean `visible-idle`: an element is captured once it comes near the viewport and the browser has a free moment.
 
 Call `unregister()` when you stop caring about those elements. It stops watching them and does not touch the DOM.
 

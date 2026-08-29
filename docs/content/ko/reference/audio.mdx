@@ -7,7 +7,7 @@ navTitle: 오디오
 order: 80
 ---
 
-사운드는 기본으로 꺼져 있습니다. 내장 오디오를 쓰려면 `sound: true`를 전달하세요. 브라우저가 사용자 제스처 없이 시작한 `AudioContext`를 차단하므로 클릭 같은 제스처에서 켜세요. 각 삭제와 복원 단계는 독립된 사운드 정의를 가지므로 삭제 트랙을 역재생할 필요가 없습니다.
+사운드는 기본으로 꺼져 있습니다. 내장 오디오를 쓰려면 `sound: true`를 전달하세요. 라이브러리가 Web Audio 재생을 재개할 수 있도록 클릭 같은 사용자 제스처에서 `remove()` 또는 `restore()`를 호출하세요. 각 삭제와 복원 단계는 독립된 사운드 정의를 가지므로 삭제 트랙을 역재생할 필요가 없습니다.
 
 ## 사운드 켜고 끄기
 
@@ -18,6 +18,38 @@ effects.remove(element, { sound: true });
 ```
 
 작업 수준 값은 해당 호출에서만 인스턴스 설정을 덮어씁니다.
+
+## 첫 상호작용 전에 준비하기
+
+인스턴스에 `sound: true`를 설정하면 선택된 기본 효과를 즉시 가져와 디코딩합니다. 해당 효과만 준비하므로 `effect: 'vapor'`는 나머지 내장 파일 세 개를 불러오지 않습니다. 첫 렌더링이 첫 클릭 준비보다 중요하면 `idle`을 사용하세요.
+
+```ts
+const effects = new Disintegrator({
+  effect: 'vapor',
+  sound: true,
+  audioPreparation: 'idle',
+});
+```
+
+UI에서 여러 효과를 선택할 수 있다면 필요한 효과만 나열하거나 명시적으로 준비하세요.
+
+```ts
+const effects = new Disintegrator({
+  sound: true,
+  audioPreparation: {
+    strategy: 'immediate',
+    effects: ['dust', 'scatter', 'vapor', 'wind'],
+  },
+});
+
+await effects.prepareAudio(['dust', 'wind']);
+effects.discardPreparedAudio('dust');
+effects.clearPreparedAudio();
+```
+
+`audioPreparation: false`는 자동 준비를 끕니다. `prepareAudio()`는 명시적 호출이므로 인스턴스 사운드가 꺼져 있어도 동작합니다. 작업이 준비되지 않은 네이티브 사운드를 선택하면 시각 효과와 오디오가 디코딩을 기다린 뒤 함께 시작하며, 내장 사운드가 실행 중인 애니메이션에 늦게 합류하지 않습니다. 사용자 플레이어 팩토리는 자체 로딩을 관리하며 준비 단계에서 호출되지 않습니다.
+
+정방향 및 역방향 디코딩 버퍼는 기본 8 MiB LRU 예산을 공유합니다. `audioPreparation.cacheByteBudget`으로 조절할 수 있고, `destroy()`는 전체 캐시를 비우고 재생 컨텍스트를 닫습니다.
 
 ## 사운드를 어디에 두나
 
@@ -66,7 +98,7 @@ new Disintegrator({ sound: { src: '/sounds/snap.mp3' } });
 type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
 ```
 
-문자열과 `URL`은 지연 fetch 및 decode됩니다. 자체 리소스 로더가 있으면 `ArrayBuffer`, 이미 오디오 자산 파이프라인을 운영한다면 재사용 가능한 `AudioBuffer`를 전달할 수 있습니다.
+문자열과 `URL`은 자동, 명시적 또는 온디맨드 준비 과정에서 fetch 및 decode됩니다. 자체 리소스 로더가 있으면 `ArrayBuffer`, 이미 오디오 자산 파이프라인을 운영한다면 재사용 가능한 `AudioBuffer`를 전달할 수 있습니다.
 
 라이브러리는 압축 파일을 소스 코드의 `AudioBuffer`로 강제 변환하지 않습니다. 디코딩은 브라우저 런타임 작업이고 압축 파일이 더 작고 캐시하기 좋기 때문입니다.
 
@@ -78,8 +110,8 @@ effects.remove(element, {
     src: new URL('/sounds/snap.ogg', location.href),
     gain: 0.35,
     delay: 40,
-    duration: 700,
-    fadeDuration: 120,
+    duration: 0.7,
+    fadeDuration: 0.12,
     playbackRate: 1.05,
   },
 });

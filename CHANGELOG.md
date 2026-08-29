@@ -10,7 +10,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Paired `remove()` and `restore()` operations with four built-in visual effects.
 - Retained-element controls: `take()`, `discard()`, `discardAll()`, and instance cleanup through `destroy()`.
-- User-defined effect pairs, opt-in audio, pluggable capture, and opt-in snapshot preparation.
+- User-defined effect pairs, opt-in audio, pluggable capture, and bounded visible-idle snapshot preparation for registered elements.
+- Immediate or idle audio preparation, explicit decoded-cache controls, and synchronized first playback.
 - Two entry points: the dependency-free core `vanilla-disintegrate`, and `vanilla-disintegrate/snapdom` with SnapDOM wired as the default `capture` through an optional peer dependency.
 - ESM and IIFE builds, TypeScript declarations, browser smoke tests, and SSR documentation in four languages.
 

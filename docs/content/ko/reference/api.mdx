@@ -17,23 +17,24 @@ import Disintegrator from 'vanilla-disintegrate/snapdom';
 const effects = new Disintegrator(options);
 ```
 
-| 옵션                   | 타입                               | 기본값          | 하는 일                                                      |
-| ---------------------- | ---------------------------------- | --------------- | ------------------------------------------------------------ |
-| `effect`               | `EffectSelection`                  | `'dust'`        | 작업이 따로 고르지 않았을 때 쓰는 효과                       |
-| `effects`              | `Record<string, EffectDefinition>` | `{}`            | 이름으로 고를 수 있는 사용자 효과                            |
-| `sound`                | `boolean \| SoundDefinition`       | `false`         | `true`는 단계 사운드를 재생, 정의를 주면 대체                |
-| `layout`               | `boolean \| LayoutOptions`         | `true`          | 삭제 후 이웃 요소를 새 자리로 이동                           |
-| `preparation`          | `boolean \| PreparationOptions`    | `false`         | 백그라운드에서 스냅샷을 미리 캡처                            |
-| `respectReducedMotion` | `boolean`                          | `true`          | 사용자가 동작 축소를 요청하면 애니메이션 생략                |
-| `capture`              | `SnapshotCapture`                  | —               | 요소를 캔버스로 변환. `/snapdom` 진입점에는 SnapDOM이 연결됨 |
-| `overlayRoot`          | `HTMLElement \| () => HTMLElement` | `document.body` | 애니메이션 오버레이를 붙일 위치                              |
-| `zIndex`               | `number`                           | `2147483646`    | 그 오버레이의 쌓임 순서                                      |
-| `random`               | `() => number`                     | `Math.random`   | 시드 소스, 작업마다 한 번 호출                               |
-| `snapdom`              | `SnapdomOptions`                   | —               | SnapDOM의 `toCanvas()`로 전달. `/snapdom` 진입점 전용        |
-| `onTrigger`            | `(context) => void`                | —               | 검증 후, 캡처 시작 전                                        |
-| `onStart`              | `(context) => void`                | —               | DOM 변경 후 재생이 시작될 때                                 |
-| `onComplete`           | `(context) => void`                | —               | 시각 단계가 정상 종료된 뒤                                   |
-| `onError`              | `(error, context) => void`         | —               | 캡처, 애니메이션, 사운드, 콜백 오류                          |
+| 옵션                   | 타입                                                        | 기본값          | 하는 일                                                      |
+| ---------------------- | ----------------------------------------------------------- | --------------- | ------------------------------------------------------------ |
+| `effect`               | `EffectSelection`                                           | `'dust'`        | 작업이 따로 고르지 않았을 때 쓰는 효과                       |
+| `effects`              | `Record<string, EffectDefinition>`                          | `{}`            | 이름으로 고를 수 있는 사용자 효과                            |
+| `sound`                | `boolean \| SoundDefinition`                                | `false`         | `true`는 단계 사운드를 재생, 정의를 주면 대체                |
+| `layout`               | `boolean \| LayoutOptions`                                  | `true`          | 삭제 후 이웃 요소를 새 자리로 이동                           |
+| `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | 등록된 요소를 백그라운드에서 준비                            |
+| `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'immediate'`   | 켜진 사운드만 준비하며 `sound: false`이면 작업하지 않음      |
+| `respectReducedMotion` | `boolean`                                                   | `true`          | 사용자가 동작 축소를 요청하면 애니메이션 생략                |
+| `capture`              | `SnapshotCapture`                                           | —               | 요소를 캔버스로 변환. `/snapdom` 진입점에는 SnapDOM이 연결됨 |
+| `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | 애니메이션 오버레이를 붙일 위치                              |
+| `zIndex`               | `number`                                                    | `2147483646`    | 그 오버레이의 쌓임 순서                                      |
+| `random`               | `() => number`                                              | `Math.random`   | 시드 소스, 작업마다 한 번 호출                               |
+| `snapdom`              | `SnapdomOptions`                                            | —               | SnapDOM의 `toCanvas()`로 전달. `/snapdom` 진입점 전용        |
+| `onTrigger`            | `(context) => void`                                         | —               | 검증 후, 캡처 시작 전                                        |
+| `onStart`              | `(context) => void`                                         | —               | DOM 변경 후 재생이 시작될 때                                 |
+| `onComplete`           | `(context) => void`                                         | —               | 시각 단계가 정상 종료된 뒤                                   |
+| `onError`              | `(error, context) => void`                                  | —               | 캡처, 애니메이션, 사운드, 콜백 오류                          |
 
 ## remove(target, options?)
 
@@ -76,11 +77,21 @@ effects.clearPrepared();
 
 `register()`는 설정한 전략을 따릅니다. `prepare()`는 백그라운드 준비가 꺼져 있어도 즉시 캡처하며, 모든 요소가 끝나면 아무 값도 돌려주지 않습니다.
 
+## 오디오 준비
+
+```ts
+await effects.prepareAudio(['dust', 'wind']);
+effects.discardPreparedAudio('dust');
+effects.clearPreparedAudio();
+```
+
+인스턴스에 `sound: true`를 설정하면 기본 효과가 자동으로 준비됩니다. 명시적 메서드는 사운드가 꺼져 있어도 동작합니다. 디코딩 버퍼는 제한된 LRU 캐시에 저장됩니다.
+
 `random`에 고정값을 넘기면 효과를 재현할 수 있습니다. 같은 시드는 매 실행마다 파티클을 똑같이 배치하며, 시각 회귀 테스트가 가능한 이유가 바로 이것입니다.
 
 ## destroy()
 
-실행 중인 작업과 observer를 중지하고 스냅샷 및 보관 노드를 해제합니다. 반복 호출은 안전하지만 파괴 후 새 작업은 허용되지 않습니다.
+실행 중인 작업과 observer를 중지하고 스냅샷과 디코딩 오디오를 해제하며 재생 컨텍스트 및 보관 노드를 정리합니다. 반복 호출은 안전하지만 파괴 후 새 작업은 허용되지 않습니다.
 
 ## EffectOperation
 

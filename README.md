@@ -1,7 +1,5 @@
 # Vanilla Disintegrate — Thanos Snap Animation for DOM Elements
 
-[![Vanilla Disintegrate preview](https://github.com/user-attachments/assets/c333d6f6-4cbf-4fd4-8865-7611872ea98b)](https://github.com/uvarov-frontend/vanilla-disintegrate)
-
 [![version](https://img.shields.io/npm/v/vanilla-disintegrate.svg)](https://www.npmjs.com/package/vanilla-disintegrate)
 [![CI](https://github.com/uvarov-frontend/vanilla-disintegrate/actions/workflows/ci.yml/badge.svg)](https://github.com/uvarov-frontend/vanilla-disintegrate/actions/workflows/ci.yml)
 [![downloads](https://img.shields.io/npm/dm/vanilla-disintegrate.svg)](https://www.npmjs.com/package/vanilla-disintegrate)
@@ -20,7 +18,7 @@ Vanilla Disintegrate is a lightweight TypeScript library for removing and restor
 - **Custom capture**: The `vanilla-disintegrate/snapdom` entry wires SnapDOM for you; import the core entry to plug in another renderer such as html2canvas.
 - **Zero runtime dependencies**: The core entry ships no dependencies; SnapDOM is an optional peer installed only if you use its entry.
 - **Sound control**: Effect audio is opt-in; enable the built-in sounds with `sound: true`, or supply your own source, `AudioBuffer`, or audio factory.
-- **Optional preparation**: Pre-capture chosen elements in the background with a bounded LRU snapshot cache.
+- **Background preparation**: Registered elements are pre-captured with a visible-idle policy and a bounded LRU snapshot cache; disable it when unnecessary.
 - **Explicit memory control**: Keep a removed original node only with `retain: true`, then consume it with `take()` or release it with `discard()`.
 - **No runtime CSS**: The library creates and removes its visual layer itself without a stylesheet import.
 - **Accessible defaults**: Respects `prefers-reduced-motion` by default.
@@ -86,8 +84,11 @@ const effects = new Disintegrator({
 const card = document.querySelector<HTMLElement>('.card');
 
 if (card) {
+  const unregister = effects.register(card);
+
   card.querySelector('button')?.addEventListener('click', () => {
     effects.remove(card);
+    unregister();
   });
 }
 ```
@@ -223,7 +224,7 @@ Install your chosen capture library separately; this example uses `npm install h
 
 ### Sound
 
-Effect audio is opt-in. `dust` and `wind` carry built-in sounds on both phases — the restoration reuses the removal recording through the `reverse` option instead of bundling a second file — and `sound: true` turns them on:
+Effect audio is opt-in. All four built-in effects carry sounds on both phases — restoration reuses the removal recording through the `reverse` option instead of bundling a second file — and `sound: true` turns them on. The selected default effect is fetched and decoded immediately; the other three stay unloaded:
 
 ```ts
 const effects = new Disintegrator({ effect: 'dust', sound: true });
@@ -231,7 +232,13 @@ const effects = new Disintegrator({ effect: 'dust', sound: true });
 effects.remove(card, { sound: false });
 ```
 
-Enable audio from a user gesture such as a click: browsers block an `AudioContext` that starts without one.
+For a UI that switches among several effects, prepare exactly those effects ahead of time:
+
+```ts
+await effects.prepareAudio(['dust', 'scatter', 'vapor', 'wind']);
+```
+
+Call `remove()` or `restore()` from a user gesture such as a click so the library can resume Web Audio playback.
 
 ## Documentation
 

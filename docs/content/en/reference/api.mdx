@@ -19,23 +19,24 @@ const effects = new Disintegrator(options);
 
 Important options:
 
-| Option                 | Type                               | Default         | What it does                                                                     |
-| ---------------------- | ---------------------------------- | --------------- | -------------------------------------------------------------------------------- |
-| `effect`               | `EffectSelection`                  | `'dust'`        | Effect used when an operation does not pick one                                  |
-| `effects`              | `Record<string, EffectDefinition>` | `{}`            | Custom effects you can then select by name                                       |
-| `sound`                | `boolean \| SoundDefinition`       | `false`         | `true` plays the phase sounds; a definition replaces them                        |
-| `layout`               | `boolean \| LayoutOptions`         | `true`          | Moves the neighbours into their new places after a removal                       |
-| `preparation`          | `boolean \| PreparationOptions`    | `false`         | Captures snapshots ahead of time in the background                               |
-| `respectReducedMotion` | `boolean`                          | `true`          | Skips the animation when the user asked for less motion                          |
-| `capture`              | `SnapshotCapture`                  | —               | Turns an element into a canvas. Already wired to SnapDOM on the `/snapdom` entry |
-| `overlayRoot`          | `HTMLElement \| () => HTMLElement` | `document.body` | Where the animation overlay is appended                                          |
-| `zIndex`               | `number`                           | `2147483646`    | Stack level of that overlay                                                      |
-| `random`               | `() => number`                     | `Math.random`   | Seed source, called once per operation                                           |
-| `snapdom`              | `SnapdomOptions`                   | —               | Passed to SnapDOM's `toCanvas()`. Only on the `/snapdom` entry                   |
-| `onTrigger`            | `(context) => void`                | —               | After validation, before capture starts                                          |
-| `onStart`              | `(context) => void`                | —               | After the DOM change, as playback begins                                         |
-| `onComplete`           | `(context) => void`                | —               | After a visual phase finishes normally                                           |
-| `onError`              | `(error, context) => void`         | —               | Capture, animation, sound and callback errors                                    |
+| Option                 | Type                                                        | Default         | What it does                                                                     |
+| ---------------------- | ----------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------- |
+| `effect`               | `EffectSelection`                                           | `'dust'`        | Effect used when an operation does not pick one                                  |
+| `effects`              | `Record<string, EffectDefinition>`                          | `{}`            | Custom effects you can then select by name                                       |
+| `sound`                | `boolean \| SoundDefinition`                                | `false`         | `true` plays the phase sounds; a definition replaces them                        |
+| `layout`               | `boolean \| LayoutOptions`                                  | `true`          | Moves the neighbours into their new places after a removal                       |
+| `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | Prepares registered elements in the background                                   |
+| `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'immediate'`   | Prepares only enabled audio; `sound: false` still performs no work               |
+| `respectReducedMotion` | `boolean`                                                   | `true`          | Skips the animation when the user asked for less motion                          |
+| `capture`              | `SnapshotCapture`                                           | —               | Turns an element into a canvas. Already wired to SnapDOM on the `/snapdom` entry |
+| `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | Where the animation overlay is appended                                          |
+| `zIndex`               | `number`                                                    | `2147483646`    | Stack level of that overlay                                                      |
+| `random`               | `() => number`                                              | `Math.random`   | Seed source, called once per operation                                           |
+| `snapdom`              | `SnapdomOptions`                                            | —               | Passed to SnapDOM's `toCanvas()`. Only on the `/snapdom` entry                   |
+| `onTrigger`            | `(context) => void`                                         | —               | After validation, before capture starts                                          |
+| `onStart`              | `(context) => void`                                         | —               | After the DOM change, as playback begins                                         |
+| `onComplete`           | `(context) => void`                                         | —               | After a visual phase finishes normally                                           |
+| `onError`              | `(error, context) => void`                                  | —               | Capture, animation, sound and callback errors                                    |
 
 Pass a fixed `random` to make an effect reproducible: the same seed lays the particles out the same way every run, which is what makes a visual regression test possible.
 
@@ -91,13 +92,23 @@ effects.clearPrepared();
 
 `register()` follows the strategy you configured. `prepare()` captures right away, even when background preparation is off, and resolves with nothing once every element is done.
 
+## Audio preparation
+
+```ts
+await effects.prepareAudio(['dust', 'wind']);
+effects.discardPreparedAudio('dust');
+effects.clearPreparedAudio();
+```
+
+With instance-level `sound: true`, the default effect is prepared automatically. Explicit methods still work while sound is disabled. Decoded buffers use a bounded LRU cache.
+
 ## destroy()
 
 ```ts
 effects.destroy();
 ```
 
-Cancels active operations, stops observers and background work, releases snapshot resources, and clears retained nodes. Calling it more than once is safe; starting new work afterwards throws.
+Cancels active operations, stops observers and background work, releases snapshot and decoded audio resources, closes the playback context, and clears retained nodes. Calling it more than once is safe; starting new work afterwards throws.
 
 ## EffectOperation
 
