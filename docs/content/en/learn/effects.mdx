@@ -14,9 +14,9 @@ Each built-in name is a **pair**: one animation for removing, one for putting th
 | Name      | Remove                                                                          | Restore                                                      | Length  |
 | --------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------- |
 | `dust`    | The element breaks into rising dust.                                            | Dust collects into the element's final geometry.             | 900 ms  |
-| `scatter` | Fine fragments dissolve left to right and drift with an upward bias.            | Fragments gather from the same scattered field.              | 830 ms  |
-| `vapor`   | The surface lifts away at random, the top going first, and swells as it climbs. | A narrowing vapor stream condenses into the visible element. | 1309 ms |
-| `wind`    | A stream carries particles sideways.                                            | The same stream returns them from its direction.             | 2075 ms |
+| `scatter` | Fine fragments dissolve left to right and drift with an upward bias.            | Fragments gather from the same scattered field.              | 1170 ms |
+| `vapor`   | The surface lifts away at random, the top going first, and swells as it climbs. | A narrowing vapor stream condenses into the visible element. | 1030 ms |
+| `wind`    | A stream carries particles sideways.                                            | The same stream returns them from its direction.             | 2040 ms |
 
 Both phases of an effect run for the same length. `remove()` uses it as the removal timeline, `restore()` as the entrance one, and a bundled sound is trimmed to it.
 

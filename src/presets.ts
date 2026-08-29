@@ -11,8 +11,8 @@ const particlePresets: Readonly<Record<BuiltInEffect, ParticleOptions>> = Object
   dust: {},
   vapor: {
     motion: 'vapor',
-    duration: 1182,
-    stagger: 127,
+    duration: 900,
+    stagger: 130,
     horizontalDrift: 16,
     horizontalTravel: [-8, 8],
     rise: [130, 230],
@@ -21,7 +21,7 @@ const particlePresets: Readonly<Record<BuiltInEffect, ParticleOptions>> = Object
   },
   scatter: {
     motion: 'scatter',
-    duration: 760,
+    duration: 1100,
     stagger: 70,
     horizontalDrift: 42,
     horizontalTravel: [-125, 125],
@@ -58,11 +58,11 @@ export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> =
   vapor: defineEffect({
     remove: {
       animate: createParticleAnimation(particlePresets.vapor),
-      sound: { src: vaporSoundUrl, gain: 0.6 },
+      sound: { src: vaporSoundUrl },
     },
     restore: {
       animate: createParticleRestoreAnimation(particlePresets.vapor),
-      sound: { src: vaporSoundUrl, gain: 0.6, reverse: true },
+      sound: { src: vaporSoundUrl, reverse: true },
     },
   }),
   scatter: defineEffect({
@@ -78,11 +78,11 @@ export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> =
   wind: defineEffect({
     remove: {
       animate: createParticleAnimation(particlePresets.wind),
-      sound: { src: christmasSoundUrl, gain: 0.52 },
+      sound: { src: christmasSoundUrl },
     },
     restore: {
       animate: createParticleRestoreAnimation(particlePresets.wind),
-      sound: { src: christmasSoundUrl, gain: 0.52, reverse: true },
+      sound: { src: christmasSoundUrl, reverse: true },
     },
   }),
 });
