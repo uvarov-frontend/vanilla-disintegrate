@@ -4,6 +4,7 @@ import type { MarkdownHeading } from 'astro';
 import Footer from '../components/Footer.astro';
 import Header from '../components/Header.astro';
 import InteractiveDemo from '../components/InteractiveDemo.astro';
+import ParticleVortexSource from '../components/ParticleVortexSource.astro';
 import Sidebar from '../components/Sidebar.astro';
 import { docsHref, homeHref, ui, type Locale } from '../i18n';
 import { editHref, entryHref, type DocEntry } from '../lib/docs';
@@ -68,7 +69,7 @@ const toc = headings.filter((heading) => heading.depth === 2);
         }
 
         <div class="page-content">
-          <slot components={{ Demo: InteractiveDemo }} />
+          <slot components={{ Demo: InteractiveDemo, ParticleVortexSource }} />
         </div>
 
         <a class="edit-page-link" href={editHref(entry)} target="_blank" rel="noopener noreferrer">

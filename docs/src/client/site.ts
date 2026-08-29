@@ -1,5 +1,4 @@
 import Disintegrator, {
-  defineEffect,
   type BuiltInEffect,
   type EffectDefinition,
   type EffectOperation,
@@ -8,7 +7,7 @@ import Disintegrator, {
 import { particleVortex } from '../../../demo/particle-vortex';
 
 type Locale = 'en' | 'ru' | 'zh' | 'ko';
-type DemoKind = 'built-in' | 'preparation' | 'custom' | 'particle-vortex';
+type DemoKind = 'built-in' | 'preparation' | 'particle-vortex';
 
 const locale = (document.body.dataset.locale ?? 'en') as Locale;
 const instances = new Set<Disintegrator>();
@@ -186,45 +185,6 @@ const effectNames: Record<BuiltInEffect, string> = {
   scatter: 'Wild scatter',
   wind: 'Christmas wind',
 };
-
-function createLayerClone(element: HTMLElement, layer: HTMLElement) {
-  const visual = element.cloneNode(true) as HTMLElement;
-  Object.assign(visual.style, {
-    height: '100%',
-    inset: '0',
-    margin: '0',
-    pointerEvents: 'none',
-    position: 'absolute',
-    width: '100%',
-  });
-  layer.append(visual);
-  return visual;
-}
-
-const pulse = defineEffect({
-  remove: {
-    needsSnapshot: false,
-    animate: ({ element, layer }) =>
-      createLayerClone(element, layer).animate(
-        [
-          { opacity: 1, transform: 'scale(1)' },
-          { opacity: 0, transform: 'scale(.6) rotate(8deg)' },
-        ],
-        { duration: 420, easing: 'cubic-bezier(.4, 0, 1, 1)' },
-      ),
-  },
-  restore: {
-    needsSnapshot: false,
-    animate: ({ element, layer }) =>
-      createLayerClone(element, layer).animate(
-        [
-          { opacity: 0, transform: 'scale(.6) rotate(-8deg)' },
-          { opacity: 1, transform: 'scale(1) rotate(0)' },
-        ],
-        { duration: 520, easing: 'cubic-bezier(0, 0, .2, 1)' },
-      ),
-  },
-});
 
 function required<T extends Element>(root: ParentNode, selector: string) {
   const element = root.querySelector<T>(selector);
@@ -686,15 +646,14 @@ function mountPreparationDemo(root: HTMLElement) {
 
 function mountPairDemo(root: HTMLElement, kind: DemoKind) {
   const picker = kind === 'built-in';
-  const hasSound = kind !== 'custom';
-  const effectLabel = kind === 'particle-vortex' ? 'Particle vortex' : kind === 'custom' ? 'Pulse' : effectNames.dust;
+  const effectLabel = kind === 'particle-vortex' ? 'Particle vortex' : effectNames.dust;
   root.innerHTML = `<div class="interactive-example"><div class="example-toolbar"><div class="example-setting"><span>${copy.effectPair}</span>${
     picker
       ? `<label class="select-control"><select data-effect>${Object.entries(effectNames)
           .map(([value, label]) => `<option value="${value}">${label}</option>`)
           .join('')}</select><i></i></label>`
       : `<strong>${effectLabel}</strong>`
-  }</div>${hasSound ? `<label class="sound-toggle"><input type="checkbox" data-sound checked><span></span>${copy.sound}</label>` : ''}</div><div class="example-stage" data-slot></div><div class="example-actions"><button class="button-primary" type="button" data-action="remove">${copy.remove}</button><button class="button-secondary" type="button" data-action="restore">${copy.preview}</button><button class="button-quiet" type="button" data-action="reset">${copy.reset}</button></div><dl class="example-state" aria-live="polite"><div><dt>${copy.operation}</dt><dd data-operation>${copy.ready}</dd></div><div><dt>${copy.dom}</dt><dd data-dom>${copy.connected}</dd></div><div><dt>${copy.restorePair}</dt><dd data-pair>${effectLabel}</dd></div><div><dt>${copy.retainedId}</dt><dd data-id>none</dd></div></dl><p class="example-hint" data-hint>${copy.hint}</p></div>`;
+  }</div><label class="sound-toggle"><input type="checkbox" data-sound checked><span></span>${copy.sound}</label></div><div class="example-stage" data-slot></div><div class="example-actions"><button class="button-primary" type="button" data-action="remove">${copy.remove}</button><button class="button-secondary" type="button" data-action="restore">${copy.preview}</button><button class="button-quiet" type="button" data-action="reset">${copy.reset}</button></div><dl class="example-state" aria-live="polite"><div><dt>${copy.operation}</dt><dd data-operation>${copy.ready}</dd></div><div><dt>${copy.dom}</dt><dd data-dom>${copy.connected}</dd></div><div><dt>${copy.restorePair}</dt><dd data-pair>${effectLabel}</dd></div><div><dt>${copy.retainedId}</dt><dd data-id>none</dd></div></dl><p class="example-hint" data-hint>${copy.hint}</p></div>`;
 
   const slot = required<HTMLElement>(root, '[data-slot]');
   const select = root.querySelector<HTMLSelectElement>('select[data-effect]');
@@ -707,9 +666,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
   const idOutput = required<HTMLElement>(root, '[data-id]');
   const instance = track(
     new Disintegrator({
-      // Pulse clones its DOM node and declares needsSnapshot: false, so SnapDOM
-      // preparation would add work that this demo can never use.
-      preparation: kind === 'custom' ? false : true,
+      preparation: true,
       onError: (error) => {
         state.textContent = String(error);
       },
@@ -730,15 +687,10 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
 
   const selected = (): BuiltInEffect | EffectDefinition => {
     if (kind === 'particle-vortex') return particleVortex;
-    if (kind === 'custom') return pulse;
     return (select?.value ?? 'dust') as BuiltInEffect;
   };
   const selectedLabel = () =>
-    kind === 'particle-vortex'
-      ? 'Particle vortex'
-      : kind === 'custom'
-        ? 'Pulse'
-        : effectNames[(select?.value ?? 'dust') as BuiltInEffect];
+    kind === 'particle-vortex' ? 'Particle vortex' : effectNames[(select?.value ?? 'dust') as BuiltInEffect];
   const soundOptions = () => (sound ? { sound: sound.checked } : {});
   const update = () => {
     const connected = card?.isConnected === true;

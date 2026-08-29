@@ -9,59 +9,30 @@ order: 60
 
 사용자 효과는 두 개의 완전한 애니메이션으로 구성됩니다. Vanilla Disintegrate는 지오메트리, 캡처, 취소, 정리 및 오디오 연결 계약을 제공하며 렌더러와 사운드는 모두 사용자가 선택합니다.
 
-## 두 단계 정의
+## 스냅샷으로 파티클 효과 만들기
+
+아래의 완전한 예제는 `snapshot`에서 불투명 픽셀을 읽어 Canvas 파티클로 바꾸고, 소용돌이를 따라 움직입니다. 스냅샷은 기본적으로 필요하므로 `needsSnapshot`을 의도적으로 생략했습니다.
+
+<ParticleVortexSource />
+
+위 소스를 프로젝트의 `particle-vortex.ts`로 복사한 뒤, 데모와 동일한 효과를 사용하세요.
 
 ```ts
-import { defineEffect } from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
-function createLayerClone(element: HTMLElement, layer: HTMLElement) {
-  const visual = element.cloneNode(true) as HTMLElement;
-  Object.assign(visual.style, {
-    height: '100%',
-    inset: '0',
-    margin: '0',
-    pointerEvents: 'none',
-    position: 'absolute',
-    width: '100%',
-  });
-  layer.append(visual);
-  return visual;
-}
+import { particleVortex } from './particle-vortex';
 
-const pulse = defineEffect({
-  remove: {
-    needsSnapshot: false,
-    animate({ element, layer }) {
-      return createLayerClone(element, layer).animate(
-        [
-          { opacity: 1, transform: 'scale(1)' },
-          { opacity: 0, transform: 'scale(.6) rotate(8deg)' },
-        ],
-        { duration: 420, easing: 'cubic-bezier(.4, 0, 1, 1)' },
-      );
-    },
-  },
-  restore: {
-    needsSnapshot: false,
-    animate({ element, layer }) {
-      return createLayerClone(element, layer).animate(
-        [
-          { opacity: 0, transform: 'scale(.6) rotate(-8deg)' },
-          { opacity: 1, transform: 'scale(1) rotate(0)' },
-        ],
-        { duration: 520, easing: 'cubic-bezier(0, 0, .2, 1)' },
-      );
-    },
-  },
-});
+const effects = new Disintegrator();
 
-effects.remove(element, { effect: pulse });
-effects.restore(insertedElement, { effect: pulse });
+effects.remove(element, { effect: particleVortex, retain: true });
+effects.restore(insertedElement, { effect: particleVortex });
 ```
 
-<Demo kind="custom" />
+<Demo kind="particle-vortex" />
 
-`needsSnapshot: false`는 해당 단계에서 capture와 SnapDOM이 호출되지 않음을 보장합니다.
+인터랙티브 데모와 코드 블록은 같은 소스 파일을 사용하므로 구현을 항상 그대로 재현할 수 있습니다.
+
+DOM, SVG 또는 픽셀을 사용하지 않는 다른 렌더러를 의도적으로 애니메이션할 때만 `needsSnapshot: false`를 설정하세요. 해당 단계의 캡처가 완전히 생략됩니다.
 
 ## 애니메이션 컨텍스트
 
@@ -75,8 +46,8 @@ Web Animation, Promise, `null` 또는 `finished`, `cancel()`, `dispose()`를 가
 
 ```ts
 const effects = new Disintegrator({
-  effects: { pulse },
-  effect: 'pulse',
+  effects: { vortex: particleVortex },
+  effect: 'vortex',
 });
 ```
 

@@ -189,13 +189,17 @@ try {
   const demoKinds = {
     'learn/effects': 'built-in',
     'learn/preparation': 'preparation',
-    'learn/custom-effects': 'custom',
+    'learn/custom-effects': 'particle-vortex',
   };
   for (const [contentPath, kind] of Object.entries(demoKinds)) {
     const response = await fetch(`${origin}/ru/docs/${contentPath}/`);
     const html = await response.text();
     assert.equal(response.status, 200, contentPath);
     assert.ok(html.includes(`data-demo-kind="${kind}"`), `${contentPath} must render its live example`);
+    if (contentPath === 'learn/custom-effects') {
+      assert.ok(html.includes('sampleParticles'), 'custom effects must show its snapshot particle implementation');
+      assert.ok(html.includes('particleVortex'), 'custom effects must show the effect used by its live example');
+    }
   }
 
   const robotsResponse = await fetch(`${origin}/robots.txt`);

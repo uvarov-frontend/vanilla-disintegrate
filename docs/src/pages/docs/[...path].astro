@@ -3,6 +3,7 @@ import { getCollection, getEntry, render } from 'astro:content';
 
 import InteractiveDemo from '../../components/InteractiveDemo.astro';
 import NotFoundPage from '../../components/NotFoundPage.astro';
+import ParticleVortexSource from '../../components/ParticleVortexSource.astro';
 import { localeEntries } from '../../lib/docs';
 import DocsLayout from '../../layouts/DocsLayout.astro';
 
@@ -19,7 +20,7 @@ const rendered = entry ? await render(entry) : null;
 {
   rendered && entry ? (
     <DocsLayout entry={entry} entries={entries} headings={rendered.headings} locale="en">
-      <rendered.Content components={{ Demo: InteractiveDemo }} />
+      <rendered.Content components={{ Demo: InteractiveDemo, ParticleVortexSource }} />
     </DocsLayout>
   ) : (
     <NotFoundPage locale="en" pathname={Astro.url.pathname} />

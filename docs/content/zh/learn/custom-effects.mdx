@@ -9,59 +9,30 @@ order: 60
 
 自定义效果由两段完整动画组成。Vanilla Disintegrate 提供几何位置、捕获、取消、清理以及音频接入协议；渲染方式和声音都由你选择。
 
-## 定义两个阶段
+## 使用快照构建粒子效果
+
+下面的完整示例会从 `snapshot` 读取不透明像素，将它们转换为 Canvas 粒子，并让粒子穿过漩涡。快照默认必需，因此特意没有指定 `needsSnapshot`。
+
+<ParticleVortexSource />
+
+将上面的源代码复制到项目中的 `particle-vortex.ts`，再使用与演示完全相同的效果：
 
 ```ts
-import { defineEffect } from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
-function createLayerClone(element: HTMLElement, layer: HTMLElement) {
-  const visual = element.cloneNode(true) as HTMLElement;
-  Object.assign(visual.style, {
-    height: '100%',
-    inset: '0',
-    margin: '0',
-    pointerEvents: 'none',
-    position: 'absolute',
-    width: '100%',
-  });
-  layer.append(visual);
-  return visual;
-}
+import { particleVortex } from './particle-vortex';
 
-const pulse = defineEffect({
-  remove: {
-    needsSnapshot: false,
-    animate({ element, layer }) {
-      return createLayerClone(element, layer).animate(
-        [
-          { opacity: 1, transform: 'scale(1)' },
-          { opacity: 0, transform: 'scale(.6) rotate(8deg)' },
-        ],
-        { duration: 420, easing: 'cubic-bezier(.4, 0, 1, 1)' },
-      );
-    },
-  },
-  restore: {
-    needsSnapshot: false,
-    animate({ element, layer }) {
-      return createLayerClone(element, layer).animate(
-        [
-          { opacity: 0, transform: 'scale(.6) rotate(-8deg)' },
-          { opacity: 1, transform: 'scale(1) rotate(0)' },
-        ],
-        { duration: 520, easing: 'cubic-bezier(0, 0, .2, 1)' },
-      );
-    },
-  },
-});
+const effects = new Disintegrator();
 
-effects.remove(element, { effect: pulse });
-effects.restore(insertedElement, { effect: pulse });
+effects.remove(element, { effect: particleVortex, retain: true });
+effects.restore(insertedElement, { effect: particleVortex });
 ```
 
-<Demo kind="custom" />
+<Demo kind="particle-vortex" />
 
-`needsSnapshot: false` 保证该阶段不会调用 capture 或 SnapDOM。
+交互演示和代码块使用同一个源文件，因此实现始终可以直接复现。
+
+只有当效果明确使用 DOM、SVG 或其他无需像素的渲染器时，才设置 `needsSnapshot: false`。这会完全跳过该阶段的捕获。
 
 ## 动画上下文
 
@@ -75,8 +46,8 @@ effects.restore(insertedElement, { effect: pulse });
 
 ```ts
 const effects = new Disintegrator({
-  effects: { pulse },
-  effect: 'pulse',
+  effects: { vortex: particleVortex },
+  effect: 'vortex',
 });
 ```
 

@@ -9,59 +9,30 @@ order: 60
 
 A custom effect is a pair of full animations. Vanilla Disintegrate supplies geometry, capture, cancellation, cleanup, and a contract for connecting audio; you choose both the renderer and the sound.
 
-## Define both phases
+## Build a particle effect from a snapshot
+
+This complete example samples opaque pixels from `snapshot`, turns them into Canvas particles, and moves them through a vortex. The snapshot is required by default, so `needsSnapshot` is deliberately omitted.
+
+<ParticleVortexSource />
+
+Copy the source above into your project as `particle-vortex.ts`, then use the exact effect shown in the demo:
 
 ```ts
-import { defineEffect } from 'vanilla-disintegrate';
+import Disintegrator from 'vanilla-disintegrate/snapdom';
 
-function createLayerClone(element: HTMLElement, layer: HTMLElement) {
-  const visual = element.cloneNode(true) as HTMLElement;
-  Object.assign(visual.style, {
-    height: '100%',
-    inset: '0',
-    margin: '0',
-    pointerEvents: 'none',
-    position: 'absolute',
-    width: '100%',
-  });
-  layer.append(visual);
-  return visual;
-}
+import { particleVortex } from './particle-vortex';
 
-const pulse = defineEffect({
-  remove: {
-    needsSnapshot: false,
-    animate({ element, layer }) {
-      return createLayerClone(element, layer).animate(
-        [
-          { opacity: 1, transform: 'scale(1)' },
-          { opacity: 0, transform: 'scale(.6) rotate(8deg)' },
-        ],
-        { duration: 420, easing: 'cubic-bezier(.4, 0, 1, 1)' },
-      );
-    },
-  },
-  restore: {
-    needsSnapshot: false,
-    animate({ element, layer }) {
-      return createLayerClone(element, layer).animate(
-        [
-          { opacity: 0, transform: 'scale(.6) rotate(-8deg)' },
-          { opacity: 1, transform: 'scale(1) rotate(0)' },
-        ],
-        { duration: 520, easing: 'cubic-bezier(0, 0, .2, 1)' },
-      );
-    },
-  },
-});
+const effects = new Disintegrator();
 
-effects.remove(element, { effect: pulse });
-effects.restore(insertedElement, { effect: pulse });
+effects.remove(element, { effect: particleVortex, retain: true });
+effects.restore(insertedElement, { effect: particleVortex });
 ```
 
-<Demo kind="custom" />
+<Demo kind="particle-vortex" />
 
-`needsSnapshot: false` guarantees that capture and SnapDOM are not invoked for that phase.
+The interactive demo and the code block use the same source file, so the implementation is always reproducible.
+
+Set `needsSnapshot: false` only for effects that intentionally animate DOM, SVG, or another renderer without using pixels. It completely skips capture for that phase.
 
 ## Animation context
 
@@ -106,9 +77,9 @@ This covers Web Animations, async CSS orchestration, Canvas render loops, SVG, W
 ```ts
 const effects = new Disintegrator({
   effects: {
-    pulse,
+    vortex: particleVortex,
   },
-  effect: 'pulse',
+  effect: 'vortex',
 });
 
 effects.remove(element);
