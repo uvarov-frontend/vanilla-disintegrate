@@ -20,7 +20,7 @@ The hook runs after the element has been measured and captured, exactly when rem
 
 For restoration, render the element first, wait until the framework has committed it to the DOM, and then call `restore()` with the new element reference. Keep application data in framework state, not a retained DOM node. That is why reactive integrations normally leave `retain` at `false`.
 
-This is a new DOM node, so pass the same `effect` to `restore()` yourself if the removal did not use the instance default. The library only remembers an effect for the exact node it removed.
+This is a new DOM node, so `restore()` needs the same `effect` passed to it when the removal did not use the instance default. The library only remembers an effect for the exact node it removed.
 
 ## React
 

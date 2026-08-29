@@ -36,7 +36,7 @@ await effects.restore(element, { effect: 'dust' }).finished;
 
 元素必须已连接并具有非零尺寸。库会同步隐藏它，测量**新的最终位置**，完成捕获与恢复动画后显示原节点。
 
-隐藏通过暂停的 Web Animation 实现，而非内联样式，因此在效果播放期间修改 class 或 style 都不会破坏它。由 CSS 层叠可推出一个限制：作者样式中的 `!important` 优先于动画，因此恢复目标上的 `.card { opacity: 1 !important }` 会让真实元素显示在粒子层下方。请去掉目标上的 `!important`，或改为恢复一个不带该声明的包装元素。
+隐藏通过暂停的 Web Animation 实现，而非内联样式，因此在效果播放期间修改 class 或 style 都不会破坏它。由 CSS 层叠可推出一个限制：作者样式中的 `!important` 优先于动画，因此恢复目标上的 `.card { opacity: 1 !important }` 会让真实元素显示在粒子层下方。去掉目标上的 `!important` 即可避免，恢复一个不带该声明的包装元素同样可行。
 
 ## 动画显示全新元素
 

@@ -32,7 +32,7 @@ effects.restore(insertedElement, { effect: particleVortex });
 
 上面的演示和代码块来自同一个文件，你看到运行的就是你拿到的。
 
-如果效果动画的是 DOM、SVG 或其他不需要像素的东西，就设 `needsSnapshot: false`。该阶段将完全跳过捕获。
+`needsSnapshot: false` 适合动画 DOM、SVG 或其他不需要像素的效果。该阶段将完全跳过捕获。
 
 ## 动画上下文
 

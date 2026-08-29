@@ -52,7 +52,7 @@ effects.discardAll(); // number of released entries
 
 There is no TTL and no cap on the number of entries. Nothing gets deleted behind your back — but nothing gets cleaned up for you either. Every `RemovalId` you do not use has to end up in `take()`, `discard()`, or `discardAll()`.
 
-Pick a moment in your own app to expire undo: when a toast closes, when the route changes, when a history entry is committed.
+Undo expires when the application decides it does: as a toast closes, on a route change, once a history entry is committed.
 
 ## Remove permanently
 

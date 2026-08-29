@@ -34,7 +34,7 @@ bun add vanilla-disintegrate @zumer/snapdom
 | `vanilla-disintegrate`         | Ядро: эффекты, жизненный цикл, layout, звук. `capture` передаёте вы.                       | Ничего           |
 | `vanilla-disintegrate/snapdom` | Тот же API с [SnapDOM](https://zumerlab.github.io/snapdom/) в роли `capture` по умолчанию. | `@zumer/snapdom` |
 
-Обе точки входа экспортируют одинаковый API `Disintegrator`. `@zumer/snapdom` — необязательная peer-зависимость: ставьте её только ради входа `/snapdom`, ядро к ней никогда не обращается.
+Обе точки входа экспортируют одинаковый API `Disintegrator`. `@zumer/snapdom` — необязательная peer-зависимость: она нужна только входу `/snapdom`, ядро к ней никогда не обращается.
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';

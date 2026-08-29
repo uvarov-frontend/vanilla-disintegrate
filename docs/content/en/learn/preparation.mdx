@@ -47,7 +47,7 @@ const effects = new Disintegrator({
 | `idle`         | Wait for an idle moment, with a timeout so it never waits forever. |
 | `visible-idle` | Wait until the element is near the viewport, then wait for idle.   |
 
-`shouldPrepare(element)` runs before anything is scheduled. Use it to skip elements on your own terms — by type, by current state, by a feature flag, on a slow connection.
+`shouldPrepare(element)` runs before anything is scheduled. It filters by any condition the application knows about: element type, current state, a feature flag, a slow connection.
 
 ## Control the cache directly
 
