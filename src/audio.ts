@@ -84,13 +84,8 @@ export class SoundPlayer {
 
       playback.buffer = buffer;
       playback.playbackRate.value = playbackRate;
-      /*
-       * A removal recording opens on its transient and trails off, so trimming it
-       * to the animation drops the tail. Reversed, that transient sits at the end
-       * of the buffer instead, so the playback window is taken from the end and
-       * the fade moves to the start — otherwise the trim, and then the fade,
-       * would remove the very moment the restoration is built around.
-       */
+      // Reversal moves the transient to the end, so the window is taken from the
+      // end and the fade flips to the start; otherwise both would cut it away.
       const offset = reverse ? Math.max(0, buffer.duration - duration * playbackRate) : 0;
       if (reverse) {
         gain.gain.setValueAtTime(0, startedAt);

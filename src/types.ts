@@ -10,7 +10,7 @@ export type BuiltInEffect = 'dust' | 'vapor' | 'scatter' | 'wind';
 /** Horizontal origin used to distribute built-in particles. */
 export type DisintegrationOrigin = 'left' | 'right' | 'random';
 /** Particle movement profile used by the built-in WebGL renderer. */
-export type ParticleMotion = 'drift' | 'vapor' | 'scatter' | 'wind';
+export type ParticleMotion = 'dust' | 'vapor' | 'scatter' | 'wind';
 
 declare const removalIdBrand: unique symbol;
 /** Opaque identifier returned by `remove()` when `retain: true` is selected. */
@@ -34,7 +34,7 @@ export type SnapshotCapture = (
 
 /** Controls the built-in particle renderer returned by `createParticleAnimation()`. */
 export interface ParticleOptions {
-  /** Motion profile. Defaults to `drift`. */
+  /** Motion profile. Defaults to `dust`. */
   readonly motion?: ParticleMotion;
   /** Base animation duration in milliseconds. */
   readonly duration?: number;

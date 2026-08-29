@@ -210,11 +210,12 @@ function clamp(value: number, minimum: number, maximum: number) {
 function resolveMotion(motion: ResolvedParticleOptions['motion']) {
   switch (motion) {
     case 'vapor':
-      return { curveMix: 0.65, fadeStart: 0.18, motionPower: 2.5, waveTurns: 1.6 };
+      return { curveMix: 0.85, fadeStart: 0.3, motionPower: 2.2, waveTurns: 1.6 };
     case 'scatter':
       return { curveMix: 0, fadeStart: 0.16, motionPower: 5, waveTurns: 2.4 };
     case 'wind':
       return { curveMix: 0, fadeStart: 0.32, motionPower: 2.2, waveTurns: 1.25 };
+    case 'dust':
     default:
       return { curveMix: 0, fadeStart: 0.3, motionPower: 3, waveTurns: 1 };
   }
@@ -322,10 +323,10 @@ function createBounds(
   };
 }
 
-function resolveThreshold(particles: ResolvedParticleOptions, column: number, noise: number) {
+function resolveThreshold(particles: ResolvedParticleOptions, column: number, row: number, noise: number) {
   if (particles.motion === 'vapor') {
-    const distanceFromCenter = Math.abs(column - 0.5) * 2;
-    return 0.05 + distanceFromCenter * 0.65 + noise * 0.3;
+    // Noise dominates so no geometric front forms; the row bias releases the top first.
+    return 0.04 + row * 0.12 + noise * 0.62;
   }
 
   const directional = particles.origin === 'right' ? 1 - column : column;
@@ -362,7 +363,8 @@ export function createParticleField(
 
       const noise = random();
       const column = (x + blockWidth * 0.5) / width;
-      const rawThreshold = resolveThreshold(particles, column, noise);
+      const row = (y + blockHeight * 0.5) / height;
+      const rawThreshold = resolveThreshold(particles, column, row, noise);
       const threshold = MIN_THRESHOLD + clamp(rawThreshold, 0, 1) * (MAX_THRESHOLD - MIN_THRESHOLD);
       const encodedThreshold = Math.round(threshold * 255);
       for (let blockY = 0; blockY < blockHeight; blockY += 1) {
@@ -376,9 +378,13 @@ export function createParticleField(
         particles.horizontalTravel[0] === particles.horizontalTravel[1]
           ? particles.horizontalTravel[0]
           : particles.horizontalTravel[0] + random() * (particles.horizontalTravel[1] - particles.horizontalTravel[0]);
-      const vaporCenterPull = particles.motion === 'vapor' ? (0.5 - column) * width * 0.35 : 0;
+      const riseSpan = particles.rise[1] - particles.rise[0];
+      const riseAmount = particles.rise[0] + random() * riseSpan;
+      // Pull scales with height, so the plume keeps tapering as it lifts.
+      const riseFraction = riseSpan === 0 ? 1 : (riseAmount - particles.rise[0]) / riseSpan;
+      const vaporCenterPull = particles.motion === 'vapor' ? (0.5 - column) * width * (0.16 + riseFraction * 0.42) : 0;
       const velocityX = (directedTravel + particles.horizontalDrift * (random() - 0.5)) * scaleX + vaporCenterPull;
-      const velocityY = -(particles.rise[0] + random() * (particles.rise[1] - particles.rise[0])) * scaleY;
+      const velocityY = -riseAmount * scaleY;
       const swirl = particles.swirl * (0.45 + random() * 0.55) * scaleY;
       values.push(x, y, threshold, velocityX, velocityY, swirl, random() * Math.PI * 2);
     }
@@ -579,9 +585,7 @@ function createParticleRenderer(
   let disposed = false;
   let frame = 0;
   const handleContextLost = () => {
-    // The canvas is discarded when the operation ends, so restoration is not
-    // requested. The WAAPI clock still drives `finished`: the operation settles
-    // and the element is committed even after the visuals are gone.
+    // No restore is requested: the WAAPI clock still settles the operation.
     cancelAnimationFrame(frame);
   };
   canvas.addEventListener('webglcontextlost', handleContextLost);

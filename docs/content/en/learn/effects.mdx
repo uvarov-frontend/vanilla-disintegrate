@@ -11,12 +11,14 @@ Each built-in name is a **pair**: one animation for removing, one for putting th
 
 ## The four effects
 
-| Name      | Remove                                               | Restore                                                      |
-| --------- | ---------------------------------------------------- | ------------------------------------------------------------ |
-| `dust`    | The element breaks into rising dust.                 | Dust collects into the element's final geometry.             |
-| `vapor`   | The center pulls upward first, drawing in the edges. | A narrowing vapor stream condenses into the visible element. |
-| `scatter` | Particles burst away from the element.               | Particles converge from outside.                             |
-| `wind`    | A stream carries particles sideways.                 | The same stream returns them from its direction.             |
+| Name      | Remove                                                                          | Restore                                                      | Length  |
+| --------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------- |
+| `dust`    | The element breaks into rising dust.                                            | Dust collects into the element's final geometry.             | 900 ms  |
+| `vapor`   | The surface lifts away at random, the top going first, and swells as it climbs. | A narrowing vapor stream condenses into the visible element. | 1309 ms |
+| `scatter` | Particles burst away from the element.                                          | Particles converge from outside.                             | 830 ms  |
+| `wind`    | A stream carries particles sideways.                                            | The same stream returns them from its direction.             | 2075 ms |
+
+Both phases of an effect run for the same length. `remove()` uses it as the removal timeline, `restore()` as the entrance one, and a bundled sound is trimmed to it.
 
 ```ts
 effects.remove(card, { effect: 'dust' });

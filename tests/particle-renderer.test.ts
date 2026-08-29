@@ -61,14 +61,25 @@ describe('particle renderer', () => {
     expect(field.data[2]).toBeCloseTo(0.68);
   });
 
-  it('releases vapor from the center before its edges', () => {
+  it('dissolves vapor evenly instead of peeling toward the centre', () => {
     const pixels = new Uint8ClampedArray(9 * 4);
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
     const field = createParticleField(pixels, 9, 1, resolveParticles({ motion: 'vapor' }), 1, 1, () => 0.5);
 
+    // One row, so nothing in the horizontal position may order the departures.
     const thresholdAt = (column: number) => field.data[column * 7 + 2] ?? 0;
-    expect(thresholdAt(4)).toBeLessThan(thresholdAt(0));
-    expect(thresholdAt(4)).toBeLessThan(thresholdAt(8));
+    expect(thresholdAt(0)).toBeCloseTo(thresholdAt(4), 6);
+    expect(thresholdAt(8)).toBeCloseTo(thresholdAt(4), 6);
+  });
+
+  it('releases the top rows of vapor first', () => {
+    const pixels = new Uint8ClampedArray(9 * 4);
+    for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
+    const field = createParticleField(pixels, 1, 9, resolveParticles({ motion: 'vapor' }), 1, 1, () => 0.5);
+
+    // Row 0 is the top of the element, so it must leave before the bottom row.
+    const thresholdAt = (rowIndex: number) => field.data[rowIndex * 7 + 2] ?? 0;
+    expect(thresholdAt(0)).toBeLessThan(thresholdAt(8));
   });
 
   it('draws vapor toward a narrower central plume', () => {

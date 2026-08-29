@@ -38,7 +38,7 @@ export interface ResolvedPreparationOptions {
 }
 
 export const DEFAULT_PARTICLES: ResolvedParticleOptions = {
-  motion: 'drift',
+  motion: 'dust',
   duration: 720,
   stagger: 180,
   horizontalDrift: 42,

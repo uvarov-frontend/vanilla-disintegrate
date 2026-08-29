@@ -433,8 +433,7 @@ function mountBattle(root: HTMLElement) {
       },
     }),
   );
-  // Preparation only acts on registered elements, and the grid changes on every
-  // removal, restore and reset, so the registry is synced with it.
+  // Preparation acts only on registered elements, and the grid keeps changing.
   const registrations = new Map<HTMLElement, () => void>();
   const syncPreparation = () => {
     const current = new Set(grid.querySelectorAll<HTMLElement>('.battle-card'));
@@ -479,9 +478,11 @@ function mountBattle(root: HTMLElement) {
     busy = true;
     status.textContent = operation.operation === 'remove' ? 'Removing…' : 'Restoring…';
     update();
+    const startedAt = performance.now();
     try {
       const result = await operation.finished;
-      status.textContent = `${message} · ${result.status}`;
+      const elapsed = Math.round(performance.now() - startedAt);
+      status.textContent = `${message} · ${result.status} · ${elapsed} ms`;
     } finally {
       busy = false;
       renderHistory();
@@ -676,7 +677,6 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
   let removalId: RemovalId | null = null;
   let busy = false;
   let remembered = effectLabel;
-  // Preparation only acts on registered elements; this demo owns exactly one card.
   let unregisterCard: (() => void) | null = null;
   const registerCard = (element: HTMLElement | null) => {
     unregisterCard?.();
@@ -708,9 +708,11 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
     busy = true;
     state.textContent = operation.operation === 'remove' ? 'Removing…' : 'Restoring…';
     update();
+    const startedAt = performance.now();
     try {
       const result = await operation.finished;
-      state.textContent = `${result.operation} · ${result.status}`;
+      const elapsed = Math.round(performance.now() - startedAt);
+      state.textContent = `${result.operation} · ${result.status} · ${elapsed} ms`;
       done?.();
     } finally {
       busy = false;
