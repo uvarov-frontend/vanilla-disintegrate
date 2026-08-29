@@ -42,7 +42,7 @@ SnapDOM captures the rendered element through Canvas. Images, fonts, and stylesh
 
 Vanilla Disintegrate is free and open source. Maintaining it takes time and resources; donations help keep the project improving while remaining available to everyone.
 
-If it helps your project, consider giving it a star on [GitHub](https://github.com/uvarov-frontend/vanilla-disintegrate), making a donation, reporting an issue, or sharing an idea.
+If it helps your project, consider giving it a 🌟 star on [GitHub](https://github.com/uvarov-frontend/vanilla-disintegrate), making a donation, reporting an issue, or sharing an idea.
 
 [![](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://buymeacoffee.com/uvarov)
 
