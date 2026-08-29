@@ -67,12 +67,7 @@ const cards = {
 const cardTargets = ['learn/effects', 'learn/retention', 'learn/custom-effects', 'learn/frameworks'] as const;
 ---
 
-<BaseLayout
-  title="Vanilla Disintegrate · Thanos snap effects for the DOM"
-  description={copy.home.description}
-  locale={locale}
-  pageClass="home-page"
->
+<BaseLayout title={copy.home.documentTitle} description={copy.home.description} locale={locale} pageClass="home-page">
   <Header locale={locale} pathname={pathname} />
   <main class="home-main" id="main-content">
     <section class="home-hero">

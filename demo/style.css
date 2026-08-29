@@ -2298,6 +2298,13 @@ code {
   }
 
   .docs-sidebar {
+    /*
+     * The desktop rule sets `align-self: start` so the sticky column sizes to
+     * its content. As an off-canvas drawer the panel must instead stretch
+     * between `top` and `bottom`; without this reset it keeps the content
+     * height and leaves a gap below itself on tall screens.
+     */
+    align-self: stretch;
     position: fixed;
     z-index: 120;
     top: var(--header-height);

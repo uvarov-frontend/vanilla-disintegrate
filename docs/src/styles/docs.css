@@ -258,8 +258,16 @@
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: rgb(255 255 255 / 2%);
+  background: rgb(13 13 18 / 62%);
+  backdrop-filter: blur(14px);
   text-align: left;
+}
+
+/* Without backdrop-filter the animated hero glow would read straight through. */
+@supports not (backdrop-filter: blur(1px)) {
+  .bundle-size-panel {
+    background: rgb(13 13 18 / 92%);
+  }
 }
 
 .bundle-size-values {
@@ -333,6 +341,7 @@
 
 .page-content table {
   width: 100%;
+  max-width: 100%;
   margin: 24px 0;
   border-collapse: collapse;
   color: var(--muted);
@@ -345,6 +354,18 @@
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
+}
+
+/*
+ * Package names such as `vanilla-disintegrate/snapdom` have no break
+ * opportunity, so their min-content width would push the table — and with it
+ * the page — wider than the viewport. `anywhere` lets them wrap and, unlike
+ * `break-word`, it also lowers the min-content contribution so the table can
+ * shrink to the available width. Scoped to code: prose in the same cell keeps
+ * normal word wrapping instead of being chopped mid-word.
+ */
+.page-content :is(th, td) code {
+  overflow-wrap: anywhere;
 }
 
 .page-content th {

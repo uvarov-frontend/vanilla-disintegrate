@@ -467,12 +467,26 @@ function mountBattle(root: HTMLElement) {
   const retained = new Map<RemovalId, { title: string; effect: BuiltInEffect }>();
   const instance = track(
     new Disintegrator({
-      preparation: false,
+      preparation: true,
       onError: (error) => {
         status.textContent = String(error);
       },
     }),
   );
+  // Preparation only acts on registered elements, and the grid changes on every
+  // removal, restore and reset, so the registry is synced with it.
+  const registrations = new Map<HTMLElement, () => void>();
+  const syncPreparation = () => {
+    const current = new Set(grid.querySelectorAll<HTMLElement>('.battle-card'));
+    for (const [element, unregister] of registrations) {
+      if (current.has(element)) continue;
+      unregister();
+      registrations.delete(element);
+    }
+    for (const element of current) {
+      if (!registrations.has(element)) registrations.set(element, instance.register(element));
+    }
+  };
   let effect: BuiltInEffect = 'dust';
   let busy = false;
   let sequence = 1;
@@ -489,6 +503,7 @@ function mountBattle(root: HTMLElement) {
             .join('');
   };
   const update = () => {
+    syncPreparation();
     const count = grid.querySelectorAll('.battle-card').length;
     root.setAttribute('aria-busy', String(busy));
     nodes.textContent = String(count);
@@ -692,7 +707,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
   const idOutput = required<HTMLElement>(root, '[data-id]');
   const instance = track(
     new Disintegrator({
-      preparation: false,
+      preparation: true,
       onError: (error) => {
         state.textContent = String(error);
       },
@@ -702,7 +717,14 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
   let removalId: RemovalId | null = null;
   let busy = false;
   let remembered = effectLabel;
+  // Preparation only acts on registered elements; this demo owns exactly one card.
+  let unregisterCard: (() => void) | null = null;
+  const registerCard = (element: HTMLElement | null) => {
+    unregisterCard?.();
+    unregisterCard = element === null ? null : instance.register(element);
+  };
   slot.append(card);
+  registerCard(card);
 
   const selected = (): BuiltInEffect | EffectDefinition => {
     if (kind === 'particle-vortex') return particleVortex;
@@ -764,6 +786,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
     if (!retained) return update();
     card = retained;
     slot.append(retained);
+    registerCard(retained);
     update();
     void settle(instance.restore(retained, soundOptions()));
   });
@@ -774,6 +797,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
     card?.remove();
     card = createCard(cards[2]!);
     slot.replaceChildren(card);
+    registerCard(card);
     remembered = selectedLabel();
     state.textContent = copy.ready;
     update();
