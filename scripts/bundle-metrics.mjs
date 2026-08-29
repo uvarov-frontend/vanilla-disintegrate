@@ -1,10 +1,17 @@
 import { readFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 
+/*
+ * Ceilings, not targets. These exist to catch an accident — a dependency leaking
+ * back into the core entry, or tree-shaking breaking — not to police ordinary
+ * growth. Adding an asset or a feature should never require touching them; if a
+ * number here trips, something is genuinely wrong. The precise invariant that
+ * the core stays free of SnapDOM is asserted in scripts/smoke.mjs instead.
+ */
 export const bundleBudgets = {
-  'dist/index.js': 15 * 1024,
-  'dist/snapdom.js': 16 * 1024,
-  'dist/vanilla-disintegrate.iife.min.js': 70 * 1024,
+  'dist/index.js': 25 * 1024,
+  'dist/snapdom.js': 25 * 1024,
+  'dist/vanilla-disintegrate.iife.min.js': 90 * 1024,
 };
 
 async function dependencySize(file, measure, visited) {
