@@ -13,7 +13,17 @@ export interface UiCopy {
   readonly edit: string;
   readonly source: string;
   readonly sections: Readonly<Record<'start' | 'learn' | 'reference', string>>;
+  readonly notFound: {
+    readonly documentTitle: string;
+    readonly description: string;
+    readonly errorLabel: string;
+    readonly heading: string;
+    readonly body: string;
+    readonly action: string;
+    readonly homeAction: string;
+  };
   readonly home: {
+    readonly documentTitle: string;
     readonly title: string;
     readonly accent: string;
     readonly description: string;
@@ -54,7 +64,17 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     edit: 'Edit this page on GitHub',
     source: 'Source on GitHub',
     sections: { start: 'Start', learn: 'Learn', reference: 'Reference' },
+    notFound: {
+      documentTitle: 'Page not found · Vanilla Disintegrate',
+      description: 'The requested page was not found.',
+      errorLabel: 'Error 404',
+      heading: 'Page not found',
+      body: 'The documentation page does not exist or has moved.',
+      action: 'Open documentation',
+      homeAction: 'Go to home',
+    },
     home: {
+      documentTitle: 'Vanilla Disintegrate · Thanos snap effects for the DOM',
       title: 'Remove any element',
       accent: 'with a Thanos snap',
       description:
@@ -90,7 +110,17 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     edit: 'Редактировать страницу на GitHub',
     source: 'Исходный код на GitHub',
     sections: { start: 'Начало', learn: 'Руководство', reference: 'Справочник' },
+    notFound: {
+      documentTitle: 'Страница не найдена · Vanilla Disintegrate',
+      description: 'Запрошенная страница не найдена.',
+      errorLabel: 'Ошибка 404',
+      heading: 'Страница не найдена',
+      body: 'Страница документации не существует или была перемещена.',
+      action: 'Открыть документацию',
+      homeAction: 'На главную',
+    },
     home: {
+      documentTitle: 'Vanilla Disintegrate · Эффекты щелчка Таноса для DOM',
       title: 'Удалите любой элемент',
       accent: 'щелчком Таноса',
       description:
@@ -126,7 +156,17 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     edit: '在 GitHub 上编辑此页',
     source: 'GitHub 源码',
     sections: { start: '开始', learn: '指南', reference: 'API 参考' },
+    notFound: {
+      documentTitle: '页面未找到 · Vanilla Disintegrate',
+      description: '未找到请求的页面。',
+      errorLabel: '错误 404',
+      heading: '页面未找到',
+      body: '该文档页面不存在或已被移动。',
+      action: '打开文档',
+      homeAction: '返回首页',
+    },
     home: {
+      documentTitle: 'Vanilla Disintegrate · 面向 DOM 的灭霸响指特效',
       title: '用灭霸响指',
       accent: '删除任意元素',
       description:
@@ -159,7 +199,17 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     edit: 'GitHub에서 이 페이지 편집',
     source: 'GitHub 소스',
     sections: { start: '시작', learn: '가이드', reference: 'API 레퍼런스' },
+    notFound: {
+      documentTitle: '페이지를 찾을 수 없습니다 · Vanilla Disintegrate',
+      description: '요청한 페이지를 찾을 수 없습니다.',
+      errorLabel: '오류 404',
+      heading: '페이지를 찾을 수 없습니다',
+      body: '해당 문서 페이지가 없거나 위치가 변경되었습니다.',
+      action: '문서 열기',
+      homeAction: '홈으로 가기',
+    },
     home: {
+      documentTitle: 'Vanilla Disintegrate · DOM을 위한 타노스 스냅 효과',
       title: '타노스의 핑거 스냅으로',
       accent: '어떤 요소든 삭제하세요',
       description:
@@ -187,6 +237,11 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
 
 export function isLocale(value: string | undefined): value is Locale {
   return locales.includes(value as Locale);
+}
+
+export function localeFromPath(pathname: string): Locale {
+  const segment = pathname.split('/')[1];
+  return isLocale(segment) ? segment : 'en';
 }
 
 export function localePrefix(locale: Locale) {

@@ -1,20 +1,41 @@
 ---
-import { docsHref } from '../i18n';
+import { docsHref, homeHref, localeFromPath, ui } from '../i18n';
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 Astro.response.status = 404;
+
+const locale = localeFromPath(Astro.url.pathname);
+const copy = ui[locale].notFound;
 ---
 
 <BaseLayout
-  title="Page not found · Vanilla Disintegrate"
-  description="The requested page was not found."
-  locale="en"
+  title={copy.documentTitle}
+  description={copy.description}
+  locale={locale}
+  pageClass="not-found-body"
   noindex
 >
+  <Header locale={locale} pathname={Astro.url.pathname} />
   <main class="not-found-page">
-    <span>404</span>
-    <h1>Page not found</h1>
-    <p>The documentation page does not exist or has moved.</p>
-    <a class="hero-button hero-button-primary" href={docsHref('en', 'learn/installation')}>Open documentation</a>
+    <section class="not-found-card" aria-labelledby="not-found-heading">
+      <div class="not-found-visual" aria-hidden="true">
+        <span>4</span>
+        <div class="not-found-orb">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          <b>0</b>
+        </div>
+        <span>4</span>
+      </div>
+      <p class="not-found-label">{copy.errorLabel}</p>
+      <h1 id="not-found-heading">{copy.heading}</h1>
+      <p class="not-found-description">{copy.body}</p>
+      <div class="not-found-actions">
+        <a class="hero-button hero-button-primary" href={docsHref(locale, 'learn/installation')}>{copy.action}</a>
+        <a class="hero-button not-found-home-link" href={homeHref(locale)}>{copy.homeAction}</a>
+      </div>
+    </section>
   </main>
+  <Footer locale={locale} />
 </BaseLayout>

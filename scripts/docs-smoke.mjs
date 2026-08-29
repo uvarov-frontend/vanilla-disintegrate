@@ -70,6 +70,35 @@ try {
     assert.ok(html.includes('/assets/'), `${path} must include built assets`);
   }
 
+  const homeTitles = new Map();
+  for (const locale of locales) {
+    const prefix = locale === 'en' ? '' : `/${locale}`;
+    const html = await (await fetch(`${origin}${prefix}/`)).text();
+    const title = html.match(/<title>([^<]*)<\/title>/)?.[1];
+    assert.ok(title, `${prefix}/ must render a title`);
+    homeTitles.set(locale, title);
+  }
+  assert.equal(
+    new Set(homeTitles.values()).size,
+    locales.length,
+    `each locale must have its own home title, got ${JSON.stringify([...homeTitles])}`,
+  );
+
+  const notFoundTitles = new Map();
+  for (const locale of locales) {
+    const prefix = locale === 'en' ? '' : `/${locale}`;
+    const response = await fetch(`${origin}${prefix}/does-not-exist/`);
+    const html = await response.text();
+    assert.equal(response.status, 404, `${prefix}/does-not-exist/`);
+    assert.ok(html.includes(`<html lang="${locale}"`), `404 must render in ${locale}`);
+    notFoundTitles.set(locale, html.match(/<title>([^<]*)<\/title>/)?.[1]);
+  }
+  assert.equal(
+    new Set(notFoundTitles.values()).size,
+    locales.length,
+    `each locale must have its own 404 title, got ${JSON.stringify([...notFoundTitles])}`,
+  );
+
   for (const locale of locales) {
     for (const contentPath of contentPaths) {
       const prefix = locale === 'en' ? '' : `/${locale}`;
@@ -188,6 +217,17 @@ try {
   const legacy = await fetch(`${origin}/learn/installation/`, { redirect: 'manual' });
   assert.equal(legacy.status, 302);
   assert.equal(legacy.headers.get('location'), '/docs/learn/installation/');
+
+  const missing = await fetch(`${origin}/ru/this-page-does-not-exist/`);
+  const missingHtml = await missing.text();
+  assert.equal(missing.status, 404);
+  assert.match(missingHtml, /<body class="not-found-body"/);
+  assert.ok(missingHtml.includes('Ошибка 404'));
+  assert.ok(missingHtml.includes('Страница не найдена'));
+  assert.ok(missingHtml.includes('href="/ru/docs/learn/installation/"'));
+  assert.ok(missingHtml.includes('href="/ru/"'));
+  assert.ok(missingHtml.includes('class="docs-header"'));
+  assert.ok(missingHtml.includes('class="docs-footer"'));
 
   const detectedRussian = await fetch(`${origin}/docs/learn/effects/`, {
     headers: { 'accept-language': 'ru-RU,ru;q=0.9,en;q=0.8' },
