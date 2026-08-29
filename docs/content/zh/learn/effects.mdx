@@ -14,8 +14,8 @@ order: 20
 | 名称      | 删除                                             | 恢复                         | 时长    |
 | --------- | ------------------------------------------------ | ---------------------------- | ------- |
 | `dust`    | 元素化为向上飘散的尘埃。                         | 尘埃在元素最终几何位置聚合。 | 900 ms  |
+| `scatter` | 细小碎片从左到右消散，并以向上为主扩散。         | 碎片从同一散布区域聚合。     | 830 ms  |
 | `vapor`   | 表面无序地脱落，顶部先走，上升途中粒子逐渐胀大。 | 收束的蒸汽流凝结为可见元素。 | 1309 ms |
-| `scatter` | 粒子向外爆散。                                   | 粒子从外部汇聚。             | 830 ms  |
 | `wind`    | 气流把粒子带向一侧。                             | 同一方向的气流把粒子送回。   | 2075 ms |
 
 效果的两个阶段时长相同。`remove()` 用它作为删除时间线，`restore()` 用作入场时间线，内置声音也按它裁剪。
@@ -24,11 +24,11 @@ order: 20
 effects.remove(card, { effect: 'dust' });
 effects.restore(card, { effect: 'dust' });
 
-effects.remove(card, { effect: 'vapor' });
-effects.restore(card, { effect: 'vapor' });
-
 effects.remove(card, { effect: 'scatter' });
 effects.restore(card, { effect: 'scatter' });
+
+effects.remove(card, { effect: 'vapor' });
+effects.restore(card, { effect: 'vapor' });
 
 effects.remove(card, { effect: 'wind' });
 effects.restore(card, { effect: 'wind' });
@@ -67,4 +67,4 @@ if (retained) {
 
 ## 声音槽位
 
-每个阶段都有独立声音槽。`dust`、`vapor`、`scatter` 与 `wind` 的两个阶段都有音频：恢复音轨即删除音轨在播放时经 `reverse` 选项倒放，与粒子的反向运动对应。声音需显式开启：`sound: true` 为实例或单次调用启用内置音频，`sound: false` 保持关闭且不改变动画。
+每个阶段都有独立声音槽。`dust`、`scatter`、`vapor` 与 `wind` 的两个阶段都有音频：恢复音轨即删除音轨在播放时经 `reverse` 选项倒放；动画的两个阶段仍然独立。声音需显式开启：`sound: true` 为实例或单次调用启用内置音频，`sound: false` 保持关闭且不改变动画。

@@ -14,8 +14,8 @@ Each built-in name is a **pair**: one animation for removing, one for putting th
 | Name      | Remove                                                                          | Restore                                                      | Length  |
 | --------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------- |
 | `dust`    | The element breaks into rising dust.                                            | Dust collects into the element's final geometry.             | 900 ms  |
+| `scatter` | Fine fragments dissolve left to right and drift with an upward bias.            | Fragments gather from the same scattered field.              | 830 ms  |
 | `vapor`   | The surface lifts away at random, the top going first, and swells as it climbs. | A narrowing vapor stream condenses into the visible element. | 1309 ms |
-| `scatter` | Particles burst away from the element.                                          | Particles converge from outside.                             | 830 ms  |
 | `wind`    | A stream carries particles sideways.                                            | The same stream returns them from its direction.             | 2075 ms |
 
 Both phases of an effect run for the same length. `remove()` uses it as the removal timeline, `restore()` as the entrance one, and a bundled sound is trimmed to it.
@@ -24,11 +24,11 @@ Both phases of an effect run for the same length. `remove()` uses it as the remo
 effects.remove(card, { effect: 'dust' });
 effects.restore(card, { effect: 'dust' });
 
-effects.remove(card, { effect: 'vapor' });
-effects.restore(card, { effect: 'vapor' });
-
 effects.remove(card, { effect: 'scatter' });
 effects.restore(card, { effect: 'scatter' });
+
+effects.remove(card, { effect: 'vapor' });
+effects.restore(card, { effect: 'vapor' });
 
 effects.remove(card, { effect: 'wind' });
 effects.restore(card, { effect: 'wind' });
@@ -75,6 +75,6 @@ Pass `effect` to `restore()` when a different pair is intentional.
 
 Every phase has its own sound slot, so eight in total.
 
-`dust`, `vapor`, `scatter` and `wind` have audio on both phases. Their restore sound is the removal file played backwards, through the `reverse` option — the motion is reversed, so the sound is too.
+`dust`, `scatter`, `vapor` and `wind` have audio on both phases. Their restore sound is the removal file played backwards through the `reverse` option; the animation phases remain independent.
 
 Sound is off unless you ask for it. `sound: true` turns on the built-in audio for an instance or for one call, `sound: false` turns it off without changing the animation.

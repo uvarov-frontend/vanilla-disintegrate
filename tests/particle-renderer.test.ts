@@ -92,21 +92,48 @@ describe('particle renderer', () => {
     expect(horizontalVelocityAt(8)).toBeLessThan(0);
   });
 
-  it('keeps the original upward scatter field geometry', () => {
-    const pixels = new Uint8ClampedArray([255, 255, 255, 255]);
-    const values = [0.5, 0.25, 0.5, 0.5, 0.5, 0.5];
+  it('dissolves scatter from left to right', () => {
+    const pixels = new Uint8ClampedArray(9 * 4);
+    for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
     const scatter = createParticleField(
+      pixels,
+      9,
+      1,
+      resolveParticles({ motion: 'scatter', origin: 'left' }),
+      1,
+      1,
+      () => 0.5,
+    );
+
+    const thresholdAt = (column: number) => scatter.data[column * 7 + 2] ?? 0;
+    expect(thresholdAt(0)).toBeLessThan(thresholdAt(8));
+  });
+
+  it('spreads scatter on individually directed paths with an upward bias', () => {
+    const pixels = new Uint8ClampedArray([255, 255, 255, 255]);
+    const upward = createParticleField(
       pixels,
       1,
       1,
       resolveParticles({ motion: 'scatter', horizontalTravel: [-100, 100], rise: [50, 100] }),
       1,
       1,
-      () => values.shift() ?? 0.5,
+      () => 0,
+    );
+    const downward = createParticleField(
+      pixels,
+      1,
+      1,
+      resolveParticles({ motion: 'scatter', horizontalTravel: [-100, 100], rise: [50, 100] }),
+      1,
+      1,
+      () => 1,
     );
 
-    expect(scatter.data[3]).toBe(-50);
-    expect(scatter.data[4]).toBe(-75);
+    expect(upward.data[3]).toBeLessThan(0);
+    expect(upward.data[4]).toBeLessThan(0);
+    expect(downward.data[3]).toBeGreaterThan(0);
+    expect(downward.data[4]).toBeGreaterThan(0);
   });
 
   it('does not substitute another renderer when WebGL2 is unavailable', () => {

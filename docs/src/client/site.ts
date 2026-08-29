@@ -181,8 +181,8 @@ const copy = {
 
 const effectNames: Record<BuiltInEffect, string> = {
   dust: 'Rising dust',
+  scatter: 'Fine scatter',
   vapor: 'Rising vapor',
-  scatter: 'Wild scatter',
   wind: 'Christmas wind',
 };
 

@@ -12,7 +12,7 @@ Vanilla Disintegrate is a lightweight TypeScript library for removing and restor
 ## Key Features
 
 - **Thanos-snap effect**: Turn the real appearance of a DOM element into animated particles.
-- **Four animation pairs**: Choose `dust`, `vapor`, `scatter`, or `wind`; every removal has a matching restoration animation.
+- **Four animation pairs**: Choose `dust`, `scatter`, `vapor`, or `wind`; every removal has a matching restoration animation.
 - **Restore any element**: Animate a retained node back into a user-chosen location or use `restore()` as an entrance animation for a completely new element.
 - **Simple integration**: Create an instance and call `remove(element)` directly from a click handler.
 - **Framework-agnostic**: Use it with vanilla JavaScript, React, Vue, Svelte, Solid, Angular, Web Components, or another DOM renderer.
@@ -142,12 +142,12 @@ if (notifications) {
 
 ### Built-in Effects
 
-| Effect    | Removal                                                   | Restoration                                                |
-| --------- | --------------------------------------------------------- | ---------------------------------------------------------- |
-| `dust`    | Breaks into rising dust.                                  | Dust collects into the final element.                      |
-| `vapor`   | Lifts the surface away at random and swells as it climbs. | A narrowing vapor stream condenses into the final element. |
-| `scatter` | Bursts particles outward.                                 | Particles converge from outside.                           |
-| `wind`    | Carries particles away in a stream.                       | Returns them from the same direction.                      |
+| Effect    | Removal                                                     | Restoration                                                |
+| --------- | ----------------------------------------------------------- | ---------------------------------------------------------- |
+| `dust`    | Breaks into rising dust.                                    | Dust collects into the final element.                      |
+| `scatter` | Dissolves left to right into a fine, upward-biased scatter. | Fragments gather from the same scattered field.            |
+| `vapor`   | Lifts the surface away at random and swells as it climbs.   | A narrowing vapor stream condenses into the final element. |
+| `wind`    | Carries particles away in a stream.                         | Returns them from the same direction.                      |
 
 Set an instance default or choose an effect for one operation:
 
