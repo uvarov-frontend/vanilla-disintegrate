@@ -17,17 +17,17 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
-          node-version: 22
-          cache: pnpm
+          node-version: 24
+          package-manager-cache: false
           registry-url: https://registry.npmjs.org
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11
       - name: Verify release tag
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: test "v$(node -p \"require('./package.json').version\")" = "$RELEASE_TAG"
       - run: pnpm install --frozen-lockfile
-      - run: pnpm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: npm publish --access public
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
