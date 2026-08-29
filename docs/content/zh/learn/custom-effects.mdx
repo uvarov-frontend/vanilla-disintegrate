@@ -7,11 +7,11 @@ navTitle: 自定义效果
 order: 60
 ---
 
-自定义效果由两段完整动画组成。Vanilla Disintegrate 提供几何位置、捕获、取消、清理以及音频接入协议；渲染方式和声音都由你选择。
+自定义效果就是两段动画：一段用于删除元素，一段用于把它放回来。动画和声音由你来写。库负责捕获元素、测量位置，并处理取消和清理。
 
 ## 使用快照构建粒子效果
 
-下面的完整示例会从 `snapshot` 读取不透明像素，将它们转换为 Canvas 粒子，并让粒子穿过漩涡。快照默认必需，因此特意没有指定 `needsSnapshot`。
+下面的示例从 `snapshot` 读取不透明像素，把它们变成 Canvas 粒子，再让粒子穿过漩涡。它需要这些像素，而快照本来就是默认拍的，所以里面没有 `needsSnapshot`。
 
 <ParticleVortexSource />
 
@@ -30,13 +30,24 @@ effects.restore(insertedElement, { effect: particleVortex });
 
 <Demo kind="particle-vortex" />
 
-交互演示和代码块使用同一个源文件，因此实现始终可以直接复现。
+上面的演示和代码块来自同一个文件，你看到运行的就是你拿到的。
 
-只有当效果明确使用 DOM、SVG 或其他无需像素的渲染器时，才设置 `needsSnapshot: false`。这会完全跳过该阶段的捕获。
+如果效果动画的是 DOM、SVG 或其他不需要像素的东西，就设 `needsSnapshot: false`。该阶段将完全跳过捕获。
 
 ## 动画上下文
 
-工厂会收到 `operation`、真实 `element`、最终 `bounds`、隔离 `layer`、`snapshot`、惰性 `visual`、`AbortSignal`、`random()`、`reducedMotion` 和 `addCleanup(fn)`。
+工厂会收到：
+
+- `operation` — `remove` 或 `restore`
+- `element` — 元素本身
+- `bounds` — 它在屏幕上的位置，`DOMRectReadOnly`
+- `layer` — 一个空的覆盖层，已经摆在这个位置上
+- `snapshot` — 捕获到的画布，或 `null`
+- `visual` — 画好快照的全尺寸画布，首次访问时才创建
+- `signal` — 操作被取消或实例被销毁时触发
+- `random()` — 本次操作的随机数，带种子，便于复现
+- `reducedMotion` — 用户是否要求减少动效
+- `addCleanup(fn)` — 放进去的清理逻辑，无论结果如何都会执行
 
 恢复时，`bounds` 描述的是**插入后的新位置**，而不是删除前的位置。
 

@@ -7,7 +7,7 @@ navTitle: API
 order: 70
 ---
 
-Экспорт по умолчанию — тонкий фасад над захватом, рендерингом, звуком, layout, подготовкой и хранилищем удалённых элементов.
+Экспорт по умолчанию — один класс. Он связывает захват, анимацию, звук, сдвиг соседей по layout, фоновую подготовку и хранилище удержанных узлов.
 
 ## Конструктор
 
@@ -17,18 +17,23 @@ import Disintegrator from 'vanilla-disintegrate/snapdom';
 const effects = new Disintegrator(options);
 ```
 
-| Опция                                           | Тип                                | По умолчанию          |
-| ----------------------------------------------- | ---------------------------------- | --------------------- |
-| `effect`                                        | `EffectSelection`                  | `dust`                |
-| `effects`                                       | `Record<string, EffectDefinition>` | `{}`                  |
-| `sound`                                         | `boolean \| SoundDefinition`       | `false`               |
-| `layout`                                        | `boolean \| LayoutOptions`         | `true`                |
-| `preparation`                                   | `boolean \| PreparationOptions`    | `false`               |
-| `respectReducedMotion`                          | `boolean`                          | `true`                |
-| `capture`                                       | `SnapshotCapture`                  | SnapDOM on `/snapdom` |
-| `overlayRoot`                                   | `HTMLElement \| () => HTMLElement` | `document.body`       |
-| `zIndex`, `random`                              | число, функция                     | настройки библиотеки  |
-| `onTrigger`, `onStart`, `onComplete`, `onError` | callbacks                          | —                     |
+| Опция                  | Тип                                | По умолчанию    | Что делает                                                             |
+| ---------------------- | ---------------------------------- | --------------- | ---------------------------------------------------------------------- |
+| `effect`               | `EffectSelection`                  | `'dust'`        | Эффект, если операция не выбрала свой                                  |
+| `effects`              | `Record<string, EffectDefinition>` | `{}`            | Свои эффекты, которые потом выбираются по имени                        |
+| `sound`                | `boolean \| SoundDefinition`       | `false`         | `true` играет звуки фаз; определение заменяет их                       |
+| `layout`               | `boolean \| LayoutOptions`         | `true`          | Сдвигает соседей на новые места после удаления                         |
+| `preparation`          | `boolean \| PreparationOptions`    | `false`         | Снимает элементы заранее, в фоне                                       |
+| `respectReducedMotion` | `boolean`                          | `true`          | Пропускает анимацию, если пользователь просил меньше движения          |
+| `capture`              | `SnapshotCapture`                  | —               | Превращает элемент в канвас. На входе `/snapdom` уже подключён SnapDOM |
+| `overlayRoot`          | `HTMLElement \| () => HTMLElement` | `document.body` | Куда добавляется оверлей анимации                                      |
+| `zIndex`               | `number`                           | `2147483646`    | Слой этого оверлея                                                     |
+| `random`               | `() => number`                     | `Math.random`   | Источник сида, вызывается один раз на операцию                         |
+| `snapdom`              | `SnapdomOptions`                   | —               | Уходит в `toCanvas()` SnapDOM. Только на входе `/snapdom`              |
+| `onTrigger`            | `(context) => void`                | —               | После проверок, до начала захвата                                      |
+| `onStart`              | `(context) => void`                | —               | После изменения DOM, в момент старта проигрывания                      |
+| `onComplete`           | `(context) => void`                | —               | После нормального завершения визуальной фазы                           |
+| `onError`              | `(error, context) => void`         | —               | Ошибки захвата, анимации, звука и колбэков                             |
 
 ## remove(target, options?)
 
@@ -73,12 +78,14 @@ const count = effects.discardAll(); // number
 
 ```ts
 const unregister = effects.register(elements);
-const results = await effects.prepare(elements);
+await effects.prepare(elements);
 effects.invalidate(elements);
 effects.clearPrepared();
 ```
 
-`register()` следует фоновой политике, а `prepare()` захватывает сразу, даже если фоновая подготовка выключена.
+`register()` следует настроенной стратегии. `prepare()` снимает сразу, даже если фоновая подготовка выключена, и завершается ничем, когда все элементы готовы.
+
+Передайте фиксированный `random`, чтобы эффект стал воспроизводимым: один и тот же сид разложит частицы одинаково при каждом прогоне — на этом и держатся визуальные тесты.
 
 ## destroy()
 

@@ -7,7 +7,7 @@ navTitle: Retention and undo
 order: 40
 ---
 
-The library does not decide how long undo should remain available. Retention is explicit, unbounded, and controlled by application code.
+The library never decides how long undo stays available. You ask for a node to be kept, and you decide when to let it go.
 
 ## Keep a removed node
 
@@ -50,13 +50,13 @@ effects.discardAll(); // number of released entries
 
 ## Avoid accidental memory growth
 
-There is deliberately no TTL or maximum entry count. That avoids deleting content behind the application's back, but it also means every unused `RemovalId` must eventually be consumed by `take()`, released with `discard()`, or cleared with `discardAll()`.
+There is no TTL and no cap on the number of entries. Nothing gets deleted behind your back — but nothing gets cleaned up for you either. Every `RemovalId` you do not use has to end up in `take()`, `discard()`, or `discardAll()`.
 
-Use application policy to decide when undo expires—for example, when a toast closes, a route changes, or a history entry is committed.
+Pick a moment in your own app to expire undo: when a toast closes, when the route changes, when a history entry is committed.
 
 ## Remove permanently
 
-The default is already permanent from the library's perspective:
+Without `retain` the removal is already permanent as far as the library is concerned:
 
 ```ts
 effects.remove(element); // retain: false

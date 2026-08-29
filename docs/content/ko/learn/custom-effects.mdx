@@ -7,11 +7,11 @@ navTitle: 사용자 효과
 order: 60
 ---
 
-사용자 효과는 두 개의 완전한 애니메이션으로 구성됩니다. Vanilla Disintegrate는 지오메트리, 캡처, 취소, 정리 및 오디오 연결 계약을 제공하며 렌더러와 사운드는 모두 사용자가 선택합니다.
+사용자 효과는 애니메이션 두 개입니다. 하나는 요소를 지울 때, 하나는 되돌릴 때 씁니다. 애니메이션과 사운드는 직접 작성합니다. 라이브러리는 요소를 캡처하고 위치를 재며, 취소와 정리를 맡습니다.
 
 ## 스냅샷으로 파티클 효과 만들기
 
-아래의 완전한 예제는 `snapshot`에서 불투명 픽셀을 읽어 Canvas 파티클로 바꾸고, 소용돌이를 따라 움직입니다. 스냅샷은 기본적으로 필요하므로 `needsSnapshot`을 의도적으로 생략했습니다.
+아래 예제는 `snapshot`에서 불투명 픽셀을 읽어 Canvas 파티클로 바꾸고 소용돌이를 따라 움직입니다. 그 픽셀이 필요하고 스냅샷은 기본으로 찍히므로, 예제에 `needsSnapshot`이 없습니다.
 
 <ParticleVortexSource />
 
@@ -30,13 +30,24 @@ effects.restore(insertedElement, { effect: particleVortex });
 
 <Demo kind="particle-vortex" />
 
-인터랙티브 데모와 코드 블록은 같은 소스 파일을 사용하므로 구현을 항상 그대로 재현할 수 있습니다.
+위 데모와 코드 블록은 같은 파일에서 나옵니다. 돌아가는 그대로가 여러분이 가져가는 것입니다.
 
-DOM, SVG 또는 픽셀을 사용하지 않는 다른 렌더러를 의도적으로 애니메이션할 때만 `needsSnapshot: false`를 설정하세요. 해당 단계의 캡처가 완전히 생략됩니다.
+효과가 DOM, SVG처럼 픽셀이 필요 없는 대상을 움직인다면 `needsSnapshot: false`로 두세요. 그 단계는 캡처를 아예 건너뜁니다.
 
 ## 애니메이션 컨텍스트
 
-팩토리는 `operation`, 실제 `element`, 최종 `bounds`, 격리된 `layer`, `snapshot`, 지연 생성 `visual`, `AbortSignal`, `random()`, `reducedMotion`, `addCleanup(fn)`을 받습니다.
+팩토리가 받는 값입니다.
+
+- `operation` — `remove` 또는 `restore`
+- `element` — 요소 자체
+- `bounds` — 화면상의 위치, `DOMRectReadOnly`
+- `layer` — 그 위치에 이미 놓인 빈 오버레이
+- `snapshot` — 캡처된 캔버스 또는 `null`
+- `visual` — 스냅샷을 그려 넣은 원본 크기 캔버스, 처음 쓸 때 만들어짐
+- `signal` — 작업이 취소되거나 인스턴스가 파괴되면 발동
+- `random()` — 이 작업용 난수, 시드가 있어 재현 가능
+- `reducedMotion` — 사용자가 동작 축소를 요청했는지
+- `addCleanup(fn)` — 여기 등록한 정리는 어떤 결과에도 실행됨
 
 복원 시 `bounds`는 삭제 전 위치가 아닌 **삽입 후 새 위치**를 나타냅니다.
 

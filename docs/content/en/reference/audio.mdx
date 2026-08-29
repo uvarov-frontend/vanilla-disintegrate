@@ -20,6 +20,47 @@ effects.remove(element, { sound: true });
 
 An operation-level value overrides the instance for that one call.
 
+## Where to put the sound
+
+The sounds live in the effect, one per phase:
+
+```ts
+const snap = '/sounds/snap.mp3';
+
+const fold = defineEffect({
+  remove: { animate: out, sound: { src: snap } },
+  restore: { animate: back, sound: { src: snap, reverse: true } },
+});
+```
+
+The `sound` option on the instance or on a call is an on/off switch for them:
+
+```ts
+const effects = new Disintegrator({ effect: fold, sound: true });
+
+effects.remove(card); // plays the sound from the effect
+effects.remove(card, { sound: false }); // no sound, same animation
+```
+
+One catch. If you pass a sound there instead of `true` or `false`, it does not switch anything — it replaces the sounds in the effect, and both phases get the same file:
+
+```ts
+new Disintegrator({ sound: { src: '/sounds/snap.mp3' } });
+// remove and restore both play snap.mp3 forwards
+```
+
+That is handy when one sound covers everything. To give remove and restore different sounds, put them in the effect.
+
+## Pairing remove and restore
+
+| What you want                         | `remove`        | `restore`                      |
+| ------------------------------------- | --------------- | ------------------------------ |
+| One file, played backwards on restore | `{ src: snap }` | `{ src: snap, reverse: true }` |
+| Two different files                   | `{ src: out }`  | `{ src: back }`                |
+| Sound only when removing              | `{ src: snap }` | `null`                         |
+
+`dust` and `wind` use the first row. `vapor` and `scatter` are `null` on both phases — there are no files for them yet.
+
 ## Supported sources
 
 ```ts
@@ -44,6 +85,24 @@ const sound = {
 
 effects.remove(element, { sound });
 ```
+
+## Playing a sound backwards
+
+Restore is remove in reverse, so one file covers both phases. No second recording:
+
+```ts
+const remove = { src: '/sounds/snap.mp3' };
+const restore = { src: '/sounds/snap.mp3', reverse: true };
+```
+
+That is how the built-in `dust` and `wind` work.
+
+Reversing moves the loud part of the file from the start to the end, so two more things change with it:
+
+- The sound is cut from the end of the file, not the start. Otherwise the loud part would be trimmed off.
+- `fadeDuration` fades in instead of out. Otherwise the fade would land on the loud part.
+
+The reversed copy is made once and kept in memory. If you pass an `AudioBuffer`, it is copied — your buffer is left alone.
 
 ## Custom player
 

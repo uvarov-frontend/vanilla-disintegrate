@@ -7,7 +7,7 @@ navTitle: Built-in effects
 order: 20
 ---
 
-Every built-in name represents a **pair**: one animation for removal and one logically matching animation for restoration. Restore is implemented as its own phase, not by reversing a finished removal timeline.
+Each built-in name is a **pair**: one animation for removing, one for putting the element back. The restore animation is written separately — it is not a removal timeline played in reverse.
 
 ## The four effects
 
@@ -71,4 +71,8 @@ Pass `effect` to `restore()` when a different pair is intentional.
 
 ## Sound slots
 
-Each phase has its own sound slot. `dust.remove` and `wind.remove` currently include audio; the other six slots intentionally remain silent until matching assets are added. Audio is opt-in: `sound: true` enables the built-in sounds for an instance or a single call, and `sound: false` keeps them off without changing animation.
+Every phase has its own sound slot, so eight in total.
+
+`dust` and `wind` have audio on both phases. Their restore sound is the removal file played backwards, through the `reverse` option — the motion is reversed, so the sound is too. `vapor` and `scatter` are silent on both phases; there are no files for them yet.
+
+Sound is off unless you ask for it. `sound: true` turns on the built-in audio for an instance or for one call, `sound: false` turns it off without changing the animation.

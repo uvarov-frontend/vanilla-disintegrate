@@ -19,6 +19,47 @@ effects.remove(element, { sound: true });
 
 작업 수준 값은 해당 호출에서만 인스턴스 설정을 덮어씁니다.
 
+## 사운드를 어디에 두나
+
+사운드는 효과 안에 단계별로 하나씩 둡니다.
+
+```ts
+const snap = '/sounds/snap.mp3';
+
+const fold = defineEffect({
+  remove: { animate: out, sound: { src: snap } },
+  restore: { animate: back, sound: { src: snap, reverse: true } },
+});
+```
+
+인스턴스나 호출의 `sound`는 그 사운드의 켜고 끄는 스위치입니다.
+
+```ts
+const effects = new Disintegrator({ effect: fold, sound: true });
+
+effects.remove(card); // 효과에 정의된 사운드를 재생
+effects.remove(card, { sound: false }); // 무음, 애니메이션은 그대로
+```
+
+한 가지 주의점이 있습니다. 거기에 `true`나 `false` 대신 사운드를 넘기면 스위치로 동작하지 않습니다. 효과의 사운드를 대체하고 두 단계가 같은 파일을 씁니다.
+
+```ts
+new Disintegrator({ sound: { src: '/sounds/snap.mp3' } });
+// 삭제와 복원 모두 snap.mp3를 정방향으로 재생
+```
+
+사운드가 하나면 편한 방식입니다. 삭제와 복원에 서로 다른 사운드를 주려면 효과 안에 적으세요.
+
+## 삭제와 복원 짝짓기
+
+| 원하는 것                 | `remove`        | `restore`                      |
+| ------------------------- | --------------- | ------------------------------ |
+| 파일 하나, 복원 때 거꾸로 | `{ src: snap }` | `{ src: snap, reverse: true }` |
+| 서로 다른 파일 둘         | `{ src: out }`  | `{ src: back }`                |
+| 삭제할 때만 소리          | `{ src: snap }` | `null`                         |
+
+`dust`와 `wind`가 첫 번째 행입니다. `vapor`와 `scatter`는 두 단계 모두 `null`이고, 아직 해당 파일이 없습니다.
+
 ## 지원 소스
 
 ```ts
@@ -44,8 +85,30 @@ effects.remove(element, {
 });
 ```
 
+## 거꾸로 재생하기
+
+복원은 삭제를 뒤집은 동작이라 파일 하나로 두 단계를 모두 쓸 수 있습니다. 두 번째 녹음은 필요 없습니다.
+
+```ts
+const remove = { src: '/sounds/snap.mp3' };
+const restore = { src: '/sounds/snap.mp3', reverse: true };
+```
+
+내장 `dust`와 `wind`가 이 방식입니다.
+
+거꾸로 재생하면 파일에서 가장 큰 소리가 앞에서 뒤로 옮겨갑니다. 그래서 두 가지가 함께 바뀝니다.
+
+- 소리를 파일의 앞이 아니라 뒤에서 잘라 씁니다. 그러지 않으면 큰 소리 부분이 잘려나갑니다.
+- `fadeDuration`이 페이드아웃이 아니라 페이드인이 됩니다. 그러지 않으면 페이드가 큰 소리 부분에 걸립니다.
+
+뒤집은 사본은 한 번만 만들어 메모리에 둡니다. `AudioBuffer`를 넘기면 복사해서 쓰므로 원본 버퍼는 그대로입니다.
+
 ## 사용자 플레이어
 
 팩토리는 작업 종류, 대상 요소, `AbortSignal`을 받습니다. 취소를 위한 `stop()`과 항상 실행되는 정리를 위한 `dispose()`를 반환할 수 있습니다.
 
 자동 재생 제한, fetch, decode, 사용자 플레이어 오류는 `onError`로 전달되지만 시각 애니메이션과 DOM 작업을 중단하지 않습니다.
+
+## 오류 격리
+
+자동 재생 제한, 요청 실패, 디코딩 오류, 커스텀 플레이어의 예외는 오디오 때문에 시각적 작업을 취소하지 않습니다. 모두 `onError`로 전달되며 애니메이션과 선택된 DOM 동작은 계속됩니다.

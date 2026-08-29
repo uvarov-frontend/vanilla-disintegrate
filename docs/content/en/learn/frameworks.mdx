@@ -18,9 +18,9 @@ effects.remove(element, {
 
 The hook runs after the element has been measured and captured, exactly when removal is committed. If `detach` is omitted, the library uses `element.remove()` as usual.
 
-For restoration, render the element first, wait until the framework has committed it to the DOM, and then call `restore()` with the new element reference. Framework state should store application data—not a retained DOM node—so reactive integrations normally leave `retain` at its default `false`.
+For restoration, render the element first, wait until the framework has committed it to the DOM, and then call `restore()` with the new element reference. Keep application data in framework state, not a retained DOM node. That is why reactive integrations normally leave `retain` at `false`.
 
-Because this is a new DOM node, pass the same `effect` to `restore()` explicitly when removal did not use the instance default. Remembered effect metadata follows only the same retained DOM node.
+This is a new DOM node, so pass the same `effect` to `restore()` yourself if the removal did not use the instance default. The library only remembers an effect for the exact node it removed.
 
 ## React
 

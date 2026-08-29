@@ -19,6 +19,47 @@ effects.remove(element, { sound: true });
 
 操作级选项只覆盖当前调用。
 
+## 声音放在哪里
+
+声音写在效果里，每个阶段一个：
+
+```ts
+const snap = '/sounds/snap.mp3';
+
+const fold = defineEffect({
+  remove: { animate: out, sound: { src: snap } },
+  restore: { animate: back, sound: { src: snap, reverse: true } },
+});
+```
+
+实例上和调用上的 `sound` 只是它们的开关：
+
+```ts
+const effects = new Disintegrator({ effect: fold, sound: true });
+
+effects.remove(card); // 播放效果里的声音
+effects.remove(card, { sound: false }); // 静音，动画不变
+```
+
+有一点要注意。如果在那里传的不是 `true` 或 `false` 而是一个声音，它不会起开关作用——它会替换效果里的声音，两个阶段用同一个文件：
+
+```ts
+new Disintegrator({ sound: { src: '/sounds/snap.mp3' } });
+// 删除和恢复都会正向播放 snap.mp3
+```
+
+只用一个声音时这样很方便。想让删除和恢复各有各的声音，就写进效果里。
+
+## 为删除与恢复配对
+
+| 需求                 | `remove`        | `restore`                      |
+| -------------------- | --------------- | ------------------------------ |
+| 一个文件，恢复时倒放 | `{ src: snap }` | `{ src: snap, reverse: true }` |
+| 两个不同的文件       | `{ src: out }`  | `{ src: back }`                |
+| 只在删除时发声       | `{ src: snap }` | `null`                         |
+
+`dust` 与 `wind` 用的是第一行。`vapor` 与 `scatter` 两个阶段都是 `null`——还没有对应的素材。
+
 ## 支持的来源
 
 ```ts
@@ -44,8 +85,30 @@ effects.remove(element, {
 });
 ```
 
+## 倒着播放
+
+恢复就是删除的逆过程，所以一个文件够用，不必再录一份：
+
+```ts
+const remove = { src: '/sounds/snap.mp3' };
+const restore = { src: '/sounds/snap.mp3', reverse: true };
+```
+
+内置的 `dust` 与 `wind` 就是这么做的。
+
+倒放会把文件里最响的部分从开头挪到结尾，因此还有两件事跟着变：
+
+- 声音从文件末尾截取，而不是开头。否则最响的部分会被裁掉。
+- `fadeDuration` 变成淡入而不是淡出。否则淡出正好压在最响的部分上。
+
+倒放副本只生成一次并留在内存里。如果传入 `AudioBuffer`，会先复制——你的缓冲区不会被改动。
+
 ## 自定义播放器
 
 播放器工厂会收到操作类型、目标元素与 `AbortSignal`。返回 `stop()` 处理取消，返回 `dispose()` 做无条件清理。
 
 自动播放限制、请求、解码或自定义播放器错误会传递给 `onError`，但不会单独终止视觉动画和 DOM 操作。
+
+## 错误隔离
+
+自动播放限制、请求失败、解码错误以及自定义播放器抛出的异常，都不会仅因为声音而中断视觉操作。它们会转交给 `onError`，动画与所选的 DOM 操作照常继续。

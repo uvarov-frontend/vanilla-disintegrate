@@ -7,11 +7,11 @@ navTitle: Remove and restore
 order: 30
 ---
 
-`remove()` and `restore()` are independent operations. The library animates the transition; application code owns content placement and product behavior.
+`remove()` and `restore()` are two separate operations. The library plays the animation. Where the element goes, and what that means for your app, is yours to decide.
 
 ## Remove an element
 
-Removal measures the live element before detaching it. The visual runs in an isolated overlay while the real node is no longer in layout.
+Removal measures the element while it is still on the page, then detaches it. The animation plays in its own overlay, by which point the real node is already out of the layout.
 
 ```ts
 const operation = effects.remove(element, {
@@ -76,7 +76,7 @@ The handle does not retain the DOM element after the operation settles.
 
 `cancel()` stops animation and sound. It does not reverse the content action: a removed element stays removed, and a restoring element becomes visible.
 
-This separation prevents a UI cancel button or an aborted view from unexpectedly changing application state.
+That way a cancel button, or a view that unmounts mid-animation, cannot quietly undo a change your app already made.
 
 ## Errors do not block content
 

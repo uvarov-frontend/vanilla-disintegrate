@@ -7,11 +7,11 @@ navTitle: Custom effects
 order: 60
 ---
 
-A custom effect is a pair of full animations. Vanilla Disintegrate supplies geometry, capture, cancellation, cleanup, and a contract for connecting audio; you choose both the renderer and the sound.
+A custom effect is two animations: one for removing an element, one for putting it back. You write the animation and pick the sound. The library captures the element, measures it, and takes care of cancelling and cleaning up.
 
 ## Build a particle effect from a snapshot
 
-This complete example samples opaque pixels from `snapshot`, turns them into Canvas particles, and moves them through a vortex. The snapshot is required by default, so `needsSnapshot` is deliberately omitted.
+This example reads the opaque pixels out of `snapshot`, turns them into Canvas particles, and spins them through a vortex. It needs those pixels, and a snapshot is taken by default, so there is no `needsSnapshot` in it.
 
 <ParticleVortexSource />
 
@@ -30,26 +30,26 @@ effects.restore(insertedElement, { effect: particleVortex });
 
 <Demo kind="particle-vortex" />
 
-The interactive demo and the code block use the same source file, so the implementation is always reproducible.
+The demo above and the code block come from the same file, so what you see running is what you get.
 
-Set `needsSnapshot: false` only for effects that intentionally animate DOM, SVG, or another renderer without using pixels. It completely skips capture for that phase.
+Set `needsSnapshot: false` when your effect animates DOM, SVG or anything else that does not need the pixels. That phase then skips capture entirely.
 
 ## Animation context
 
 The factory receives:
 
-- `operation`: `remove` or `restore`;
-- `element`: the real target;
-- `bounds`: final viewport geometry as `DOMRectReadOnly`;
-- `layer`: an isolated overlay positioned over those bounds;
-- `snapshot`: captured canvas or `null`;
-- `visual`: a lazily created full-size visual canvas;
-- `signal`: abort signal for cancellation and destroy;
-- `random()`: the operation's random source;
-- `reducedMotion`: resolved motion preference;
-- `addCleanup(fn)`: register resources that must always be released.
+- `operation` — `remove` or `restore`
+- `element` — the element itself
+- `bounds` — where it sits on screen, as a `DOMRectReadOnly`
+- `layer` — an empty overlay already positioned over those bounds
+- `snapshot` — the captured canvas, or `null`
+- `visual` — a full-size canvas with the snapshot drawn on it, created on first use
+- `signal` — aborts when the operation is cancelled or the instance is destroyed
+- `random()` — random numbers for this operation, seeded so a run can be reproduced
+- `reducedMotion` — whether the user asked for less motion
+- `addCleanup(fn)` — whatever you register here runs however the operation ends
 
-For restoration, `bounds` always describes the **new inserted position**, not the old removal position.
+On restore, `bounds` is the **new** place where you inserted the element, not where it was removed from.
 
 ## Supported results
 
@@ -70,7 +70,7 @@ type AnimationResult =
   | null;
 ```
 
-This covers Web Animations, async CSS orchestration, Canvas render loops, SVG, WebGL, and third-party engines. `cancel()` stops playback; `dispose()` releases renderer resources after every outcome.
+So a Web Animation, a promise, a Canvas or WebGL loop, or a wrapper around another engine all fit. `cancel()` stops playback. `dispose()` frees whatever your renderer allocated, and it runs whether the animation finished, was cancelled, or failed.
 
 ## Register a named effect
 
@@ -85,11 +85,11 @@ const effects = new Disintegrator({
 effects.remove(element);
 ```
 
-Direct effect objects and registered names use the same contract as all four built-ins.
+Effect objects and registered names work the same way, and so do the four built-in effects.
 
 ## Add custom audio
 
-Each phase accepts a URL, `ArrayBuffer`, `AudioBuffer`, options object, or factory.
+Each phase takes a URL, an `ArrayBuffer`, an `AudioBuffer`, an options object, or a factory.
 
 ```ts
 const effect = defineEffect({
@@ -104,4 +104,4 @@ const effect = defineEffect({
 });
 ```
 
-Audio failures are reported through `onError` and never prevent the visual or content operation.
+If audio fails, the error goes to `onError` and the animation and the DOM change carry on.

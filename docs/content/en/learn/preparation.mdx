@@ -7,7 +7,9 @@ navTitle: Snapshot preparation
 order: 50
 ---
 
-Background preparation is off by default. With no `preparation` option, the instance creates no visibility or mutation observers and captures only when an operation needs a snapshot.
+Capturing an element takes anywhere from a few milliseconds to a few hundred, depending on its size, fonts and images. Preparation does that work ahead of time so `remove()` can start drawing at once.
+
+It is off by default. Without the `preparation` option the library creates no observers and captures only when an operation asks for a snapshot.
 
 ## Enable the default policy
 
@@ -19,9 +21,9 @@ const effects = new Disintegrator({
 const unregister = effects.register(document.querySelectorAll('[data-effects]'));
 ```
 
-`true` selects `visible-idle`: registered elements are prepared when they approach the viewport and the browser becomes idle.
+`true` means `visible-idle`: an element is captured once it comes near the viewport and the browser has a free moment.
 
-Call `unregister()` when those candidates no longer belong to the feature. It stops tracking them but does not remove the DOM nodes.
+Call `unregister()` when you stop caring about those elements. It stops watching them and does not touch the DOM.
 
 ## Configure when work is allowed
 
@@ -39,13 +41,13 @@ const effects = new Disintegrator({
 });
 ```
 
-| Strategy       | Behavior                                                        |
-| -------------- | --------------------------------------------------------------- |
-| `immediate`    | Capture registered candidates as soon as capacity is available. |
-| `idle`         | Wait for an idle window, with a timeout fallback.               |
-| `visible-idle` | Require viewport proximity, then wait for idle.                 |
+| Strategy       | Behavior                                                           |
+| -------------- | ------------------------------------------------------------------ |
+| `immediate`    | Capture as soon as there is a free slot.                           |
+| `idle`         | Wait for an idle moment, with a timeout so it never waits forever. |
+| `visible-idle` | Wait until the element is near the viewport, then wait for idle.   |
 
-`shouldPrepare(element)` is evaluated before work is scheduled. Use it for application conditions such as element type, current state, network mode, or feature flags.
+`shouldPrepare(element)` runs before anything is scheduled. Use it to skip elements on your own terms — by type, by current state, by a feature flag, on a slow connection.
 
 ## Control the cache directly
 
@@ -57,14 +59,14 @@ effects.clearPrepared(); // release every prepared snapshot
 
 <Demo kind="preparation" />
 
-An operation never trusts a missing, pending, stale, or evicted snapshot. It performs a current capture before animation.
+An operation never animates from a snapshot it is unsure about. If one is missing, still being taken, out of date, or was dropped from the cache, it captures a fresh one first.
 
 ## Cache budget
 
-The default LRU budget is 8 million physical pixels. It applies only to reproducible snapshots, not retained DOM elements. Eviction closes `ImageBitmap` values and releases canvas or GPU resources owned by the cache.
+The cache holds 8 million physical pixels by default and drops the least recently used snapshot when it goes over. Only snapshots count against it — retained DOM elements do not. Dropping one resizes its canvas to zero so the browser can reclaim the memory behind it.
 
-Lower the budget for memory-constrained screens; raise it only after measuring capture cost and memory use.
+Lower the budget on memory-tight devices. Raise it only after measuring what capture actually costs you.
 
 ## Invalidation
 
-`invalidateOnResize` defaults to `true`. Mutation observation defaults to `false` because broad DOM observation can be expensive and application-specific. Call `invalidate()` after content changes that affect a registered element's appearance.
+`invalidateOnResize` is on by default. Watching for mutations is off, because watching a whole subtree costs real work and only you know when it is worth it. Call `invalidate()` after a change that alters how a registered element looks.
