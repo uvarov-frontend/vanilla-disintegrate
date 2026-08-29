@@ -5,21 +5,33 @@ on:
     tags: ['v*']
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
-  npm:
+  publish:
     runs-on: ubuntu-latest
     environment: npm
     steps:
       - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.2
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
           registry-url: https://registry.npmjs.org
-      - run: npm ci
-      - run: npm publish --access public --provenance
+      - name: Verify release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: test "v$(node -p \"require('./package.json').version\")" = "$RELEASE_TAG"
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: gh release create "$RELEASE_TAG" --generate-notes
