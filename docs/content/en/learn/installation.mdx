@@ -1,0 +1,104 @@
+---
+title: Install and run your first effect
+description: Install Vanilla Disintegrate and run the first removal and restoration animations.
+locale: en
+section: start
+navTitle: Quick start
+order: 10
+---
+
+Vanilla Disintegrate adds a **Thanos-snap** particle deletion effect to any measurable DOM element. The package includes SnapDOM capture by default and requires no CSS import.
+
+## Installation
+
+Use any supported package manager:
+
+```bash
+# npm
+npm install vanilla-disintegrate
+
+# Yarn
+yarn add vanilla-disintegrate
+
+# pnpm
+pnpm add vanilla-disintegrate
+
+# Bun
+bun add vanilla-disintegrate
+```
+
+Vanilla Disintegrate uses [SnapDOM](https://zumerlab.github.io/snapdom/) to capture the current appearance of an element before it is split into particles. `@zumer/snapdom` is a regular package dependency, so your package manager installs it automatically.
+
+```ts
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator();
+const card = document.querySelector<HTMLElement>('.card');
+
+if (card) {
+  effects.remove(card, { effect: 'dust' });
+}
+```
+
+`remove()` returns immediately. Use `operation.finished` only when later code must wait for the visual to settle.
+
+## Remove and restore the same node
+
+Set `retain: true` only when the original node may be needed again. The application still decides where to insert it.
+
+```ts
+const removal = effects.remove(card, {
+  effect: 'dust',
+  retain: true,
+});
+
+await removal.finished;
+
+if (removal.removalId) {
+  const retained = effects.take(removal.removalId);
+
+  if (retained) {
+    list.append(retained);
+    await effects.restore(retained).finished;
+  }
+}
+```
+
+The restore phase uses the effect remembered during removal unless the call supplies another `effect`.
+
+## Use another capture library
+
+`capture` is a small adapter contract, not a SnapDOM-only API. For example, an application can use `html2canvas`:
+
+```ts
+import html2canvas from 'html2canvas';
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator({
+  capture: (element, context) => {
+    context.signal.throwIfAborted();
+
+    return html2canvas(element, {
+      backgroundColor: null,
+      logging: false,
+      scale: 1,
+      useCORS: true,
+      onclone: (_document, clone) => {
+        if (context.restoreRootOpacity !== undefined) {
+          clone.style.setProperty('opacity', context.restoreRootOpacity, 'important');
+        }
+      },
+    });
+  },
+});
+```
+
+The supplied function completely replaces SnapDOM capture behavior. SnapDOM remains a package dependency and part of the static ESM runtime graph.
+
+## Clean up
+
+Call `destroy()` when the owning view or application is permanently disposed. It cancels active visuals, clears prepared snapshots, stops observers, and releases all retained references.
+
+```ts
+effects.destroy();
+```

@@ -1,0 +1,74 @@
+---
+title: Built-in effect pairs
+description: Choose one of four removal animations and preview its matching restore phase.
+locale: en
+section: learn
+navTitle: Built-in effects
+order: 20
+---
+
+Every built-in name represents a **pair**: one animation for removal and one logically matching animation for restoration. Restore is implemented as its own phase, not by reversing a finished removal timeline.
+
+## The four effects
+
+| Name      | Remove                                 | Restore                                          |
+| --------- | -------------------------------------- | ------------------------------------------------ |
+| `dust`    | The element breaks into rising dust.   | Dust collects into the element's final geometry. |
+| `vapor`   | The image softens and evaporates.      | Vapor condenses into the visible element.        |
+| `scatter` | Particles burst away from the element. | Particles converge from outside.                 |
+| `wind`    | A stream carries particles sideways.   | The same stream returns them from its direction. |
+
+```ts
+effects.remove(card, { effect: 'dust' });
+effects.restore(card, { effect: 'dust' });
+
+effects.remove(card, { effect: 'vapor' });
+effects.restore(card, { effect: 'vapor' });
+
+effects.remove(card, { effect: 'scatter' });
+effects.restore(card, { effect: 'scatter' });
+
+effects.remove(card, { effect: 'wind' });
+effects.restore(card, { effect: 'wind' });
+```
+
+<Demo kind="built-in" />
+
+## Select a default
+
+Set a default on the instance and override it only for individual operations.
+
+```ts
+const effects = new Disintegrator({
+  effect: 'vapor',
+});
+
+effects.remove(firstElement); // vapor
+effects.remove(secondElement, { effect: 'scatter' });
+effects.restore(insertedElement, { effect: 'wind' });
+```
+
+## Restore with the remembered pair
+
+When a retained node is taken and inserted again, `restore()` can recover the effect chosen during removal.
+
+```ts
+const removal = effects.remove(card, {
+  effect: 'wind',
+  retain: true,
+});
+
+await removal.finished;
+
+const retained = effects.take(removal.removalId!);
+if (retained) {
+  list.prepend(retained);
+  await effects.restore(retained).finished; // wind restore
+}
+```
+
+Pass `effect` to `restore()` when a different pair is intentional.
+
+## Sound slots
+
+Each phase has its own sound slot. `dust.remove` and `wind.remove` currently include audio; the other six slots intentionally remain silent until matching assets are added. `sound: false` disables audio without changing animation.

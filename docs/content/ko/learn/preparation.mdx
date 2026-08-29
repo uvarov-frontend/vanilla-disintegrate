@@ -1,0 +1,60 @@
+---
+title: 백그라운드 스냅샷 준비
+description: 가시성, idle 작업, 무효화, 스냅샷 캐시 크기를 제어합니다.
+locale: ko
+section: learn
+navTitle: 스냅샷 준비
+order: 50
+---
+
+백그라운드 준비는 기본적으로 꺼져 있습니다. `preparation`을 지정하지 않으면 observer를 만들지 않고 작업에 스냅샷이 필요할 때만 캡처합니다.
+
+## 기본 정책 켜기
+
+```ts
+const effects = new Disintegrator({ preparation: true });
+
+const unregister = effects.register(document.querySelectorAll('[data-effects]'));
+```
+
+`true`는 `visible-idle`을 선택합니다. 등록된 요소가 뷰포트에 가까워지고 브라우저가 idle일 때 준비합니다.
+
+## 실행 조건 설정
+
+```ts
+const effects = new Disintegrator({
+  preparation: {
+    strategy: 'visible-idle',
+    rootMargin: '300px 0px',
+    concurrency: 1,
+    shouldPrepare: (element) => element.matches('[data-effects]'),
+    invalidateOnResize: true,
+    observeMutations: false,
+    cachePixelBudget: 8_000_000,
+  },
+});
+```
+
+| 전략           | 동작                                             |
+| -------------- | ------------------------------------------------ |
+| `immediate`    | 동시성 여유가 생기면 즉시 캡처합니다.            |
+| `idle`         | timeout 대체 수단과 함께 idle 구간을 기다립니다. |
+| `visible-idle` | 뷰포트 근접을 확인한 후 idle을 기다립니다.       |
+
+`shouldPrepare(element)`는 작업 예약 전에 실행되므로 요소 유형, UI 상태, 네트워크, feature flag를 반영할 수 있습니다.
+
+## 캐시 직접 제어
+
+```ts
+await effects.prepare(elements); // 지금 캡처
+effects.invalidate(elements); // 오래된 항목 제거 및 재예약
+effects.clearPrepared(); // 전체 캐시 해제
+```
+
+<Demo kind="preparation" />
+
+스냅샷이 없거나 준비 중이거나 오래됐거나 축출됐다면 작업은 최신 캡처를 수행합니다.
+
+기본 LRU 예산은 800만 물리 픽셀이며 재생성 가능한 스냅샷만 제한합니다. 보관된 DOM 노드는 제한하지 않습니다. 축출 시 `ImageBitmap`과 Canvas/GPU 리소스를 해제합니다.
+
+`invalidateOnResize`는 기본으로 켜지고 MutationObserver는 비용 때문에 기본으로 꺼져 있습니다. 콘텐츠 모양이 바뀌면 `invalidate()`를 호출하세요.

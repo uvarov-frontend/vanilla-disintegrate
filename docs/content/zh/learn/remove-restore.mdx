@@ -1,0 +1,72 @@
+---
+title: 删除与恢复
+description: 理解两种内容操作、几何位置、取消方式与错误行为。
+locale: zh
+section: learn
+navTitle: 删除与恢复
+order: 30
+---
+
+`remove()` 与 `restore()` 是独立操作。库负责过渡动画，应用负责内容状态和插入位置。
+
+## 删除元素
+
+库在分离节点前测量真实元素。节点离开布局后，视觉效果在隔离覆盖层中继续运行。
+
+```ts
+const operation = effects.remove(element, {
+  effect: 'dust',
+  retain: false,
+  layout: true,
+});
+
+const result = await operation.finished;
+```
+
+`retain` 默认为 `false`，因此库不会保留 DOM 引用。`layout` 可让受影响的相邻元素平滑移动到新位置。
+
+## 恢复已插入元素
+
+应用必须先把节点插入目标位置，再调用 `restore()`。
+
+```ts
+container.append(element);
+await effects.restore(element, { effect: 'dust' }).finished;
+```
+
+元素必须已连接并具有非零尺寸。库会同步隐藏它，测量**新的最终位置**，完成捕获与恢复动画后显示原节点。
+
+## 动画显示全新元素
+
+不需要之前调用 `remove()`，`restore()` 也可作为入场动画。
+
+```ts
+const message = document.createElement('aside');
+message.textContent = '刚刚创建';
+notifications.append(message);
+
+effects.restore(message, { effect: 'vapor' });
+```
+
+## 操作对象
+
+```ts
+const operation = effects.remove(element);
+
+operation.operation; // 'remove'
+operation.removalId; // RemovalId | null
+operation.cancel();
+
+const result = await operation.finished;
+result.status; // 'completed' | 'cancelled' | 'skipped'
+```
+
+操作结束后，对象不会保留 DOM 元素。
+
+## 取消只影响视觉
+
+`cancel()` 停止动画与声音，但不会撤销内容决定：已删除元素仍保持删除，正在恢复的元素会变为可见。
+
+## 错误不会阻塞内容
+
+捕获、音频或自定义效果失败时，删除仍会分离节点，恢复仍会显示元素。错误通过 `onError` 传递给应用。

@@ -1,0 +1,98 @@
+---
+title: 설치와 첫 번째 효과
+description: Vanilla Disintegrate를 설치하고 첫 삭제 및 복원 애니메이션을 실행합니다.
+locale: ko
+section: start
+navTitle: 빠른 시작
+order: 10
+---
+
+Vanilla Disintegrate는 측정 가능한 모든 DOM 요소에 **타노스 스냅** 파티클 삭제 효과를 더합니다. 패키지에는 SnapDOM 캡처가 기본으로 설정되어 있으며 별도 CSS import가 필요하지 않습니다.
+
+## 설치
+
+지원되는 패키지 관리자 중 하나를 사용하세요.
+
+```bash
+# npm
+npm install vanilla-disintegrate
+
+# Yarn
+yarn add vanilla-disintegrate
+
+# pnpm
+pnpm add vanilla-disintegrate
+
+# Bun
+bun add vanilla-disintegrate
+```
+
+Vanilla Disintegrate는 요소가 파티클로 나뉘기 전에 [SnapDOM](https://zumerlab.github.io/snapdom/)으로 현재 모습을 캡처합니다. `@zumer/snapdom`은 일반 의존성이므로 패키지 관리자가 자동 설치합니다.
+
+```ts
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator();
+const card = document.querySelector<HTMLElement>('.card');
+
+if (card) {
+  effects.remove(card, { effect: 'dust' });
+}
+```
+
+`remove()`는 작업 객체를 즉시 반환합니다. 다음 로직이 시각 효과 종료를 기다려야 할 때만 `operation.finished`를 await 하세요.
+
+## 같은 노드 삭제 후 복원
+
+```ts
+const removal = effects.remove(card, {
+  effect: 'dust',
+  retain: true,
+});
+
+await removal.finished;
+
+if (removal.removalId) {
+  const retained = effects.take(removal.removalId);
+
+  if (retained) {
+    list.append(retained);
+    await effects.restore(retained).finished;
+  }
+}
+```
+
+노드를 어디에 삽입할지는 애플리케이션이 결정합니다. `restore()`에 다른 `effect`를 지정하지 않으면 삭제 시 기억한 효과 쌍을 사용합니다.
+
+## 다른 캡처 라이브러리
+
+`capture`는 SnapDOM 전용이 아닌 작은 어댑터 계약입니다. 예를 들어 `html2canvas`를 연결할 수 있습니다.
+
+```ts
+import html2canvas from 'html2canvas';
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator({
+  capture: (element, context) => {
+    context.signal.throwIfAborted();
+
+    return html2canvas(element, {
+      backgroundColor: null,
+      logging: false,
+      scale: 1,
+      useCORS: true,
+      onclone: (_document, clone) => {
+        if (context.restoreRootOpacity !== undefined) {
+          clone.style.setProperty('opacity', context.restoreRootOpacity, 'important');
+        }
+      },
+    });
+  },
+});
+```
+
+전달한 함수는 SnapDOM 캡처 동작을 완전히 대체합니다. SnapDOM 자체는 패키지 의존성이며 정적 ESM 런타임 그래프에도 남습니다.
+
+## 정리
+
+소유 화면이 영구히 폐기될 때 `effects.destroy()`를 호출하세요. 실행 중인 작업과 observer를 중지하고 스냅샷 및 보관된 DOM 참조를 해제합니다.

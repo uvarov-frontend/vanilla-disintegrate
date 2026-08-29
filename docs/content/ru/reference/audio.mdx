@@ -1,0 +1,67 @@
+---
+title: Аудио
+description: Настройте встроенный звук, буферы, URL и собственный плеер без связи ошибок аудио с анимацией.
+locale: ru
+section: reference
+navTitle: Аудио
+order: 80
+---
+
+Звук включён по умолчанию. У каждой фазы удаления и восстановления самостоятельное определение аудио: дорожку не нужно разворачивать вместе с анимацией.
+
+## Отключение
+
+```ts
+const silent = new Disintegrator({ sound: false });
+
+effects.remove(element, { sound: false });
+```
+
+Настройка операции имеет приоритет для одного вызова.
+
+## Источники
+
+```ts
+type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
+```
+
+Строка и `URL` загружаются и декодируются лениво. `ArrayBuffer` подходит при собственном загрузчике ресурсов. `AudioBuffer` удобен, когда приложение уже управляет аудиопайплайном и хочет переиспользовать декодированный звук.
+
+Библиотека не встраивает аудиофайлы в исходный код как `AudioBuffer`: декодирование выполняется браузером, а сжатый файл меньше и хорошо кэшируется.
+
+## Параметры проигрывания
+
+```ts
+effects.remove(element, {
+  sound: {
+    src: new URL('/sounds/snap.ogg', location.href),
+    gain: 0.35,
+    delay: 40,
+    duration: 700,
+    fadeDuration: 120,
+    playbackRate: 1.05,
+  },
+});
+```
+
+## Пользовательский плеер
+
+```ts
+const sound = ({ operation, signal }) => {
+  const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
+
+  const stop = () => playback.stop();
+  signal.addEventListener('abort', stop, { once: true });
+
+  return {
+    finished: playback.finished,
+    stop,
+    dispose() {
+      signal.removeEventListener('abort', stop);
+      playback.dispose();
+    },
+  };
+};
+```
+
+Фабрика получает тип операции, элемент и `AbortSignal`. Ошибки autoplay, загрузки, декодирования и пользовательского плеера передаются в `onError`, но не прерывают анимацию и выбранное действие с DOM.

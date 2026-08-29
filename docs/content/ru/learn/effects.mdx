@@ -1,0 +1,68 @@
+---
+title: Встроенные пары эффектов
+description: Выберите одну из четырёх анимаций удаления и посмотрите соответствующее восстановление.
+locale: ru
+section: learn
+navTitle: Встроенные эффекты
+order: 20
+---
+
+Каждое встроенное имя обозначает **пару**: отдельную анимацию удаления и логичную анимацию восстановления. Фаза восстановления реализована самостоятельно, а не простым обратным проигрыванием готового таймлайна.
+
+## Четыре эффекта
+
+| Имя       | Удаление                                 | Восстановление                                    |
+| --------- | ---------------------------------------- | ------------------------------------------------- |
+| `dust`    | Элемент рассыпается поднимающейся пылью. | Пыль собирается в конечной геометрии элемента.    |
+| `vapor`   | Изображение смягчается и испаряется.     | Пар конденсируется в видимый элемент.             |
+| `scatter` | Частицы резко разлетаются наружу.        | Частицы сходятся снаружи.                         |
+| `wind`    | Поток уносит частицы в сторону.          | Тот же поток возвращает их со своего направления. |
+
+```ts
+effects.remove(card, { effect: 'dust' });
+effects.restore(card, { effect: 'dust' });
+
+effects.remove(card, { effect: 'vapor' });
+effects.restore(card, { effect: 'vapor' });
+
+effects.remove(card, { effect: 'scatter' });
+effects.restore(card, { effect: 'scatter' });
+
+effects.remove(card, { effect: 'wind' });
+effects.restore(card, { effect: 'wind' });
+```
+
+<Demo kind="built-in" />
+
+## Эффект по умолчанию
+
+```ts
+const effects = new Disintegrator({ effect: 'vapor' });
+
+effects.remove(firstElement); // vapor
+effects.remove(secondElement, { effect: 'scatter' });
+effects.restore(insertedElement, { effect: 'wind' });
+```
+
+## Запомненная пара
+
+```ts
+const removal = effects.remove(card, {
+  effect: 'wind',
+  retain: true,
+});
+
+await removal.finished;
+const retained = effects.take(removal.removalId!);
+
+if (retained) {
+  list.prepend(retained);
+  await effects.restore(retained).finished; // восстановление wind
+}
+```
+
+Передайте `effect` в `restore()`, только если хотите сознательно заменить запомненную пару.
+
+## Слоты звука
+
+У каждой фазы собственный слот аудио. Сейчас звук есть у `dust.remove` и `wind.remove`; остальные шесть слотов намеренно равны `null` до появления подходящих файлов. `sound: false` отключает звук, не меняя анимацию.

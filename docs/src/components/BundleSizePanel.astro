@@ -1,0 +1,34 @@
+---
+import { bundleVariants, formatBundleSize } from '../lib/bundle-size';
+import type { Locale } from '../i18n';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const label = {
+  en: 'Bundle size',
+  ru: 'Размер сборки',
+  zh: '构建大小',
+  ko: '번들 크기',
+}[locale];
+---
+
+<aside class="bundle-size-panel" aria-label={label}>
+  <dl class="bundle-size-values">
+    {
+      bundleVariants.map((variant) => (
+        <div>
+          <dt>{variant.label}</dt>
+          <dd>
+            <span>{formatBundleSize(variant.size.minifiedBytes, locale)}</span>
+            <strong>
+              {formatBundleSize(variant.size.gzipBytes, locale)} <span>(gzip)</span>
+            </strong>
+          </dd>
+        </div>
+      ))
+    }
+  </dl>
+</aside>

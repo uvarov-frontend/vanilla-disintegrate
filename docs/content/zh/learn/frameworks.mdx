@@ -1,0 +1,294 @@
+---
+title: 响应式框架集成
+description: React、Vue、Svelte、Solid 和 Angular 中安全删除与恢复的方式。
+locale: zh
+section: learn
+navTitle: 响应式框架
+order: 65
+---
+
+响应式框架必须继续拥有它渲染的 DOM 节点。使用 `detach` 更新框架状态，而不是让 Vanilla Disintegrate 直接调用 `element.remove()`。
+
+```ts
+effects.remove(element, {
+  effect: 'dust',
+  detach: () => removeFromFrameworkState(),
+});
+```
+
+该钩子会在元素完成测量和截图后、正式提交删除时运行。若省略 `detach`，库仍会使用默认的 `element.remove()`。
+
+恢复时，先让框架渲染元素，等待 DOM 提交，再把新的元素引用传给 `restore()`。响应式状态应保存业务数据，而不是已分离的 DOM 节点，因此这类集成通常保持默认的 `retain: false`。
+
+由于恢复得到的是新的 DOM 节点，若删除时没有使用实例默认效果，请在 `restore()` 中显式传入相同的 `effect`。记忆的效果元数据只能跟随同一个被保留的 DOM 节点。
+
+## React
+
+React 必须同步提交它所拥有节点的移除。使用 `flushSync()` 明确这条边界，并在 `useLayoutEffect()` 中恢复已经插入的新节点。
+
+```tsx
+'use client';
+
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import Disintegrator from 'vanilla-disintegrate';
+
+export function DisintegratingCard() {
+  const [visible, setVisible] = useState(true);
+  const cardRef = useRef<HTMLElement | null>(null);
+  const effectsRef = useRef<Disintegrator | null>(null);
+  const pendingRestore = useRef(false);
+
+  useEffect(() => {
+    const effects = new Disintegrator();
+    effectsRef.current = effects;
+    return () => {
+      effects.destroy();
+      effectsRef.current = null;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const effects = effectsRef.current;
+    const element = cardRef.current;
+    if (!visible || !pendingRestore.current || !effects || !element) return;
+
+    pendingRestore.current = false;
+    effects.restore(element, { effect: 'dust' });
+  }, [visible]);
+
+  function removeCard() {
+    const effects = effectsRef.current;
+    const element = cardRef.current;
+    if (!effects || !element) return;
+
+    effects.remove(element, {
+      effect: 'dust',
+      detach: () => flushSync(() => setVisible(false)),
+    });
+  }
+
+  function restoreCard() {
+    pendingRestore.current = true;
+    setVisible(true);
+  }
+
+  return visible ? (
+    <article ref={cardRef}>
+      <h2>动态</h2>
+      <button onClick={removeCard}>删除</button>
+    </article>
+  ) : (
+    <button onClick={restoreCard}>恢复</button>
+  );
+}
+```
+
+在 effect 中创建实例，并在 cleanup 中调用 `destroy()`；该写法兼容 React Strict Mode。Next.js 等 React SSR 框架需要把组件标记为客户端组件。
+
+## Vue
+
+Vue 会在浏览器绘制前批量应用状态更新。等待 `nextTick()` 后，`restore()` 就能获得最终 DOM 和几何信息。
+
+```vue
+<script setup lang="ts">
+import { nextTick, onMounted, onUnmounted, ref } from 'vue';
+import Disintegrator from 'vanilla-disintegrate';
+
+const visible = ref(true);
+const card = ref<HTMLElement | null>(null);
+let effects: Disintegrator | null = null;
+
+onMounted(() => {
+  effects = new Disintegrator();
+});
+onUnmounted(() => effects?.destroy());
+
+function removeCard() {
+  if (!effects || !card.value) return;
+  effects.remove(card.value, {
+    effect: 'dust',
+    detach: () => {
+      visible.value = false;
+    },
+  });
+}
+
+async function restoreCard() {
+  visible.value = true;
+  await nextTick();
+  if (effects && card.value) effects.restore(card.value, { effect: 'dust' });
+}
+</script>
+
+<template>
+  <article v-if="visible" ref="card">
+    <h2>动态</h2>
+    <button @click="removeCard">删除</button>
+  </article>
+  <button v-else @click="restoreCard">恢复</button>
+</template>
+```
+
+该组件同样适用于 Nuxt，因为浏览器专属初始化位于 `onMounted()` 中。
+
+## Svelte
+
+通过 `bind:this` 获取实时节点，从 `onMount()` 返回清理函数，并在恢复前等待 `tick()`。
+
+```svelte
+<script lang="ts">
+  import { onMount, tick } from 'svelte';
+  import Disintegrator from 'vanilla-disintegrate';
+
+  let visible = true;
+  let card: HTMLElement;
+  let effects: Disintegrator | null = null;
+
+  onMount(() => {
+    effects = new Disintegrator();
+    return () => effects?.destroy();
+  });
+
+  function removeCard() {
+    if (!effects || !card) return;
+    effects.remove(card, {
+      effect: 'dust',
+      detach: () => {
+        visible = false;
+      },
+    });
+  }
+
+  async function restoreCard() {
+    visible = true;
+    await tick();
+    if (effects && card) effects.restore(card, { effect: 'dust' });
+  }
+</script>
+
+{#if visible}
+  <article bind:this={card}>
+    <h2>动态</h2>
+    <button onclick={removeCard}>删除</button>
+  </article>
+{:else}
+  <button onclick={restoreCard}>恢复</button>
+{/if}
+```
+
+`onMount()` 只在浏览器执行，因此同样适用于 SvelteKit SSR。
+
+## Solid
+
+Solid 会同步更新 signal 控制的分支。恢复时安排一个微任务，以确保新节点已插入。
+
+```tsx
+import { createSignal, onCleanup, onMount, Show } from 'solid-js';
+import Disintegrator from 'vanilla-disintegrate';
+
+export function DisintegratingCard() {
+  const [visible, setVisible] = createSignal(true);
+  let card!: HTMLElement;
+  let effects: Disintegrator | null = null;
+
+  onMount(() => {
+    effects = new Disintegrator();
+  });
+  onCleanup(() => effects?.destroy());
+
+  const removeCard = () =>
+    effects?.remove(card, {
+      effect: 'dust',
+      detach: () => setVisible(false),
+    });
+
+  const restoreCard = () => {
+    setVisible(true);
+    queueMicrotask(() => effects?.restore(card, { effect: 'dust' }));
+  };
+
+  return (
+    <Show when={visible()} fallback={<button onClick={restoreCard}>恢复</button>}>
+      <article ref={card}>
+        <h2>动态</h2>
+        <button onClick={removeCard}>删除</button>
+      </article>
+    </Show>
+  );
+}
+```
+
+SolidStart 使用相同的客户端生命周期。
+
+## Angular
+
+Angular Signals 可以在 `detach` 中提交条件视图。`afterNextRender()` 避免在 SSR 期间创建实例，`DestroyRef` 负责清理。
+
+```ts
+import {
+  afterNextRender,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import Disintegrator from 'vanilla-disintegrate';
+
+@Component({
+  selector: 'app-disintegrating-card',
+  standalone: true,
+  template: `
+    @if (visible()) {
+      <article #card>
+        <h2>动态</h2>
+        <button (click)="removeCard()">删除</button>
+      </article>
+    } @else {
+      <button (click)="restoreCard()">恢复</button>
+    }
+  `,
+})
+export class DisintegratingCard {
+  readonly visible = signal(true);
+  readonly card = viewChild<ElementRef<HTMLElement>>('card');
+  private readonly changeDetector = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  private effects: Disintegrator | null = null;
+
+  constructor() {
+    afterNextRender(() => (this.effects = new Disintegrator()));
+    this.destroyRef.onDestroy(() => this.effects?.destroy());
+  }
+
+  removeCard() {
+    const element = this.card()?.nativeElement;
+    if (!this.effects || !element) return;
+    this.effects.remove(element, {
+      effect: 'dust',
+      detach: () => {
+        this.visible.set(false);
+        this.changeDetector.detectChanges();
+      },
+    });
+  }
+
+  restoreCard() {
+    this.visible.set(true);
+    this.changeDetector.detectChanges();
+    const element = this.card()?.nativeElement;
+    if (this.effects && element) this.effects.restore(element, { effect: 'dust' });
+  }
+}
+```
+
+## 可用于任何 DOM 界面
+
+Vanilla Disintegrate 可用于任何包含可测量 DOM 元素的浏览器界面。它不依赖框架，也不需要适配器或单独的集成包。
+
+上面的 React、Vue、Svelte、Solid 和 Angular 并不是支持平台的清单，而是各自典型生命周期场景的示例。同样的方法适用于任何其他框架、库或纯 JavaScript 应用。
+
+示例使用各框架的官方 DOM 和生命周期 API：[React refs 与 effects](https://react.dev/reference/react/useRef)、[Vue template refs 与 lifecycle](https://vuejs.org/guide/essentials/template-refs)、[Svelte lifecycle](https://svelte.dev/docs/svelte/lifecycle-hooks)、[Solid refs 与 cleanup](https://docs.solidjs.com/concepts/refs)、[Angular component lifecycle](https://angular.dev/guide/components/lifecycle)。

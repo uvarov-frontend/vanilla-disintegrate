@@ -1,0 +1,20 @@
+---
+import { docsHref } from '../i18n';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+Astro.response.status = 404;
+---
+
+<BaseLayout
+  title="Page not found · Vanilla Disintegrate"
+  description="The requested page was not found."
+  locale="en"
+  noindex
+>
+  <main class="not-found-page">
+    <span>404</span>
+    <h1>Page not found</h1>
+    <p>The documentation page does not exist or has moved.</p>
+    <a class="hero-button hero-button-primary" href={docsHref('en', 'learn/installation')}>Open documentation</a>
+  </main>
+</BaseLayout>

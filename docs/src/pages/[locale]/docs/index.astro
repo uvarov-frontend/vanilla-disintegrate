@@ -1,0 +1,7 @@
+---
+import { isLocale } from '../../../i18n';
+
+const { locale } = Astro.params;
+if (!isLocale(locale) || locale === 'en') return Astro.redirect('/404/');
+return Astro.redirect(`/${locale}/docs/learn/installation/`);
+---

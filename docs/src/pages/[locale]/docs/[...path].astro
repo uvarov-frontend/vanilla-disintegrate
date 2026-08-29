@@ -1,0 +1,21 @@
+---
+import { getCollection, getEntry, render } from 'astro:content';
+
+import InteractiveDemo from '../../../components/InteractiveDemo.astro';
+import { isLocale } from '../../../i18n';
+import { localeEntries } from '../../../lib/docs';
+import DocsLayout from '../../../layouts/DocsLayout.astro';
+
+const { locale, path } = Astro.params;
+if (!isLocale(locale) || locale === 'en' || !path) return Astro.redirect('/404/');
+
+const entry = await getEntry('docs', `${locale}/${path}`);
+if (!entry) return Astro.redirect('/404/');
+
+const entries = localeEntries(await getCollection('docs'), locale);
+const { Content, headings } = await render(entry);
+---
+
+<DocsLayout entry={entry} entries={entries} headings={headings} locale={locale}>
+  <Content components={{ Demo: InteractiveDemo }} />
+</DocsLayout>

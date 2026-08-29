@@ -1,0 +1,102 @@
+---
+title: Справочник API
+description: Параметры конструктора, операции, хранение, подготовка и жизненный цикл в одном месте.
+locale: ru
+section: reference
+navTitle: API
+order: 70
+---
+
+Экспорт по умолчанию — тонкий фасад над захватом, рендерингом, звуком, layout, подготовкой и хранилищем удалённых элементов.
+
+## Конструктор
+
+```ts
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator(options);
+```
+
+| Опция                                           | Тип                                | По умолчанию         |
+| ----------------------------------------------- | ---------------------------------- | -------------------- |
+| `effect`                                        | `EffectSelection`                  | `dust`               |
+| `effects`                                       | `Record<string, EffectDefinition>` | `{}`                 |
+| `sound`                                         | `boolean \| SoundDefinition`       | `true`               |
+| `layout`                                        | `boolean \| LayoutOptions`         | `true`               |
+| `preparation`                                   | `boolean \| PreparationOptions`    | `false`              |
+| `respectReducedMotion`                          | `boolean`                          | `true`               |
+| `capture`                                       | `SnapshotCapture`                  | SnapDOM              |
+| `overlayRoot`                                   | `HTMLElement \| () => HTMLElement` | `document.body`      |
+| `zIndex`, `random`                              | число, функция                     | настройки библиотеки |
+| `onTrigger`, `onStart`, `onComplete`, `onError` | callbacks                          | —                    |
+
+## remove(target, options?)
+
+Измеряет и отсоединяет элемент, синхронно возвращая `EffectOperation`.
+
+```ts
+const operation = effects.remove('.card', {
+  effect: 'scatter',
+  retain: true,
+  sound: true,
+  layout: { duration: 260 },
+  detach: (element) => element.remove(),
+});
+```
+
+`target` может быть `HTMLElement` или CSS-селектором. Отсутствующий селектор вызывает ошибку до старта операции.
+
+`detach` заменяет стандартный commit через `element.remove()`. Используйте его, когда реактивный рендерер должен удалить узел через собственное состояние. Если callback выбросит ошибку, она попадёт в `onError`, а библиотека безопасно выполнит обычное удаление.
+
+## restore(target, options?)
+
+Анимирует подключённый измеримый элемент в текущей геометрии.
+
+```ts
+const operation = effects.restore(element, {
+  effect: 'scatter',
+  sound: true,
+});
+```
+
+Отсоединённый элемент или нулевой размер приводят к синхронной ошибке.
+
+## Хранилище
+
+```ts
+const element = effects.take(removalId); // HTMLElement | null
+const discarded = effects.discard(removalId); // boolean
+const count = effects.discardAll(); // number
+```
+
+## Подготовка снимков
+
+```ts
+const unregister = effects.register(elements);
+const results = await effects.prepare(elements);
+effects.invalidate(elements);
+effects.clearPrepared();
+```
+
+`register()` следует фоновой политике, а `prepare()` захватывает сразу, даже если фоновая подготовка выключена.
+
+## destroy()
+
+Останавливает операции и observers, освобождает снимки и сохранённые узлы. Повторный вызов безопасен; новые операции после уничтожения запрещены.
+
+## EffectOperation
+
+```ts
+interface EffectOperation {
+  readonly operation: 'remove' | 'restore';
+  readonly removalId: RemovalId | null;
+  readonly finished: Promise<{
+    operation: 'remove' | 'restore';
+    status: 'completed' | 'cancelled' | 'skipped';
+    removalId: RemovalId | null;
+  }>;
+  cancel(): void;
+}
+```
+
+Объект намеренно не имеет свойства `element`. Настройки конкретной операции имеют приоритет над настройками экземпляра.

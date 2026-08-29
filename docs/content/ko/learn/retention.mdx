@@ -1,0 +1,55 @@
+---
+title: 보관과 실행 취소
+description: 필요할 때만 삭제된 노드를 보관하고 모든 참조를 명시적으로 해제합니다.
+locale: ko
+section: learn
+navTitle: 보관과 실행 취소
+order: 40
+---
+
+라이브러리는 실행 취소를 얼마나 오래 제공할지 결정하지 않습니다. 보관은 명시적으로 켜며 숨겨진 TTL이나 개수 제한이 없습니다.
+
+## 삭제된 노드 보관
+
+```ts
+const operation = effects.remove(element, {
+  retain: true,
+});
+
+await operation.finished;
+const id = operation.removalId;
+```
+
+`retain: true`이면 분리된 원본을 불투명한 `RemovalId` 아래 내부 `Map`에 저장합니다. 숨겨진 컨테이너나 `DocumentFragment`로 옮기지 않습니다.
+
+## 가져와서 복원
+
+`take(id)`는 노드를 반환하면서 저장소의 강한 참조를 즉시 제거합니다.
+
+```ts
+if (id) {
+  const retained = effects.take(id);
+
+  if (retained) {
+    destination.append(retained);
+    effects.restore(retained);
+  }
+}
+```
+
+애플리케이션이 `append`, `prepend`, `before` 또는 프레임워크 삽입 방식을 선택합니다. 라이브러리는 삽입 결과의 최종 지오메트리를 측정합니다.
+
+## 복원 없이 참조 해제
+
+```ts
+effects.discard(removalId); // boolean
+effects.discardAll(); // 해제된 항목 수
+```
+
+`destroy()`도 보관된 모든 노드를 해제합니다.
+
+## 메모리 제어
+
+TTL이 없으므로 사용하지 않는 ID는 반드시 `take()`로 소비하거나 `discard()` 또는 `discardAll()`로 해제해야 합니다. 실행 취소 알림 종료, 경로 전환, 기록 확정 같은 애플리케이션 조건을 사용하세요.
+
+기본 `effects.remove(element)`는 `retain: false`이며 완료 후 라이브러리와 작업 객체 모두 노드를 붙잡지 않습니다.

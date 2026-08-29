@@ -1,0 +1,65 @@
+---
+title: Retention and undo
+description: Keep removed nodes only when needed and release every reference explicitly.
+locale: en
+section: learn
+navTitle: Retention and undo
+order: 40
+---
+
+The library does not decide how long undo should remain available. Retention is explicit, unbounded, and controlled by application code.
+
+## Keep a removed node
+
+```ts
+const operation = effects.remove(element, {
+  retain: true,
+});
+
+await operation.finished;
+const id = operation.removalId;
+```
+
+With `retain: true`, the detached original is stored in an internal `Map` under an opaque `RemovalId`. It is not moved to a hidden DOM container or `DocumentFragment`.
+
+## Take and restore
+
+`take(id)` returns the node and removes its strong reference from storage in one operation.
+
+```ts
+if (id) {
+  const retained = effects.take(id);
+
+  if (retained) {
+    destination.append(retained);
+    effects.restore(retained);
+  }
+}
+```
+
+The application chooses `append`, `prepend`, `before`, or any framework-specific insertion method. The library measures the resulting final geometry.
+
+## Release references without restoring
+
+```ts
+effects.discard(removalId); // true when an entry existed
+effects.discardAll(); // number of released entries
+```
+
+`destroy()` also releases all retained nodes.
+
+## Avoid accidental memory growth
+
+There is deliberately no TTL or maximum entry count. That avoids deleting content behind the application's back, but it also means every unused `RemovalId` must eventually be consumed by `take()`, released with `discard()`, or cleared with `discardAll()`.
+
+Use application policy to decide when undo expires—for example, when a toast closes, a route changes, or a history entry is committed.
+
+## Remove permanently
+
+The default is already permanent from the library's perspective:
+
+```ts
+effects.remove(element); // retain: false
+```
+
+After completion, neither the operation handle nor the library storage keeps the element alive.

@@ -1,0 +1,68 @@
+---
+title: 内置效果对
+description: 选择四种删除动画之一，并预览对应的恢复阶段。
+locale: zh
+section: learn
+navTitle: 内置效果
+order: 20
+---
+
+每个内置名称都是一个**效果对**：删除动画与逻辑匹配的恢复动画。恢复阶段独立实现，并不是简单地倒放删除时间线。
+
+## 四种效果
+
+| 名称      | 删除                     | 恢复                         |
+| --------- | ------------------------ | ---------------------------- |
+| `dust`    | 元素化为向上飘散的尘埃。 | 尘埃在元素最终几何位置聚合。 |
+| `vapor`   | 图像柔化并蒸发。         | 蒸汽凝结成可见元素。         |
+| `scatter` | 粒子向外爆散。           | 粒子从外部汇聚。             |
+| `wind`    | 气流把粒子带向一侧。     | 同一方向的气流把粒子送回。   |
+
+```ts
+effects.remove(card, { effect: 'dust' });
+effects.restore(card, { effect: 'dust' });
+
+effects.remove(card, { effect: 'vapor' });
+effects.restore(card, { effect: 'vapor' });
+
+effects.remove(card, { effect: 'scatter' });
+effects.restore(card, { effect: 'scatter' });
+
+effects.remove(card, { effect: 'wind' });
+effects.restore(card, { effect: 'wind' });
+```
+
+<Demo kind="built-in" />
+
+## 默认效果
+
+```ts
+const effects = new Disintegrator({ effect: 'vapor' });
+
+effects.remove(firstElement); // vapor
+effects.remove(secondElement, { effect: 'scatter' });
+effects.restore(insertedElement, { effect: 'wind' });
+```
+
+## 使用记住的效果对
+
+```ts
+const removal = effects.remove(card, {
+  effect: 'wind',
+  retain: true,
+});
+
+await removal.finished;
+const retained = effects.take(removal.removalId!);
+
+if (retained) {
+  list.prepend(retained);
+  await effects.restore(retained).finished; // wind 恢复
+}
+```
+
+只有明确需要不同动画时，才在 `restore()` 中覆盖 `effect`。
+
+## 声音槽位
+
+每个阶段都有独立声音槽。目前 `dust.remove` 与 `wind.remove` 带有音频，其余六个槽位在素材加入前保持 `null`。`sound: false` 只关闭声音，不改变动画。

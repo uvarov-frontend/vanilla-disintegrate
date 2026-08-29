@@ -1,0 +1,14 @@
+{
+  "esm": {
+    "minifiedBytes": 50804,
+    "gzipBytes": 13940
+  },
+  "esmWithSnapdom": {
+    "minifiedBytes": 213044,
+    "gzipBytes": 67197
+  },
+  "iife": {
+    "minifiedBytes": 200319,
+    "gzipBytes": 64500
+  }
+}

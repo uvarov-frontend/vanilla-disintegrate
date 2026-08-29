@@ -1,0 +1,45 @@
+---
+import type { Locale } from '../i18n';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const managers = [
+  { id: 'npm', command: 'npm install vanilla-disintegrate' },
+  { id: 'yarn', command: 'yarn add vanilla-disintegrate' },
+  { id: 'pnpm', command: 'pnpm add vanilla-disintegrate' },
+  { id: 'bun', command: 'bun add vanilla-disintegrate' },
+] as const;
+const copy = {
+  en: { label: 'Package manager', copy: 'Copy', copied: 'Copied', failed: 'Copy failed' },
+  ru: { label: 'Пакетный менеджер', copy: 'Копировать', copied: 'Скопировано', failed: 'Ошибка' },
+  zh: { label: '包管理器', copy: '复制', copied: '已复制', failed: '复制失败' },
+  ko: { label: '패키지 관리자', copy: '복사', copied: '복사됨', failed: '복사 실패' },
+}[locale];
+---
+
+<div class="package-install" data-package-install style={`--package-manager-count: ${managers.length}`}>
+  <div class="package-manager-switcher" role="group" aria-label={copy.label}>
+    {
+      managers.map((manager, index) => (
+        <button
+          type="button"
+          data-package-manager={manager.id}
+          data-package-command={manager.command}
+          data-package-index={index}
+          aria-pressed={index === 0 ? 'true' : 'false'}
+        >
+          {manager.id}
+        </button>
+      ))
+    }
+  </div>
+  <div class="install-command">
+    <code data-install-command>{managers[0].command}</code>
+    <button type="button" data-copy-install data-copied-label={copy.copied} data-failed-label={copy.failed}>
+      {copy.copy}
+    </button>
+  </div>
+</div>

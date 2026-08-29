@@ -1,0 +1,62 @@
+---
+title: 后台准备快照
+description: 控制可见性、空闲任务、失效策略与快照缓存大小。
+locale: zh
+section: learn
+navTitle: 快照准备
+order: 50
+---
+
+后台准备默认关闭。不传 `preparation` 时，不会创建可见性或 DOM 观察器；只有操作真正需要快照时才捕获。
+
+## 启用默认策略
+
+```ts
+const effects = new Disintegrator({ preparation: true });
+
+const unregister = effects.register(document.querySelectorAll('[data-effects]'));
+```
+
+`true` 使用 `visible-idle`：元素接近视口且浏览器空闲时才准备。
+
+## 配置条件
+
+```ts
+const effects = new Disintegrator({
+  preparation: {
+    strategy: 'visible-idle',
+    rootMargin: '300px 0px',
+    concurrency: 1,
+    shouldPrepare: (element) => element.matches('[data-effects]'),
+    invalidateOnResize: true,
+    observeMutations: false,
+    cachePixelBudget: 8_000_000,
+  },
+});
+```
+
+| 策略           | 行为                           |
+| -------------- | ------------------------------ |
+| `immediate`    | 有并发容量时立即捕获。         |
+| `idle`         | 等待空闲时段，并使用超时后备。 |
+| `visible-idle` | 先要求接近视口，再等待空闲。   |
+
+`shouldPrepare(element)` 在任务排队前执行，可根据元素类型、界面状态、网络或功能开关决定。
+
+## 显式控制缓存
+
+```ts
+await effects.prepare(elements); // 立即捕获
+effects.invalidate(elements); // 删除旧快照并重新排队
+effects.clearPrepared(); // 清空整个缓存
+```
+
+<Demo kind="preparation" />
+
+如果快照缺失、正在生成、已经过期或被淘汰，操作会执行一次最新捕获。
+
+## 缓存预算
+
+默认 LRU 预算是 800 万物理像素，只限制可重新生成的快照，不限制保留的 DOM 节点。淘汰时会关闭 `ImageBitmap` 并释放 Canvas/GPU 资源。
+
+`invalidateOnResize` 默认开启；MutationObserver 默认关闭，因为广泛监听 DOM 可能很昂贵。内容外观改变后应主动调用 `invalidate()`。

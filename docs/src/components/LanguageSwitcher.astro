@@ -1,0 +1,39 @@
+---
+import { localeNames, locales, switchLocalePath, ui, type Locale } from '../i18n';
+
+interface Props {
+  locale: Locale;
+  pathname: string;
+}
+
+const { locale, pathname } = Astro.props;
+---
+
+<details class="language-switcher" data-language-switcher>
+  <summary aria-label={ui[locale].language} title={ui[locale].language}>
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      <circle cx="10" cy="10" r="7.25"></circle>
+      <path
+        d="M2.9 10h14.2M10 2.75c2.1 2.05 3.2 4.47 3.2 7.25S12.1 15.2 10 17.25C7.9 15.2 6.8 12.78 6.8 10S7.9 4.8 10 2.75Z"
+      ></path>
+    </svg>
+    <span>{locale.toUpperCase()}</span>
+    <i aria-hidden="true"></i>
+  </summary>
+  <div class="language-menu">
+    <small>{ui[locale].language}</small>
+    {
+      locales.map((target) => (
+        <a
+          href={`${switchLocalePath(pathname, target)}?lang=${target}`}
+          hreflang={target}
+          lang={target}
+          aria-current={target === locale ? 'true' : undefined}
+        >
+          <span>{localeNames[target]}</span>
+          <code>{target.toUpperCase()}</code>
+        </a>
+      ))
+    }
+  </div>
+</details>

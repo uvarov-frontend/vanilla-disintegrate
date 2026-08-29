@@ -1,0 +1,92 @@
+---
+title: API 레퍼런스
+description: 생성자 옵션, 작업, 보관, 스냅샷 준비, 수명 주기를 한 페이지에서 확인합니다.
+locale: ko
+section: reference
+navTitle: API
+order: 70
+---
+
+기본 export는 캡처, 렌더링, 사운드, 레이아웃, 준비, 삭제 요소 저장소 위의 얇은 facade입니다.
+
+## 생성자
+
+```ts
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator(options);
+```
+
+| 옵션                                            | 타입                               | 기본값          |
+| ----------------------------------------------- | ---------------------------------- | --------------- |
+| `effect`                                        | `EffectSelection`                  | `dust`          |
+| `effects`                                       | `Record<string, EffectDefinition>` | `{}`            |
+| `sound`                                         | `boolean \| SoundDefinition`       | `true`          |
+| `layout`                                        | `boolean \| LayoutOptions`         | `true`          |
+| `preparation`                                   | `boolean \| PreparationOptions`    | `false`         |
+| `respectReducedMotion`                          | `boolean`                          | `true`          |
+| `capture`                                       | `SnapshotCapture`                  | SnapDOM         |
+| `overlayRoot`                                   | `HTMLElement \| () => HTMLElement` | `document.body` |
+| `onTrigger`, `onStart`, `onComplete`, `onError` | 콜백                               | —               |
+
+## remove(target, options?)
+
+요소를 측정하고 분리한 뒤 `EffectOperation`을 동기적으로 반환합니다.
+
+```ts
+const operation = effects.remove('.card', {
+  effect: 'scatter',
+  retain: true,
+  sound: true,
+  layout: { duration: 260 },
+  detach: (element) => element.remove(),
+});
+```
+
+`detach`는 기본 `element.remove()` 커밋을 대체합니다. 반응형 렌더러가 자체 상태로 노드를 제거해야 할 때 사용하세요. 콜백이 예외를 던지면 `onError`로 전달되고 네이티브 제거로 안전하게 폴백합니다.
+
+`target`은 `HTMLElement` 또는 selector입니다. selector가 없으면 작업 시작 전에 오류를 던집니다.
+
+## restore(target, options?)
+
+연결되고 측정 가능한 요소를 현재 지오메트리에서 애니메이션합니다. 분리된 요소나 0 크기는 동기 오류입니다.
+
+## 보관된 요소
+
+```ts
+const element = effects.take(removalId); // HTMLElement | null
+const discarded = effects.discard(removalId); // boolean
+const count = effects.discardAll(); // number
+```
+
+## 스냅샷 준비
+
+```ts
+const unregister = effects.register(elements);
+const results = await effects.prepare(elements);
+effects.invalidate(elements);
+effects.clearPrepared();
+```
+
+`register()`는 백그라운드 정책을 따르고 `prepare()`는 백그라운드 준비가 꺼져 있어도 즉시 캡처합니다.
+
+## destroy()
+
+실행 중인 작업과 observer를 중지하고 스냅샷 및 보관 노드를 해제합니다. 반복 호출은 안전하지만 파괴 후 새 작업은 허용되지 않습니다.
+
+## EffectOperation
+
+```ts
+interface EffectOperation {
+  readonly operation: 'remove' | 'restore';
+  readonly removalId: RemovalId | null;
+  readonly finished: Promise<{
+    operation: 'remove' | 'restore';
+    status: 'completed' | 'cancelled' | 'skipped';
+    removalId: RemovalId | null;
+  }>;
+  cancel(): void;
+}
+```
+
+작업 객체에는 의도적으로 `element` 속성이 없습니다. 개별 작업 옵션이 인스턴스 기본값보다 우선합니다.

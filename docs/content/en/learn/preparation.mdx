@@ -1,0 +1,70 @@
+---
+title: Prepare snapshots in the background
+description: Opt into controlled snapshot preparation and tune visibility, idle work, invalidation, and cache size.
+locale: en
+section: learn
+navTitle: Snapshot preparation
+order: 50
+---
+
+Background preparation is off by default. With no `preparation` option, the instance creates no visibility or mutation observers and captures only when an operation needs a snapshot.
+
+## Enable the default policy
+
+```ts
+const effects = new Disintegrator({
+  preparation: true,
+});
+
+const unregister = effects.register(document.querySelectorAll('[data-effects]'));
+```
+
+`true` selects `visible-idle`: registered elements are prepared when they approach the viewport and the browser becomes idle.
+
+Call `unregister()` when those candidates no longer belong to the feature. It stops tracking them but does not remove the DOM nodes.
+
+## Configure when work is allowed
+
+```ts
+const effects = new Disintegrator({
+  preparation: {
+    strategy: 'visible-idle',
+    rootMargin: '300px 0px',
+    concurrency: 1,
+    shouldPrepare: (element) => element.matches('[data-effects]'),
+    invalidateOnResize: true,
+    observeMutations: false,
+    cachePixelBudget: 8_000_000,
+  },
+});
+```
+
+| Strategy       | Behavior                                                        |
+| -------------- | --------------------------------------------------------------- |
+| `immediate`    | Capture registered candidates as soon as capacity is available. |
+| `idle`         | Wait for an idle window, with a timeout fallback.               |
+| `visible-idle` | Require viewport proximity, then wait for idle.                 |
+
+`shouldPrepare(element)` is evaluated before work is scheduled. Use it for application conditions such as element type, current state, network mode, or feature flags.
+
+## Control the cache directly
+
+```ts
+await effects.prepare(elements); // capture now
+effects.invalidate(elements); // remove stale entries and requeue registered nodes
+effects.clearPrepared(); // release every prepared snapshot
+```
+
+<Demo kind="preparation" />
+
+An operation never trusts a missing, pending, stale, or evicted snapshot. It performs a current capture before animation.
+
+## Cache budget
+
+The default LRU budget is 8 million physical pixels. It applies only to reproducible snapshots, not retained DOM elements. Eviction closes `ImageBitmap` values and releases canvas or GPU resources owned by the cache.
+
+Lower the budget for memory-constrained screens; raise it only after measuring capture cost and memory use.
+
+## Invalidation
+
+`invalidateOnResize` defaults to `true`. Mutation observation defaults to `false` because broad DOM observation can be expensive and application-specific. Call `invalidate()` after content changes that affect a registered element's appearance.

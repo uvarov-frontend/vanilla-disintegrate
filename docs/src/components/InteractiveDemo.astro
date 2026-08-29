@@ -1,0 +1,9 @@
+---
+interface Props {
+  kind?: 'built-in' | 'preparation' | 'custom';
+}
+
+const { kind = 'built-in' } = Astro.props;
+---
+
+<div class="doc-demo-root" data-demo-root data-demo-kind={kind}></div>

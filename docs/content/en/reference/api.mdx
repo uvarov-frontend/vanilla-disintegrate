@@ -1,0 +1,115 @@
+---
+title: API reference
+description: Constructor options, operation methods, retention, preparation, and lifecycle in one place.
+locale: en
+section: reference
+navTitle: API
+order: 70
+---
+
+The default export is a thin facade over capture, operation rendering, sound, layout, preparation, and retained-element storage.
+
+## Constructor
+
+```ts
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator(options);
+```
+
+Important options:
+
+| Option                                          | Type                               | Default         |
+| ----------------------------------------------- | ---------------------------------- | --------------- |
+| `effect`                                        | `EffectSelection`                  | `dust`          |
+| `effects`                                       | `Record<string, EffectDefinition>` | `{}`            |
+| `sound`                                         | `boolean \| SoundDefinition`       | `true`          |
+| `layout`                                        | `boolean \| LayoutOptions`         | `true`          |
+| `preparation`                                   | `boolean \| PreparationOptions`    | `false`         |
+| `respectReducedMotion`                          | `boolean`                          | `true`          |
+| `capture`                                       | `SnapshotCapture`                  | SnapDOM         |
+| `overlayRoot`                                   | `HTMLElement \| () => HTMLElement` | `document.body` |
+| `zIndex`                                        | `number`                           | library default |
+| `random`                                        | `() => number`                     | `Math.random`   |
+| `onTrigger`, `onStart`, `onComplete`, `onError` | callbacks                          | —               |
+
+## remove(target, options?)
+
+Detaches the resolved element and returns `EffectOperation` synchronously.
+
+```ts
+const operation = effects.remove('.card', {
+  effect: 'scatter',
+  retain: true,
+  sound: true,
+  layout: { duration: 260 },
+  detach: (element) => element.remove(),
+});
+```
+
+`target` may be an `HTMLElement` or selector string. A missing selector throws before an operation starts.
+
+`detach` replaces the default `element.remove()` commit. Use it when a reactive renderer must remove the node through its own state. If the callback throws, the error is sent to `onError` and native removal is used as a safe fallback.
+
+## restore(target, options?)
+
+Animates a connected, measurable element in its current geometry.
+
+```ts
+const operation = effects.restore(element, {
+  effect: 'scatter',
+  sound: true,
+});
+```
+
+The method throws when the element is detached or has zero width or height.
+
+## Retained elements
+
+```ts
+const element = effects.take(removalId); // HTMLElement | null
+const discarded = effects.discard(removalId); // boolean
+const count = effects.discardAll(); // number
+```
+
+`take()` consumes the stored entry. `discard()` and `discardAll()` release references without inserting content.
+
+## Snapshot preparation
+
+```ts
+const unregister = effects.register(elements);
+const results = await effects.prepare(elements);
+effects.invalidate(elements);
+effects.clearPrepared();
+```
+
+`register()` follows the configured background policy. `prepare()` captures immediately even when background preparation is disabled.
+
+## destroy()
+
+```ts
+effects.destroy();
+```
+
+Cancels active operations, stops observers and background work, releases snapshot resources, and clears retained nodes. Calling it more than once is safe; starting new work afterwards throws.
+
+## EffectOperation
+
+```ts
+interface EffectOperation {
+  readonly operation: 'remove' | 'restore';
+  readonly removalId: RemovalId | null;
+  readonly finished: Promise<{
+    operation: 'remove' | 'restore';
+    status: 'completed' | 'cancelled' | 'skipped';
+    removalId: RemovalId | null;
+  }>;
+  cancel(): void;
+}
+```
+
+The handle deliberately exposes no `element` property.
+
+## Callbacks and precedence
+
+Instance callbacks run for every operation. Operation callbacks can be supplied alongside them. Operation options override instance defaults; a retained node's remembered effect is used by `restore()` only when the restore call has no explicit `effect`.

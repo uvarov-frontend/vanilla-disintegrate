@@ -1,0 +1,80 @@
+---
+title: Удаление и восстановление
+description: Разберитесь с двумя операциями, геометрией, отменой и поведением при ошибках.
+locale: ru
+section: learn
+navTitle: Удаление и восстановление
+order: 30
+---
+
+`remove()` и `restore()` — независимые операции. Библиотека анимирует переход, а приложение управляет содержимым и местом вставки.
+
+## Удаление элемента
+
+Перед отсоединением библиотека измеряет живой элемент. Визуальный эффект работает в изолированном слое, когда реального узла уже нет в layout.
+
+```ts
+const operation = effects.remove(element, {
+  effect: 'dust',
+  retain: false,
+  layout: true,
+});
+
+const result = await operation.finished;
+```
+
+`retain` по умолчанию равен `false`: ссылка на DOM не сохраняется. Опция `layout` анимирует соседей в новые позиции.
+
+## Восстановление вставленного элемента
+
+Сначала вставьте узел туда, где он должен оказаться, и только затем вызывайте `restore()`.
+
+```ts
+container.append(element);
+await effects.restore(element, { effect: 'dust' }).finished;
+```
+
+Элемент должен быть подключён к документу и иметь ненулевой размер. Библиотека синхронно скрывает его, измеряет **новую конечную позицию**, делает снимок, проигрывает восстановление и показывает оригинал.
+
+## Совершенно новый элемент
+
+Предварительное удаление не требуется: `restore()` также работает как entrance-анимация.
+
+```ts
+const message = document.createElement('aside');
+message.textContent = 'Создан только что';
+notifications.append(message);
+
+effects.restore(message, { effect: 'vapor' });
+```
+
+## Объект операции
+
+```ts
+const operation = effects.remove(element);
+
+operation.operation; // 'remove'
+operation.removalId; // RemovalId | null
+operation.cancel();
+
+const result = await operation.finished;
+result.status; // 'completed' | 'cancelled' | 'skipped'
+```
+
+После завершения объект операции не удерживает DOM-элемент.
+
+## Отмена останавливает только визуал
+
+`cancel()` останавливает анимацию и звук, но не отменяет выбранное действие с контентом: удалённый элемент остаётся удалённым, а восстанавливаемый становится видимым.
+
+## Ошибка не блокирует контент
+
+Если захват, аудио или пользовательский эффект завершились ошибкой, удаление всё равно отсоединит узел, а восстановление покажет его. Ошибка передаётся в `onError`.
+
+```ts
+const effects = new Disintegrator({
+  onError(error, context) {
+    console.error(context.operation, error);
+  },
+});
+```

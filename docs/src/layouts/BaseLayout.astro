@@ -1,0 +1,49 @@
+---
+import favicon from '../../../demo/favicon.svg?url';
+import '../../../demo/style.css';
+import '../styles/docs.css';
+
+import { locales, switchLocalePath, type Locale } from '../i18n';
+
+interface Props {
+  title: string;
+  description: string;
+  locale: Locale;
+  pageClass?: string;
+  noindex?: boolean;
+}
+
+const { title, description, locale, pageClass = '', noindex = false } = Astro.props;
+const pathname = Astro.url.pathname;
+const base = Astro.site ?? new URL(Astro.url.origin);
+const absoluteUrl = (href: string) => new URL(href, base).href;
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+    <link rel="icon" type="image/svg+xml" href={favicon} />
+    {!noindex && <link rel="canonical" href={absoluteUrl(pathname)} />}
+    {
+      !noindex &&
+        locales.map((target) => (
+          <link rel="alternate" hreflang={target} href={absoluteUrl(switchLocalePath(pathname, target))} />
+        ))
+    }
+    {!noindex && <link rel="alternate" hreflang="x-default" href={absoluteUrl(switchLocalePath(pathname, 'en'))} />}
+    <title>{title}</title>
+  </head>
+  <body class={pageClass} data-locale={locale}>
+    <slot />
+    <script>
+      import { setupSite } from '../client/site';
+
+      setupSite();
+    </script>
+  </body>
+</html>

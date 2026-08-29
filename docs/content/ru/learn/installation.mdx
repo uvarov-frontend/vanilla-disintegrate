@@ -1,0 +1,98 @@
+---
+title: Установка и первый эффект
+description: Установите Vanilla Disintegrate и запустите первые анимации удаления и восстановления.
+locale: ru
+section: start
+navTitle: Быстрый старт
+order: 10
+---
+
+Vanilla Disintegrate позволяет удалить любой измеримый DOM-элемент с эффектом **щелчка Таноса**. В пакете уже настроен SnapDOM и не требуется импорт CSS.
+
+## Установка
+
+Используйте любой поддерживаемый пакетный менеджер:
+
+```bash
+# npm
+npm install vanilla-disintegrate
+
+# Yarn
+yarn add vanilla-disintegrate
+
+# pnpm
+pnpm add vanilla-disintegrate
+
+# Bun
+bun add vanilla-disintegrate
+```
+
+Vanilla Disintegrate использует [SnapDOM](https://zumerlab.github.io/snapdom/), чтобы снять внешний вид элемента до распада на частицы. `@zumer/snapdom` — обычная зависимость пакета, поэтому пакетный менеджер установит её автоматически.
+
+```ts
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator();
+const card = document.querySelector<HTMLElement>('.card');
+
+if (card) {
+  effects.remove(card, { effect: 'dust' });
+}
+```
+
+`remove()` сразу возвращает объект операции. Ожидайте `operation.finished`, только если следующему действию нужно дождаться конца визуального эффекта.
+
+## Удаление с возможностью вернуть узел
+
+```ts
+const removal = effects.remove(card, {
+  effect: 'dust',
+  retain: true,
+});
+
+await removal.finished;
+
+if (removal.removalId) {
+  const retained = effects.take(removal.removalId);
+
+  if (retained) {
+    list.append(retained);
+    await effects.restore(retained).finished;
+  }
+}
+```
+
+Приложение само вставляет узел в нужное место. Если в `restore()` не передан другой `effect`, библиотека использует пару, запомненную при удалении.
+
+## Другой движок захвата
+
+`capture` — открытый адаптер, а не API только для SnapDOM. Например, можно подключить `html2canvas`:
+
+```ts
+import html2canvas from 'html2canvas';
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator({
+  capture: (element, context) => {
+    context.signal.throwIfAborted();
+
+    return html2canvas(element, {
+      backgroundColor: null,
+      logging: false,
+      scale: 1,
+      useCORS: true,
+      onclone: (_document, clone) => {
+        if (context.restoreRootOpacity !== undefined) {
+          clone.style.setProperty('opacity', context.restoreRootOpacity, 'important');
+        }
+      },
+    });
+  },
+});
+```
+
+Переданная функция полностью заменяет поведение SnapDOM при создании снимков. Сам SnapDOM остаётся зависимостью пакета и частью статического ESM runtime-графа.
+
+## Очистка
+
+Когда владеющий экран окончательно уничтожен, вызовите `effects.destroy()`. Метод остановит операции, фоновые задачи и observers, освободит снимки и все сохранённые DOM-ссылки.

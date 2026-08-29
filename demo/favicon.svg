@@ -1,31 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
-    <linearGradient id="particle-gradient" x1="12" y1="52" x2="54" y2="8" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#ff8c7d" />
-      <stop offset="1" stop-color="#8a3ffc" />
+    <linearGradient id="brand-gradient" x1="13" y1="12" x2="55" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff9b83" />
+      <stop offset="0.52" stop-color="#ff756b" />
+      <stop offset="1" stop-color="#a992ff" />
     </linearGradient>
-    <mask id="disintegrated-card">
-      <rect width="64" height="64" fill="#000" />
-      <rect x="11" y="18" width="40" height="35" rx="10" fill="#fff" />
-      <circle cx="45" cy="20" r="5" fill="#000" />
-      <circle cx="51" cy="27" r="3" fill="#000" />
-      <circle cx="39" cy="18" r="2.5" fill="#000" />
-    </mask>
   </defs>
-  <rect width="64" height="64" rx="16" fill="#0b0910" />
+
   <rect
-    x="11"
-    y="18"
-    width="40"
-    height="35"
-    rx="10"
-    fill="url(#particle-gradient)"
-    mask="url(#disintegrated-card)"
+    x="1.5"
+    y="1.5"
+    width="61"
+    height="61"
+    rx="17.5"
+    fill="#17161d"
+    stroke="#ffffff"
+    stroke-opacity="0.12"
+    stroke-width="3"
   />
-  <g fill="url(#particle-gradient)">
-    <circle cx="42" cy="12" r="3.5" />
-    <circle cx="51" cy="17" r="2.75" />
-    <circle cx="55" cy="9" r="2" />
-    <circle cx="48" cy="6" r="1.5" />
+
+  <rect x="13" y="12" width="27" height="40" rx="8" fill="url(#brand-gradient)" />
+  <path
+    d="M20 24h11M20 33h9"
+    fill="none"
+    stroke="#ffffff"
+    stroke-opacity="0.55"
+    stroke-linecap="round"
+    stroke-width="2.25"
+  />
+
+  <g fill="#17161d">
+    <circle cx="39" cy="17.5" r="4.5" />
+    <circle cx="37.5" cy="28" r="3.5" />
+    <circle cx="39.5" cy="39" r="4.75" />
+    <circle cx="37.5" cy="49.5" r="3.75" />
+  </g>
+
+  <g fill="url(#brand-gradient)">
+    <circle cx="45" cy="16" r="3" />
+    <circle cx="52" cy="23" r="2" />
+    <circle cx="46" cy="30.5" r="2.5" />
+    <circle cx="54" cy="38.5" r="3" />
+    <circle cx="48" cy="49" r="2" />
   </g>
 </svg>

@@ -1,0 +1,169 @@
+---
+import { Code } from 'astro:components';
+
+import particleVortexSource from '../../../demo/particle-vortex.ts?raw';
+import particleVortexUsageSource from '../../../demo/particle-vortex-usage.ts?raw';
+import { docsHref, type Locale, ui } from '../i18n';
+import BaseLayout from '../layouts/BaseLayout.astro';
+import BundleSizePanel from './BundleSizePanel.astro';
+import Footer from './Footer.astro';
+import Header from './Header.astro';
+import PackageInstall from './PackageInstall.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const copy = ui[locale];
+const pathname = Astro.url.pathname;
+const usePackageImport = (source: string) => source.replaceAll("from '../src';", "from 'vanilla-disintegrate';").trim();
+const vortexCodeTabs = [
+  {
+    id: 'usage',
+    filename: 'usage.ts',
+    language: 'ts',
+    code: usePackageImport(particleVortexUsageSource),
+  },
+  {
+    id: 'effect',
+    filename: 'particle-vortex.ts',
+    language: 'ts',
+    code: usePackageImport(particleVortexSource),
+  },
+] as const;
+
+const cards = {
+  en: [
+    ['01', 'Ready-made effects', 'See all four ways to remove and restore an element.'],
+    ['02', 'Undo and memory', 'Keep a removed element when it may need to return.'],
+    ['03', 'Custom effects', 'Build an animation with Canvas, WAAPI, WebGL, or another renderer.'],
+    ['04', 'Reactive frameworks', 'Use the library safely with React, Vue, Svelte, Solid, or Angular.'],
+  ],
+  ru: [
+    ['01', 'Готовые эффекты', 'Посмотрите все четыре пары удаления и восстановления.'],
+    ['02', 'Undo и память', 'Сохраните удалённый узел, если его понадобится вернуть.'],
+    ['03', 'Свои эффекты', 'Создайте анимацию на Canvas, WAAPI, WebGL или другом движке.'],
+    ['04', 'Реактивные фреймворки', 'Подключите библиотеку к React, Vue, Svelte, Solid или Angular.'],
+  ],
+  zh: [
+    ['01', '内置效果', '查看四种删除与恢复动画对。'],
+    ['02', '撤销与内存', '需要恢复时保留已删除的节点。'],
+    ['03', '自定义效果', '使用 Canvas、WAAPI、WebGL 或其他渲染器构建动画。'],
+    ['04', '响应式框架', '在 React、Vue、Svelte、Solid 或 Angular 中安全集成。'],
+  ],
+  ko: [
+    ['01', '내장 효과', '네 가지 삭제 및 복원 효과 쌍을 확인하세요.'],
+    ['02', '실행 취소와 메모리', '나중에 복원할 삭제 노드를 보관하세요.'],
+    ['03', '사용자 효과', 'Canvas, WAAPI, WebGL 또는 다른 렌더러로 애니메이션을 만드세요.'],
+    ['04', '리액티브 프레임워크', 'React, Vue, Svelte, Solid 또는 Angular에 안전하게 연결하세요.'],
+  ],
+} as const;
+
+const cardTargets = ['learn/effects', 'learn/retention', 'learn/custom-effects', 'learn/frameworks'] as const;
+---
+
+<BaseLayout
+  title="Vanilla Disintegrate · Thanos snap effects for the DOM"
+  description={copy.home.description}
+  locale={locale}
+  pageClass="home-page"
+>
+  <Header locale={locale} pathname={pathname} />
+  <main class="home-main" id="main-content">
+    <section class="home-hero">
+      <div class="hero-glow" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      <h1>{copy.home.title}<br /><em>{copy.home.accent}</em></h1>
+      <p class="home-description">{copy.home.description}</p>
+      <BundleSizePanel locale={locale} />
+      <PackageInstall locale={locale} />
+      <div class="try-divider"><span>{copy.home.tryLabel}</span></div>
+    </section>
+
+    <section class="home-playground-section" id="playground" aria-labelledby="playground-title">
+      <div class="home-section-heading">
+        <div><span>{copy.home.playgroundKicker}</span><h2 id="playground-title">{copy.home.playgroundTitle}</h2></div>
+        <p>{copy.home.playgroundDescription}</p>
+      </div>
+      <div data-battle-root></div>
+    </section>
+
+    <section class="home-custom-section" id="custom-effect" aria-labelledby="custom-effect-title">
+      <div class="home-section-heading">
+        <div><span>{copy.home.customKicker}</span><h2 id="custom-effect-title">{copy.home.customTitle}</h2></div>
+        <p>{copy.home.customDescription}</p>
+      </div>
+      <div class="home-custom-showcase">
+        <div class="home-custom-demo" data-demo-root data-demo-kind="particle-vortex"></div>
+        <div class="home-custom-code">
+          <div class="home-custom-code-heading">
+            <span>{copy.home.codeLabel}</span>
+            <strong>{copy.home.codeTitle}</strong>
+            <p>{copy.home.codeDescription}</p>
+          </div>
+          <div class="code-block home-code-tabs" data-code-tabs>
+            <div class="code-toolbar code-tabs-toolbar">
+              <div class="code-tabs" role="tablist" aria-label={copy.home.codeTitle}>
+                {
+                  vortexCodeTabs.map((tab, index) => (
+                    <button
+                      type="button"
+                      role="tab"
+                      id={`vortex-code-tab-${tab.id}`}
+                      aria-controls={`vortex-code-panel-${tab.id}`}
+                      aria-selected={String(index === 0)}
+                      tabindex={index === 0 ? 0 : -1}
+                      data-code-tab={tab.id}
+                    >
+                      {tab.filename}
+                    </button>
+                  ))
+                }
+              </div>
+              <button type="button" class="code-tabs-copy" data-copy-code>Copy</button>
+            </div>
+            {
+              vortexCodeTabs.map((tab, index) => (
+                <div
+                  role="tabpanel"
+                  id={`vortex-code-panel-${tab.id}`}
+                  aria-labelledby={`vortex-code-tab-${tab.id}`}
+                  data-code-panel={tab.id}
+                  hidden={index !== 0}
+                >
+                  <Code code={tab.code} lang={tab.language} theme="github-dark-default" />
+                </div>
+              ))
+            }
+          </div>
+          <a class="home-custom-guide" href={docsHref(locale, 'learn/custom-effects')}>
+            {copy.home.customGuide}
+            <span aria-hidden="true">→</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <section class="home-next-steps" aria-labelledby="next-steps-title">
+      <div class="home-section-heading">
+        <div><span>{copy.home.docsKicker}</span><h2 id="next-steps-title">{copy.home.docsTitle}</h2></div>
+        <p>{copy.home.docsDescription}</p>
+      </div>
+      <div class="home-doc-cards">
+        {
+          cards[locale].map((card, index) => (
+            <a href={docsHref(locale, cardTargets[index] ?? 'learn/installation')}>
+              <>
+                <b>{card[0]}</b>
+                <strong>{card[1]}</strong>
+                <span>{card[2]}</span>
+                <i>{copy.home.openGuide} →</i>
+              </>
+            </a>
+          ))
+        }
+      </div>
+    </section>
+  </main>
+  <Footer locale={locale} />
+</BaseLayout>

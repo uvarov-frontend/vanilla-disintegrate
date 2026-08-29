@@ -1,0 +1,89 @@
+---
+title: Remove and restore
+description: Understand the two content operations, their geometry, cancellation, and failure behavior.
+locale: en
+section: learn
+navTitle: Remove and restore
+order: 30
+---
+
+`remove()` and `restore()` are independent operations. The library animates the transition; application code owns content placement and product behavior.
+
+## Remove an element
+
+Removal measures the live element before detaching it. The visual runs in an isolated overlay while the real node is no longer in layout.
+
+```ts
+const operation = effects.remove(element, {
+  effect: 'dust',
+  retain: false,
+  layout: true,
+});
+
+const result = await operation.finished;
+```
+
+`retain` defaults to `false`, so the library keeps no DOM reference after removal. `layout` optionally animates affected siblings into their new positions.
+
+## Restore an inserted element
+
+Restoration means “animate this connected element into view.” Insert the node first, in the exact destination chosen by the application.
+
+```ts
+container.append(element);
+
+const operation = effects.restore(element, {
+  effect: 'dust',
+});
+
+await operation.finished;
+```
+
+The element must be connected and have non-zero geometry. The library hides it synchronously, measures its **new final position**, captures it there, runs the restore phase, and then reveals the original node.
+
+## Animate a completely new element
+
+No previous removal is required. `restore()` is also an entrance animation for newly created DOM.
+
+```ts
+const message = document.createElement('aside');
+message.textContent = 'Created just now';
+
+notifications.append(message);
+effects.restore(message, { effect: 'vapor' });
+```
+
+## Operation handle
+
+Both methods return a synchronous handle:
+
+```ts
+const operation = effects.remove(element);
+
+operation.operation; // 'remove'
+operation.removalId; // RemovalId | null
+operation.cancel();
+
+const result = await operation.finished;
+result.status; // 'completed' | 'cancelled' | 'skipped'
+```
+
+The handle does not retain the DOM element after the operation settles.
+
+## Cancellation is visual only
+
+`cancel()` stops animation and sound. It does not reverse the content action: a removed element stays removed, and a restoring element becomes visible.
+
+This separation prevents a UI cancel button or an aborted view from unexpectedly changing application state.
+
+## Errors do not block content
+
+If capture, audio, or a custom effect fails, removal still detaches the node and restoration still reveals it. The error reaches `onError`, and the result status is `skipped` when no visual could run.
+
+```ts
+const effects = new Disintegrator({
+  onError(error, context) {
+    console.error(context.operation, error);
+  },
+});
+```

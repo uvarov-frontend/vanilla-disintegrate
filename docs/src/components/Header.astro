@@ -1,0 +1,54 @@
+---
+import packageJson from '../../../package.json';
+
+import { docsHref, homeHref, ui, type Locale } from '../i18n';
+import LanguageSwitcher from './LanguageSwitcher.astro';
+import Logo from './Logo.astro';
+
+interface Props {
+  locale: Locale;
+  pathname: string;
+}
+
+const { locale, pathname } = Astro.props;
+const copy = ui[locale];
+const isDocumentation = pathname.includes('/docs/');
+const isReference = pathname.includes('/reference/');
+const releasesHref = 'https://github.com/uvarov-frontend/vanilla-disintegrate/releases';
+---
+
+<header class="docs-header">
+  <div class="header-inner">
+    <button class="menu-button" type="button" aria-label={copy.menu} aria-expanded="false" data-menu-button>
+      <span></span><span></span><span></span>
+    </button>
+    <a class="brand" href={homeHref(locale)} aria-label="Vanilla Disintegrate">
+      <Logo />
+      <span>Vanilla Disintegrate</span>
+    </a>
+    <a
+      class="package-version"
+      href={releasesHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Vanilla Disintegrate v${packageJson.version}: all releases on GitHub`}
+    >
+      v{packageJson.version}
+    </a>
+    <nav class="top-navigation" aria-label="Primary navigation">
+      <a
+        href={docsHref(locale, 'learn/installation')}
+        aria-current={isDocumentation && !isReference ? 'true' : undefined}
+      >
+        {copy.learn}
+      </a>
+      <a href={docsHref(locale, 'reference/api')} aria-current={isReference ? 'true' : undefined}>
+        {copy.reference}
+      </a>
+      <a href="https://github.com/uvarov-frontend/vanilla-disintegrate" target="_blank" rel="noopener noreferrer">
+        GitHub <span aria-hidden="true">↗</span>
+      </a>
+    </nav>
+    <LanguageSwitcher locale={locale} pathname={pathname} />
+  </div>
+</header>

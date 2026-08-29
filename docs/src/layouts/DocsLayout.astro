@@ -1,0 +1,117 @@
+---
+import type { MarkdownHeading } from 'astro';
+
+import Footer from '../components/Footer.astro';
+import Header from '../components/Header.astro';
+import InteractiveDemo from '../components/InteractiveDemo.astro';
+import Sidebar from '../components/Sidebar.astro';
+import { ui, type Locale } from '../i18n';
+import { editHref, entryHref, type DocEntry } from '../lib/docs';
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  entry: DocEntry;
+  entries: readonly DocEntry[];
+  headings: readonly MarkdownHeading[];
+  locale: Locale;
+}
+
+const { entry, entries, headings, locale } = Astro.props;
+const copy = ui[locale];
+const pathname = Astro.url.pathname;
+const currentIndex = entries.findIndex((candidate) => candidate.id === entry.id);
+const previous = currentIndex > 0 ? entries[currentIndex - 1] : undefined;
+const next = currentIndex >= 0 ? entries[currentIndex + 1] : undefined;
+const toc = headings.filter((heading) => heading.depth === 2);
+---
+
+<BaseLayout title={`${entry.data.title} · Vanilla Disintegrate`} description={entry.data.description} locale={locale}>
+  <Header locale={locale} pathname={pathname} />
+  <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+  <div class="docs-layout">
+    <aside class="docs-sidebar" data-sidebar>
+      <Sidebar entries={entries} locale={locale} currentId={entry.id} />
+    </aside>
+
+    <main class="docs-main" id="main-content">
+      <article class="docs-article">
+        <div class="breadcrumb">
+          <span>{copy.sections[entry.data.section]}</span><span aria-hidden="true">/</span>
+          <strong>{entry.data.navTitle}</strong>
+        </div>
+        <header class="page-header">
+          <h1>{entry.data.title}</h1>
+          <p>{entry.data.description}</p>
+        </header>
+
+        {
+          toc.length > 0 && (
+            <details class="mobile-toc">
+              <summary>{copy.onThisPage}</summary>
+              <nav>
+                {toc.map((heading) => (
+                  <a href={`#${heading.slug}`} data-toc-link={heading.slug}>
+                    {heading.text}
+                  </a>
+                ))}
+              </nav>
+            </details>
+          )
+        }
+
+        <div class="page-content">
+          <slot components={{ Demo: InteractiveDemo }} />
+        </div>
+
+        <a class="edit-page-link" href={editHref(entry)} target="_blank" rel="noopener noreferrer">
+          <span aria-hidden="true">⌘</span>{copy.edit}<span aria-hidden="true">↗</span>
+        </a>
+
+        <nav class="page-navigation" aria-label="Documentation pages">
+          {
+            previous ? (
+              <a class="page-previous" href={entryHref(previous)}>
+                <>
+                  <small>{copy.previous}</small>
+                  <span>← {previous.data.title}</span>
+                </>
+              </a>
+            ) : (
+              <span />
+            )
+          }
+          {
+            next ? (
+              <a class="page-next" href={entryHref(next)}>
+                <>
+                  <small>{copy.next}</small>
+                  <span>{next.data.title} →</span>
+                </>
+              </a>
+            ) : (
+              <span />
+            )
+          }
+        </nav>
+      </article>
+    </main>
+
+    <aside class="page-toc">
+      {
+        toc.length > 0 && (
+          <>
+            <div class="toc-title">{copy.onThisPage}</div>
+            <nav>
+              {toc.map((heading) => (
+                <a href={`#${heading.slug}`} data-toc-link={heading.slug}>
+                  {heading.text}
+                </a>
+              ))}
+            </nav>
+          </>
+        )
+      }
+    </aside>
+  </div>
+  <Footer locale={locale} />
+</BaseLayout>

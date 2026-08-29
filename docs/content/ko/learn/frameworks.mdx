@@ -1,0 +1,292 @@
+---
+title: 반응형 프레임워크 연동
+description: React, Vue, Svelte, Solid, Angular에서 안전하게 제거하고 복원하는 방법입니다.
+locale: ko
+section: learn
+navTitle: 반응형 프레임워크
+order: 65
+---
+
+반응형 프레임워크가 렌더링한 DOM 노드의 소유권은 계속 프레임워크에 있어야 합니다. Vanilla Disintegrate가 `element.remove()`를 직접 호출하는 대신 프레임워크 상태를 갱신하도록 `detach`를 전달하세요.
+
+```ts
+effects.remove(element, {
+  effect: 'dust',
+  detach: () => removeFromFrameworkState(),
+});
+```
+
+이 훅은 요소의 측정과 캡처가 끝난 뒤 제거를 커밋하는 정확한 시점에 실행됩니다. `detach`를 생략하면 라이브러리는 평소처럼 `element.remove()`를 사용합니다.
+
+복원할 때는 먼저 요소를 렌더링하고 DOM 커밋을 기다린 다음, 새 요소 참조로 `restore()`를 호출하세요. 반응형 상태에는 분리된 DOM 노드가 아니라 애플리케이션 데이터를 저장해야 하므로 보통 기본값인 `retain: false`를 사용합니다.
+
+복원된 요소는 새 DOM 노드이므로 제거 시 인스턴스 기본 효과가 아닌 값을 사용했다면 `restore()`에도 같은 `effect`를 명시하세요. 기억된 효과 메타데이터는 동일하게 보관된 DOM 노드에만 따라갑니다.
+
+## React
+
+React가 소유한 노드는 동기적으로 상태에 반영해야 합니다. `flushSync()`로 경계를 명시하고 `useLayoutEffect()`에서 새로 삽입된 노드를 복원합니다.
+
+```tsx
+'use client';
+
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
+import Disintegrator from 'vanilla-disintegrate';
+
+export function DisintegratingCard() {
+  const [visible, setVisible] = useState(true);
+  const cardRef = useRef<HTMLElement | null>(null);
+  const effectsRef = useRef<Disintegrator | null>(null);
+  const pendingRestore = useRef(false);
+
+  useEffect(() => {
+    const effects = new Disintegrator();
+    effectsRef.current = effects;
+    return () => {
+      effects.destroy();
+      effectsRef.current = null;
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const effects = effectsRef.current;
+    const element = cardRef.current;
+    if (!visible || !pendingRestore.current || !effects || !element) return;
+    pendingRestore.current = false;
+    effects.restore(element, { effect: 'dust' });
+  }, [visible]);
+
+  function removeCard() {
+    const effects = effectsRef.current;
+    const element = cardRef.current;
+    if (!effects || !element) return;
+    effects.remove(element, {
+      effect: 'dust',
+      detach: () => flushSync(() => setVisible(false)),
+    });
+  }
+
+  function restoreCard() {
+    pendingRestore.current = true;
+    setVisible(true);
+  }
+
+  return visible ? (
+    <article ref={cardRef}>
+      <h2>활동</h2>
+      <button onClick={removeCard}>제거</button>
+    </article>
+  ) : (
+    <button onClick={restoreCard}>복원</button>
+  );
+}
+```
+
+effect에서 인스턴스를 만들고 cleanup에서 `destroy()`를 호출하세요. React Strict Mode에서도 안전합니다. Next.js 같은 SSR 환경에서는 클라이언트 컴포넌트 안에서 사용합니다.
+
+## Vue
+
+Vue는 브라우저가 그리기 전에 상태 변경을 일괄 반영합니다. `nextTick()` 뒤에는 `restore()`가 최종 DOM과 기하 정보를 받을 수 있습니다.
+
+```vue
+<script setup lang="ts">
+import { nextTick, onMounted, onUnmounted, ref } from 'vue';
+import Disintegrator from 'vanilla-disintegrate';
+
+const visible = ref(true);
+const card = ref<HTMLElement | null>(null);
+let effects: Disintegrator | null = null;
+
+onMounted(() => {
+  effects = new Disintegrator();
+});
+onUnmounted(() => effects?.destroy());
+
+function removeCard() {
+  if (!effects || !card.value) return;
+  effects.remove(card.value, {
+    effect: 'dust',
+    detach: () => {
+      visible.value = false;
+    },
+  });
+}
+
+async function restoreCard() {
+  visible.value = true;
+  await nextTick();
+  if (effects && card.value) effects.restore(card.value, { effect: 'dust' });
+}
+</script>
+
+<template>
+  <article v-if="visible" ref="card">
+    <h2>활동</h2>
+    <button @click="removeCard">제거</button>
+  </article>
+  <button v-else @click="restoreCard">복원</button>
+</template>
+```
+
+브라우저 전용 초기화가 `onMounted()` 안에 있으므로 Nuxt에서도 같은 방식으로 사용할 수 있습니다.
+
+## Svelte
+
+`bind:this`로 노드를 받고, `onMount()`에서 cleanup을 반환하며, 복원 전에 `tick()`을 기다립니다.
+
+```svelte
+<script lang="ts">
+  import { onMount, tick } from 'svelte';
+  import Disintegrator from 'vanilla-disintegrate';
+
+  let visible = true;
+  let card: HTMLElement;
+  let effects: Disintegrator | null = null;
+
+  onMount(() => {
+    effects = new Disintegrator();
+    return () => effects?.destroy();
+  });
+
+  function removeCard() {
+    if (!effects || !card) return;
+    effects.remove(card, {
+      effect: 'dust',
+      detach: () => {
+        visible = false;
+      },
+    });
+  }
+
+  async function restoreCard() {
+    visible = true;
+    await tick();
+    if (effects && card) effects.restore(card, { effect: 'dust' });
+  }
+</script>
+
+{#if visible}
+  <article bind:this={card}>
+    <h2>활동</h2>
+    <button onclick={removeCard}>제거</button>
+  </article>
+{:else}
+  <button onclick={restoreCard}>복원</button>
+{/if}
+```
+
+`onMount()`는 브라우저에서만 실행되므로 SvelteKit SSR에도 안전합니다.
+
+## Solid
+
+Solid는 signal이 소유한 분기를 동기적으로 갱신합니다. 복원할 때 마이크로태스크를 사용하면 새 노드가 삽입된 뒤 실행됩니다.
+
+```tsx
+import { createSignal, onCleanup, onMount, Show } from 'solid-js';
+import Disintegrator from 'vanilla-disintegrate';
+
+export function DisintegratingCard() {
+  const [visible, setVisible] = createSignal(true);
+  let card!: HTMLElement;
+  let effects: Disintegrator | null = null;
+
+  onMount(() => {
+    effects = new Disintegrator();
+  });
+  onCleanup(() => effects?.destroy());
+
+  const removeCard = () =>
+    effects?.remove(card, {
+      effect: 'dust',
+      detach: () => setVisible(false),
+    });
+
+  const restoreCard = () => {
+    setVisible(true);
+    queueMicrotask(() => effects?.restore(card, { effect: 'dust' }));
+  };
+
+  return (
+    <Show when={visible()} fallback={<button onClick={restoreCard}>복원</button>}>
+      <article ref={card}>
+        <h2>활동</h2>
+        <button onClick={removeCard}>제거</button>
+      </article>
+    </Show>
+  );
+}
+```
+
+SolidStart에서도 같은 클라이언트 lifecycle을 사용합니다.
+
+## Angular
+
+Angular Signals는 `detach` 안에서 조건부 뷰를 커밋할 수 있습니다. `afterNextRender()`는 SSR 중 인스턴스 생성을 피하고 `DestroyRef`가 정리를 담당합니다.
+
+```ts
+import {
+  afterNextRender,
+  ChangeDetectorRef,
+  Component,
+  DestroyRef,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
+import Disintegrator from 'vanilla-disintegrate';
+
+@Component({
+  selector: 'app-disintegrating-card',
+  standalone: true,
+  template: `
+    @if (visible()) {
+      <article #card>
+        <h2>활동</h2>
+        <button (click)="removeCard()">제거</button>
+      </article>
+    } @else {
+      <button (click)="restoreCard()">복원</button>
+    }
+  `,
+})
+export class DisintegratingCard {
+  readonly visible = signal(true);
+  readonly card = viewChild<ElementRef<HTMLElement>>('card');
+  private readonly changeDetector = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  private effects: Disintegrator | null = null;
+
+  constructor() {
+    afterNextRender(() => (this.effects = new Disintegrator()));
+    this.destroyRef.onDestroy(() => this.effects?.destroy());
+  }
+
+  removeCard() {
+    const element = this.card()?.nativeElement;
+    if (!this.effects || !element) return;
+    this.effects.remove(element, {
+      effect: 'dust',
+      detach: () => {
+        this.visible.set(false);
+        this.changeDetector.detectChanges();
+      },
+    });
+  }
+
+  restoreCard() {
+    this.visible.set(true);
+    this.changeDetector.detectChanges();
+    const element = this.card()?.nativeElement;
+    if (this.effects && element) this.effects.restore(element, { effect: 'dust' });
+  }
+}
+```
+
+## DOM이 있는 모든 UI에서 사용
+
+Vanilla Disintegrate는 측정 가능한 DOM 요소가 있는 모든 브라우저 UI에서 동작합니다. 프레임워크, 어댑터, 별도의 연동 패키지가 필요하지 않습니다.
+
+위의 React, Vue, Svelte, Solid, Angular는 지원 플랫폼 목록이 아니라 각 프레임워크의 일반적인 lifecycle 시나리오 예시입니다. 같은 방식으로 다른 프레임워크, 라이브러리, 순수 JavaScript 애플리케이션에서도 사용할 수 있습니다.
+
+예제는 각 프레임워크의 공식 DOM 및 lifecycle API를 사용합니다: [React refs와 effects](https://react.dev/reference/react/useRef), [Vue template refs와 lifecycle](https://vuejs.org/guide/essentials/template-refs), [Svelte lifecycle](https://svelte.dev/docs/svelte/lifecycle-hooks), [Solid refs와 cleanup](https://docs.solidjs.com/concepts/refs), [Angular component lifecycle](https://angular.dev/guide/components/lifecycle).

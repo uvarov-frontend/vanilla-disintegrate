@@ -1,0 +1,68 @@
+---
+title: 내장 효과 쌍
+description: 네 가지 삭제 애니메이션 중 하나를 선택하고 대응하는 복원 단계를 확인합니다.
+locale: ko
+section: learn
+navTitle: 내장 효과
+order: 20
+---
+
+각 내장 이름은 삭제 애니메이션과 논리적으로 대응하는 복원 애니메이션의 **한 쌍**입니다. 복원은 삭제 타임라인을 단순 역재생하지 않고 독립된 단계로 구현됩니다.
+
+## 네 가지 효과
+
+| 이름      | 삭제                                    | 복원                                    |
+| --------- | --------------------------------------- | --------------------------------------- |
+| `dust`    | 요소가 위로 떠오르는 먼지로 흩어집니다. | 먼지가 요소의 최종 위치에 모입니다.     |
+| `vapor`   | 이미지가 부드러워지며 증발합니다.       | 수증기가 보이는 요소로 응결합니다.      |
+| `scatter` | 파티클이 바깥으로 폭발합니다.           | 파티클이 외부에서 모입니다.             |
+| `wind`    | 흐름이 파티클을 옆으로 운반합니다.      | 같은 방향의 흐름이 파티클을 되돌립니다. |
+
+```ts
+effects.remove(card, { effect: 'dust' });
+effects.restore(card, { effect: 'dust' });
+
+effects.remove(card, { effect: 'vapor' });
+effects.restore(card, { effect: 'vapor' });
+
+effects.remove(card, { effect: 'scatter' });
+effects.restore(card, { effect: 'scatter' });
+
+effects.remove(card, { effect: 'wind' });
+effects.restore(card, { effect: 'wind' });
+```
+
+<Demo kind="built-in" />
+
+## 기본 효과
+
+```ts
+const effects = new Disintegrator({ effect: 'vapor' });
+
+effects.remove(firstElement); // vapor
+effects.remove(secondElement, { effect: 'scatter' });
+effects.restore(insertedElement, { effect: 'wind' });
+```
+
+## 기억한 효과 쌍으로 복원
+
+```ts
+const removal = effects.remove(card, {
+  effect: 'wind',
+  retain: true,
+});
+
+await removal.finished;
+const retained = effects.take(removal.removalId!);
+
+if (retained) {
+  list.prepend(retained);
+  await effects.restore(retained).finished; // wind 복원
+}
+```
+
+의도적으로 다른 애니메이션이 필요할 때만 `restore()`의 `effect`를 덮어쓰세요.
+
+## 사운드 슬롯
+
+각 단계는 독립된 사운드 슬롯을 가집니다. 현재 `dust.remove`와 `wind.remove`에 오디오가 있고 나머지 여섯 슬롯은 알맞은 파일이 추가될 때까지 `null`입니다. `sound: false`는 애니메이션을 바꾸지 않고 소리만 끕니다.

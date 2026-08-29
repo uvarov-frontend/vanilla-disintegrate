@@ -1,0 +1,26 @@
+---
+import { ui, type Locale } from '../i18n';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const copyright = {
+  en: 'Copyright © 2026 MIT License. | Design and development by',
+  ru: 'Copyright © 2026 MIT Лицензия. | Дизайн и разработка',
+  zh: 'Copyright © 2026 MIT 许可证。| 设计与开发：',
+  ko: 'Copyright © 2026 MIT 라이선스. | 디자인 및 개발:',
+}[locale];
+const author = locale === 'ru' ? 'Юрий Уваров' : 'Yury Uvarov';
+---
+
+<footer class="docs-footer">
+  <span>
+    {copyright}{' '}
+    <a href="https://github.com/uvarov-frontend" target="_blank" rel="noopener noreferrer">{author}</a>.
+  </span>
+  <a href="https://github.com/uvarov-frontend/vanilla-disintegrate" target="_blank" rel="noopener noreferrer">
+    {ui[locale].source}
+  </a>
+</footer>

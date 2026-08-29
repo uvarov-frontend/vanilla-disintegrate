@@ -1,0 +1,98 @@
+---
+title: 安装并运行第一个效果
+description: 安装 Vanilla Disintegrate，并运行第一个删除与恢复动画。
+locale: zh
+section: start
+navTitle: 快速开始
+order: 10
+---
+
+Vanilla Disintegrate 为任意可测量的 DOM 元素添加 **灭霸响指**粒子删除效果。包中已默认配置 SnapDOM，而且不需要导入 CSS。
+
+## 安装
+
+使用任意受支持的包管理器：
+
+```bash
+# npm
+npm install vanilla-disintegrate
+
+# Yarn
+yarn add vanilla-disintegrate
+
+# pnpm
+pnpm add vanilla-disintegrate
+
+# Bun
+bun add vanilla-disintegrate
+```
+
+Vanilla Disintegrate 使用 [SnapDOM](https://zumerlab.github.io/snapdom/) 捕获元素当前外观。`@zumer/snapdom` 是普通依赖，包管理器会自动安装。
+
+```ts
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator();
+const card = document.querySelector<HTMLElement>('.card');
+
+if (card) {
+  effects.remove(card, { effect: 'dust' });
+}
+```
+
+`remove()` 会立即返回操作对象；只有后续逻辑必须等待动画结束时，才需要等待 `operation.finished`。
+
+## 删除并恢复同一个节点
+
+```ts
+const removal = effects.remove(card, {
+  effect: 'dust',
+  retain: true,
+});
+
+await removal.finished;
+
+if (removal.removalId) {
+  const retained = effects.take(removal.removalId);
+
+  if (retained) {
+    list.append(retained);
+    await effects.restore(retained).finished;
+  }
+}
+```
+
+应用负责决定节点插入位置。若 `restore()` 未指定新效果，将使用删除时记住的效果对。
+
+## 使用其他捕获库
+
+`capture` 是开放的适配器接口。例如可以接入 `html2canvas`：
+
+```ts
+import html2canvas from 'html2canvas';
+import Disintegrator from 'vanilla-disintegrate';
+
+const effects = new Disintegrator({
+  capture: (element, context) => {
+    context.signal.throwIfAborted();
+
+    return html2canvas(element, {
+      backgroundColor: null,
+      logging: false,
+      scale: 1,
+      useCORS: true,
+      onclone: (_document, clone) => {
+        if (context.restoreRootOpacity !== undefined) {
+          clone.style.setProperty('opacity', context.restoreRootOpacity, 'important');
+        }
+      },
+    });
+  },
+});
+```
+
+传入的函数会完全替代 SnapDOM 的截图行为。SnapDOM 本身仍是包依赖，也是静态 ESM 运行时图的一部分。
+
+## 清理
+
+所属页面永久销毁时调用 `effects.destroy()`。它会停止操作和观察器，并释放快照与所有保留的 DOM 引用。

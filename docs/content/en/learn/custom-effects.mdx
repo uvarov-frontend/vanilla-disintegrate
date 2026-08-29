@@ -1,0 +1,136 @@
+---
+title: Create a custom effect
+description: Define independent remove and restore phases using WAAPI, Promise, Canvas, WebGL, SVG, or another renderer.
+locale: en
+section: learn
+navTitle: Custom effects
+order: 60
+---
+
+A custom effect is a pair of full animations. Vanilla Disintegrate supplies geometry, capture, cancellation, cleanup, and a contract for connecting audio; you choose both the renderer and the sound.
+
+## Define both phases
+
+```ts
+import { defineEffect } from 'vanilla-disintegrate';
+
+function createLayerClone(element: HTMLElement, layer: HTMLElement) {
+  const visual = element.cloneNode(true) as HTMLElement;
+  Object.assign(visual.style, {
+    height: '100%',
+    inset: '0',
+    margin: '0',
+    pointerEvents: 'none',
+    position: 'absolute',
+    width: '100%',
+  });
+  layer.append(visual);
+  return visual;
+}
+
+const pulse = defineEffect({
+  remove: {
+    needsSnapshot: false,
+    animate({ element, layer }) {
+      return createLayerClone(element, layer).animate(
+        [
+          { opacity: 1, transform: 'scale(1)' },
+          { opacity: 0, transform: 'scale(.6) rotate(8deg)' },
+        ],
+        { duration: 420, easing: 'cubic-bezier(.4, 0, 1, 1)' },
+      );
+    },
+  },
+  restore: {
+    needsSnapshot: false,
+    animate({ element, layer }) {
+      return createLayerClone(element, layer).animate(
+        [
+          { opacity: 0, transform: 'scale(.6) rotate(-8deg)' },
+          { opacity: 1, transform: 'scale(1) rotate(0)' },
+        ],
+        { duration: 520, easing: 'cubic-bezier(0, 0, .2, 1)' },
+      );
+    },
+  },
+});
+
+effects.remove(element, { effect: pulse });
+effects.restore(insertedElement, { effect: pulse });
+```
+
+<Demo kind="custom" />
+
+`needsSnapshot: false` guarantees that capture and SnapDOM are not invoked for that phase.
+
+## Animation context
+
+The factory receives:
+
+- `operation`: `remove` or `restore`;
+- `element`: the real target;
+- `bounds`: final viewport geometry as `DOMRectReadOnly`;
+- `layer`: an isolated overlay positioned over those bounds;
+- `snapshot`: captured canvas or `null`;
+- `visual`: a lazily created full-size visual canvas;
+- `signal`: abort signal for cancellation and destroy;
+- `random()`: the operation's random source;
+- `reducedMotion`: resolved motion preference;
+- `addCleanup(fn)`: register resources that must always be released.
+
+For restoration, `bounds` always describes the **new inserted position**, not the old removal position.
+
+## Supported results
+
+An animation factory may return:
+
+```ts
+type AnimationResult =
+  | Animation
+  | PromiseLike<unknown>
+  | {
+      element?: HTMLElement;
+      finished: PromiseLike<unknown>;
+      duration?: number;
+      layoutDelay?: number;
+      cancel?(): void;
+      dispose?(): void;
+    }
+  | null;
+```
+
+This covers Web Animations, async CSS orchestration, Canvas render loops, SVG, WebGL, and third-party engines. `cancel()` stops playback; `dispose()` releases renderer resources after every outcome.
+
+## Register a named effect
+
+```ts
+const effects = new Disintegrator({
+  effects: {
+    pulse,
+  },
+  effect: 'pulse',
+});
+
+effects.remove(element);
+```
+
+Direct effect objects and registered names use the same contract as all four built-ins.
+
+## Add custom audio
+
+Each phase accepts a URL, `ArrayBuffer`, `AudioBuffer`, options object, or factory.
+
+```ts
+const effect = defineEffect({
+  remove: {
+    animate: removeAnimation,
+    sound: { src: '/sounds/remove.ogg', gain: 0.35 },
+  },
+  restore: {
+    animate: restoreAnimation,
+    sound: ({ signal }) => startMyAudioEngine(signal),
+  },
+});
+```
+
+Audio failures are reported through `onError` and never prevent the visual or content operation.

@@ -1,0 +1,73 @@
+---
+title: Audio
+description: Configure built-in sounds, decoded buffers, URLs, and custom playback factories without coupling audio failures to animation.
+locale: en
+section: reference
+navTitle: Audio
+order: 80
+---
+
+Sound is enabled by default. Each remove and restore phase owns an independent sound definition, so matching visuals do not have to share or reverse one audio track.
+
+## Disable sound
+
+```ts
+const silent = new Disintegrator({ sound: false });
+
+effects.remove(element, { sound: false });
+```
+
+An operation-level value overrides the instance for that one call.
+
+## Supported sources
+
+```ts
+type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
+```
+
+Strings and `URL` values are fetched and decoded lazily. `ArrayBuffer` is useful when the application already controls loading. `AudioBuffer` is the most direct reusable form when the application owns an `AudioContext`-based asset pipeline.
+
+The library does not force bundled audio into source code as `AudioBuffer`: browser decoding is runtime work, and encoded files remain smaller and cacheable. Internally decoded results can still be reused.
+
+## Playback options
+
+```ts
+const sound = {
+  src: new URL('/sounds/snap.ogg', location.href),
+  gain: 0.35,
+  delay: 40,
+  duration: 700,
+  fadeDuration: 120,
+  playbackRate: 1.05,
+};
+
+effects.remove(element, { sound });
+```
+
+## Custom player
+
+Use a factory to integrate an existing audio engine.
+
+```ts
+const sound = ({ operation, element, signal }) => {
+  const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
+
+  const stop = () => playback.stop();
+  signal.addEventListener('abort', stop, { once: true });
+
+  return {
+    finished: playback.finished,
+    stop,
+    dispose() {
+      signal.removeEventListener('abort', stop);
+      playback.dispose();
+    },
+  };
+};
+```
+
+The factory receives the operation, target element, and abort signal. Return `stop()` for cancellation and `dispose()` for unconditional cleanup.
+
+## Failure isolation
+
+Autoplay restrictions, fetch failures, decode errors, and custom player exceptions never reject the visual operation solely because of audio. They are forwarded to `onError`; animation and the selected DOM action continue.

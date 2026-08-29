@@ -1,0 +1,32 @@
+---
+import { ui, type Locale } from '../i18n';
+import { entryHref, type DocEntry } from '../lib/docs';
+
+interface Props {
+  entries: readonly DocEntry[];
+  locale: Locale;
+  currentId?: string;
+}
+
+const { entries, locale, currentId } = Astro.props;
+const sections = ['start', 'learn', 'reference'] as const;
+---
+
+<div class="sidebar-scroll">
+  {
+    sections.map((section) => (
+      <div class="sidebar-group">
+        <div class="sidebar-label">{ui[locale].sections[section]}</div>
+        <nav aria-label={ui[locale].sections[section]}>
+          {entries
+            .filter((entry) => entry.data.section === section)
+            .map((entry) => (
+              <a href={entryHref(entry)} aria-current={entry.id === currentId ? 'page' : undefined}>
+                {entry.data.navTitle}
+              </a>
+            ))}
+        </nav>
+      </div>
+    ))
+  }
+</div>

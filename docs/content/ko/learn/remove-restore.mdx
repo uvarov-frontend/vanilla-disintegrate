@@ -1,0 +1,70 @@
+---
+title: 삭제와 복원
+description: 두 콘텐츠 작업의 지오메트리, 취소 방식, 오류 동작을 이해합니다.
+locale: ko
+section: learn
+navTitle: 삭제와 복원
+order: 30
+---
+
+`remove()`와 `restore()`는 독립된 작업입니다. 라이브러리는 전환을 애니메이션하고 애플리케이션은 콘텐츠 상태와 삽입 위치를 소유합니다.
+
+## 요소 삭제
+
+라이브러리는 실제 노드를 분리하기 전에 요소를 측정합니다. 노드가 레이아웃을 떠난 뒤에도 격리된 오버레이에서 시각 효과가 실행됩니다.
+
+```ts
+const operation = effects.remove(element, {
+  effect: 'dust',
+  retain: false,
+  layout: true,
+});
+
+const result = await operation.finished;
+```
+
+`retain`의 기본값은 `false`이므로 DOM 참조를 보관하지 않습니다. `layout`은 영향을 받은 이웃 요소가 새 위치로 이동하는 과정을 애니메이션합니다.
+
+## 삽입된 요소 복원
+
+먼저 애플리케이션이 목표 위치에 노드를 삽입하고 그다음 `restore()`를 호출합니다.
+
+```ts
+container.append(element);
+await effects.restore(element, { effect: 'dust' }).finished;
+```
+
+요소는 문서에 연결되고 크기가 0보다 커야 합니다. 라이브러리는 동기적으로 숨긴 뒤 **새로운 최종 위치**를 측정하고, 캡처와 복원 효과가 끝나면 원본을 표시합니다.
+
+## 완전히 새로운 요소
+
+이전 `remove()` 호출 없이도 `restore()`를 진입 애니메이션으로 사용할 수 있습니다.
+
+```ts
+const message = document.createElement('aside');
+message.textContent = '방금 생성됨';
+notifications.append(message);
+
+effects.restore(message, { effect: 'vapor' });
+```
+
+## 작업 객체
+
+```ts
+const operation = effects.remove(element);
+
+operation.operation; // 'remove'
+operation.removalId; // RemovalId | null
+operation.cancel();
+
+const result = await operation.finished;
+result.status; // 'completed' | 'cancelled' | 'skipped'
+```
+
+완료된 작업 객체는 DOM 요소를 보관하지 않습니다.
+
+## 취소는 시각 효과만 중지
+
+`cancel()`은 애니메이션과 소리를 멈추지만 콘텐츠 결정을 되돌리지 않습니다. 삭제된 요소는 삭제된 채로 있고 복원 중인 요소는 표시됩니다.
+
+캡처, 오디오 또는 사용자 효과가 실패해도 DOM 작업은 완료되며 오류는 `onError`로 전달됩니다.

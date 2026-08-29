@@ -1,0 +1,62 @@
+---
+title: Фоновая подготовка снимков
+description: Управляйте видимостью, idle-задачами, инвалидированием и размером кэша снимков.
+locale: ru
+section: learn
+navTitle: Подготовка снимков
+order: 50
+---
+
+По умолчанию фоновая подготовка выключена. Без опции `preparation` экземпляр не создаёт observers и делает снимок только тогда, когда он нужен операции.
+
+## Включить стандартную политику
+
+```ts
+const effects = new Disintegrator({ preparation: true });
+
+const unregister = effects.register(document.querySelectorAll('[data-effects]'));
+```
+
+Значение `true` включает `visible-idle`: зарегистрированный элемент готовится, когда приближается к viewport и браузер получает свободное время.
+
+## Настроить условия
+
+```ts
+const effects = new Disintegrator({
+  preparation: {
+    strategy: 'visible-idle',
+    rootMargin: '300px 0px',
+    concurrency: 1,
+    shouldPrepare: (element) => element.matches('[data-effects]'),
+    invalidateOnResize: true,
+    observeMutations: false,
+    cachePixelBudget: 8_000_000,
+  },
+});
+```
+
+| Стратегия      | Поведение                                                  |
+| -------------- | ---------------------------------------------------------- |
+| `immediate`    | Захватывает кандидатов сразу при наличии свободного слота. |
+| `idle`         | Ждёт idle-период с резервным таймаутом.                    |
+| `visible-idle` | Сначала проверяет близость к viewport, затем ждёт idle.    |
+
+`shouldPrepare(element)` проверяется до постановки задачи. Здесь можно учитывать тип элемента, состояние интерфейса, сеть или feature flag.
+
+## Явное управление
+
+```ts
+await effects.prepare(elements); // подготовить сейчас
+effects.invalidate(elements); // удалить устаревшее и перепоставить зарегистрированное
+effects.clearPrepared(); // очистить весь кэш
+```
+
+<Demo kind="preparation" />
+
+Если снимка нет, он ещё готовится, устарел или вытеснен, операция выполняет актуальный захват.
+
+## Бюджет кэша
+
+LRU-бюджет по умолчанию — 8 миллионов физических пикселей. Он ограничивает только пересоздаваемые снимки, но не сохранённые DOM-элементы. При вытеснении библиотека закрывает `ImageBitmap` и освобождает canvas/GPU-ресурсы.
+
+`invalidateOnResize` по умолчанию включён. Mutation observer выключен, потому что широкое наблюдение за DOM может быть дорогим; после значимого изменения содержимого вызовите `invalidate()` самостоятельно.

@@ -1,0 +1,55 @@
+---
+title: 保留节点与撤销
+description: 仅在需要时保留已删除节点，并显式释放每个引用。
+locale: zh
+section: learn
+navTitle: 保留与撤销
+order: 40
+---
+
+库不会替应用决定撤销功能应保留多久。节点保留必须显式开启，也没有隐藏的 TTL 或数量上限。
+
+## 保留已删除节点
+
+```ts
+const operation = effects.remove(element, {
+  retain: true,
+});
+
+await operation.finished;
+const id = operation.removalId;
+```
+
+`retain: true` 会把分离的原节点存入内部 `Map`，键为不透明的 `RemovalId`。节点不会被移动到隐藏容器或 `DocumentFragment`。
+
+## 取出并恢复
+
+`take(id)` 返回节点，同时从存储中删除强引用。
+
+```ts
+if (id) {
+  const retained = effects.take(id);
+
+  if (retained) {
+    destination.append(retained);
+    effects.restore(retained);
+  }
+}
+```
+
+应用可选择 `append`、`prepend`、`before` 或框架自己的插入方法；库只读取插入后的最终几何位置。
+
+## 不恢复并释放引用
+
+```ts
+effects.discard(removalId); // boolean
+effects.discardAll(); // 释放的条目数
+```
+
+`destroy()` 也会清空所有保留节点。
+
+## 控制内存
+
+由于没有 TTL，每个未使用的 ID 最终必须由 `take()` 消费、通过 `discard()` 释放，或由 `discardAll()` 批量清理。应用可以在撤销提示关闭、路由切换或历史提交时执行该策略。
+
+默认的 `effects.remove(element)` 等同于 `retain: false`，操作结束后库与操作对象都不会保留节点。

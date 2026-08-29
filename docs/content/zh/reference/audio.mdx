@@ -1,0 +1,50 @@
+---
+title: 音频
+description: 配置内置声音、解码缓冲区、URL 与自定义播放器，并隔离音频错误。
+locale: zh
+section: reference
+navTitle: 音频
+order: 80
+---
+
+声音默认开启。每个删除与恢复阶段都有独立声音定义，因此恢复音轨无需倒放删除音轨。
+
+## 关闭声音
+
+```ts
+const silent = new Disintegrator({ sound: false });
+effects.remove(element, { sound: false });
+```
+
+操作级选项只覆盖当前调用。
+
+## 支持的来源
+
+```ts
+type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
+```
+
+字符串与 `URL` 会惰性获取并解码；应用自己加载资源时可传 `ArrayBuffer`；已有音频资源管线时可复用 `AudioBuffer`。
+
+库不会把压缩音频文件强制转换并打包成 `AudioBuffer`：解码是浏览器运行时工作，而压缩文件更小且可缓存。
+
+## 播放参数
+
+```ts
+effects.remove(element, {
+  sound: {
+    src: new URL('/sounds/snap.ogg', location.href),
+    gain: 0.35,
+    delay: 40,
+    duration: 700,
+    fadeDuration: 120,
+    playbackRate: 1.05,
+  },
+});
+```
+
+## 自定义播放器
+
+播放器工厂会收到操作类型、目标元素与 `AbortSignal`。返回 `stop()` 处理取消，返回 `dispose()` 做无条件清理。
+
+自动播放限制、请求、解码或自定义播放器错误会传递给 `onError`，但不会单独终止视觉动画和 DOM 操作。
