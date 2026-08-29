@@ -2,7 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 
 export const bundleBudgets = {
-  'dist/index.js': 17 * 1024,
+  'dist/index.js': 15 * 1024,
+  'dist/snapdom.js': 16 * 1024,
   'dist/vanilla-disintegrate.iife.min.js': 70 * 1024,
 };
 

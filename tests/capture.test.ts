@@ -1,5 +1,5 @@
 import type { SnapdomOptions, SnapdomPlugin } from '@zumer/snapdom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { toCanvas } = vi.hoisted(() => ({
   toCanvas: vi.fn((element: Element, options?: SnapdomOptions) => {
@@ -12,6 +12,8 @@ const { toCanvas } = vi.hoisted(() => ({
 vi.mock('@zumer/snapdom', () => ({ snapdom: { toCanvas } }));
 
 import { createSnapdomCapture } from '../src/capture';
+import { Disintegrator as SnapdomDisintegrator } from '../src/snapdom';
+import { Disintegrator as CoreDisintegrator } from '../src/index';
 
 describe('SnapDOM capture adapter', () => {
   it('restores the captured root opacity without revealing the live restore target', async () => {
@@ -46,5 +48,54 @@ describe('SnapDOM capture adapter', () => {
 
     const options = toCanvas.mock.calls.at(-1)?.[1] as SnapdomOptions;
     expect(options.plugins).toBeUndefined();
+  });
+});
+
+function target() {
+  const element = document.createElement('article');
+  document.body.append(element);
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    value: (): DOMRect => ({
+      bottom: 80,
+      height: 80,
+      left: 0,
+      right: 240,
+      top: 0,
+      width: 240,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }),
+  });
+  return element;
+}
+
+describe('entry points', () => {
+  beforeEach(() => {
+    document.body.replaceChildren();
+    toCanvas.mockClear();
+  });
+
+  it('wires SnapDOM as the default capture on the ./snapdom entry', async () => {
+    const element = target();
+    const effect = new SnapdomDisintegrator({ effect: 'dust', layout: false });
+
+    await effect.remove(element).finished;
+
+    expect(toCanvas).toHaveBeenCalledWith(element, expect.objectContaining({ fast: true }));
+    effect.destroy();
+  });
+
+  it('leaves the core entry without a capture adapter', async () => {
+    const element = target();
+    const onError = vi.fn();
+    const effect = new CoreDisintegrator({ effect: 'dust', layout: false, onError });
+
+    const result = await effect.remove(element).finished;
+
+    expect(result.status).toBe('skipped');
+    expect(toCanvas).not.toHaveBeenCalled();
+    expect(onError.mock.calls[0]?.[0]).toBeInstanceOf(TypeError);
+    effect.destroy();
   });
 });

@@ -19,7 +19,7 @@ export default defineConfig({
     sourcemap: true,
     minify: 'esbuild',
     lib: {
-      entry: resolve(import.meta.dirname, 'src/index.ts'),
+      entry: resolve(import.meta.dirname, 'src/snapdom.ts'),
       name: 'VanillaDisintegrate',
       formats: ['iife'],
       fileName: () => 'vanilla-disintegrate.iife.min.js',

@@ -23,9 +23,12 @@ export default defineConfig({
     sourcemap: true,
     minify: 'esbuild',
     lib: {
-      entry: resolve(import.meta.dirname, 'src/index.ts'),
+      entry: {
+        index: resolve(import.meta.dirname, 'src/index.ts'),
+        snapdom: resolve(import.meta.dirname, 'src/snapdom.ts'),
+      },
       formats: ['es'],
-      fileName: () => 'index.js',
+      fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
       external: ['@zumer/snapdom'],
@@ -34,6 +37,7 @@ export default defineConfig({
           const soundName = asset.names.find((name) => name.endsWith('.mp3'));
           return soundName === undefined ? 'assets/[name]-[hash][extname]' : `sounds/${soundName}`;
         },
+        chunkFileNames: 'chunks/[name]-[hash].js',
         entryFileNames: '[name].js',
       },
     },

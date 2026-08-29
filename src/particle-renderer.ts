@@ -277,6 +277,24 @@ function createThresholdTexture(gl: WebGL2RenderingContext, width: number, heigh
   return texture;
 }
 
+/**
+ * Browsers cap the number of live WebGL contexts and silently drop the oldest one
+ * once that cap is reached, so every exit path releases its context immediately
+ * instead of waiting for garbage collection.
+ */
+function releaseContext(gl: WebGL2RenderingContext) {
+  gl.getExtension('WEBGL_lose_context')?.loseContext();
+}
+
+function withContext<T>(gl: WebGL2RenderingContext, create: () => T): T {
+  try {
+    return create();
+  } catch (error) {
+    releaseContext(gl);
+    throw error;
+  }
+}
+
 function createBounds(
   snapshot: HTMLCanvasElement,
   rect: DOMRectReadOnly,
@@ -409,6 +427,7 @@ function createParticleRenderer(
     canvasWidth > (maxViewport[0] ?? maxTextureSize) ||
     canvasHeight > (maxViewport[1] ?? maxTextureSize)
   ) {
+    releaseContext(gl);
     return null;
   }
   canvas.width = canvasWidth;
@@ -432,15 +451,29 @@ function createParticleRenderer(
     bounds.scaleY,
     random,
   );
-  if (field.data.length === 0) return null;
+  if (field.data.length === 0) {
+    releaseContext(gl);
+    return null;
+  }
 
-  const baseProgram = createProgram(gl, BASE_VERTEX_SHADER, programs.baseFragment);
-  const particleProgram = createProgram(gl, programs.particleVertex, PARTICLE_FRAGMENT_SHADER);
-  const quadBuffer = gl.createBuffer();
-  const particleBuffer = gl.createBuffer();
-  if (quadBuffer === null || particleBuffer === null) throw new Error('Unable to create WebGL particle buffers.');
-  const sourceTexture = createTexture(gl, snapshot);
-  const thresholdTexture = createThresholdTexture(gl, snapshot.width, snapshot.height, field.thresholdMap);
+  const { baseProgram, particleProgram, quadBuffer, particleBuffer, sourceTexture, thresholdTexture } = withContext(
+    gl,
+    () => {
+      const base = createProgram(gl, BASE_VERTEX_SHADER, programs.baseFragment);
+      const particle = createProgram(gl, programs.particleVertex, PARTICLE_FRAGMENT_SHADER);
+      const quad = gl.createBuffer();
+      const points = gl.createBuffer();
+      if (quad === null || points === null) throw new Error('Unable to create WebGL particle buffers.');
+      return {
+        baseProgram: base,
+        particleProgram: particle,
+        quadBuffer: quad,
+        particleBuffer: points,
+        sourceTexture: createTexture(gl, snapshot),
+        thresholdTexture: createThresholdTexture(gl, snapshot.width, snapshot.height, field.thresholdMap),
+      };
+    },
+  );
 
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
@@ -493,6 +526,7 @@ function createParticleRenderer(
   };
 
   const render = (progress: number) => {
+    if (gl.isContextLost()) return;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -534,6 +568,13 @@ function createParticleRenderer(
 
   let disposed = false;
   let frame = 0;
+  const handleContextLost = () => {
+    // The canvas is discarded when the operation ends, so restoration is not
+    // requested. The WAAPI clock still drives `finished`: the operation settles
+    // and the element is committed even after the visuals are gone.
+    cancelAnimationFrame(frame);
+  };
+  canvas.addEventListener('webglcontextlost', handleContextLost);
   render(0);
   const duration = particles.duration + particles.stagger;
   const animation = canvas.animate([{ opacity: 1 }, { opacity: 1 }], {
@@ -546,15 +587,18 @@ function createParticleRenderer(
     if (disposed) return;
     disposed = true;
     cancelAnimationFrame(frame);
+    canvas.removeEventListener('webglcontextlost', handleContextLost);
+    if (gl.isContextLost()) return;
     gl.deleteBuffer(quadBuffer);
     gl.deleteBuffer(particleBuffer);
     gl.deleteTexture(sourceTexture);
     gl.deleteTexture(thresholdTexture);
     gl.deleteProgram(baseProgram);
     gl.deleteProgram(particleProgram);
+    releaseContext(gl);
   };
   const tick = () => {
-    if (disposed) return;
+    if (disposed || gl.isContextLost()) return;
     const timingProgress = animation.effect?.getComputedTiming().progress;
     const timelineProgress = typeof timingProgress === 'number' ? timingProgress : 0;
     render(timelineProgress);

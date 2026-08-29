@@ -6,10 +6,6 @@ settings:
 
 importers:
   .:
-    dependencies:
-      '@zumer/snapdom':
-        specifier: ^2.24.10
-        version: 2.24.10
     devDependencies:
       '@astrojs/check':
         specifier: ^0.9.10
@@ -29,6 +25,9 @@ importers:
       '@types/node':
         specifier: ^22.18.0
         version: 22.20.1
+      '@zumer/snapdom':
+        specifier: ^2.24.12
+        version: 2.24.12
       astro:
         specifier: ^7.2.9
         version: 7.2.9(@astrojs/markdown-remark@7.2.4)(@emnapi/core@1.11.1)(@emnapi/runtime@1.11.3)(@types/node@22.20.1)(yaml@2.9.0)
@@ -1261,9 +1260,9 @@ packages:
     resolution:
       { integrity: sha512-KYSIHVmslkaCDyw013pphY+d7x1qV8IZupYfeIfzNA+nsaWHbn5uPuQRvdRFsa9zFzGeudPuoGoZ1Op4jrJXIQ== }
 
-  '@zumer/snapdom@2.24.10':
+  '@zumer/snapdom@2.24.12':
     resolution:
-      { integrity: sha512-yK+5HvcP96aZCG8dcOuJDsOD1TACDeSTI0wlsmQkMeeGaM/JVHdBQZPS4h0Uae6bY/zx+WQCJtOKnrbB6D7NgQ== }
+      { integrity: sha512-JfGZnVEkgg5XfVMtc5jGx+u3TxJz5cNkEB9PKK/aC8IJWwKES/m4KiWWDttuOF73UAMN+9Rfhk9hQPBIblxG9A== }
 
   acorn-jsx@5.3.2:
     resolution:
@@ -4544,7 +4543,7 @@ snapshots:
 
   '@vscode/l10n@0.0.18': {}
 
-  '@zumer/snapdom@2.24.10': {}
+  '@zumer/snapdom@2.24.12': {}
 
   acorn-jsx@5.3.2(acorn@8.18.0):
     dependencies:

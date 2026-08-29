@@ -58,7 +58,7 @@ describe('public entries', () => {
     ).toHaveLength(2);
   });
 
-  it('allows the SnapDOM entry capture to be overridden', async () => {
+  it('uses the capture adapter supplied to the core entry', async () => {
     const element = target();
     const capture = vi.fn().mockResolvedValue(snapshot());
     const effect = new Disintegrator({ capture, effect: 'dust', layout: false, sound: false });
@@ -69,7 +69,7 @@ describe('public entries', () => {
     effect.destroy();
   });
 
-  it('runs snapshotless effects without invoking the default capture', async () => {
+  it('runs snapshotless effects without requiring a capture adapter', async () => {
     const element = target();
     const animate = vi.fn(() => Promise.resolve());
     const effect = new Disintegrator({ effect: customEffect(animate), layout: false });
@@ -94,6 +94,47 @@ describe('public entries', () => {
 
     expect(result.status).toBe('skipped');
     expect(element.isConnected).toBe(false);
+    effect.destroy();
+  });
+
+  it('leaves effect audio silent unless it is opted into', async () => {
+    const element = target();
+    const played: unknown[] = [];
+    const animate = vi.fn(() => Promise.resolve());
+    const sound = vi.fn(() => {
+      played.push(true);
+    });
+    const effect = new Disintegrator({
+      effect: defineEffect({
+        remove: { needsSnapshot: false, animate, sound },
+        restore: { needsSnapshot: false, animate, sound },
+      }),
+      layout: false,
+    });
+
+    await effect.remove(element).finished;
+
+    expect(sound).not.toHaveBeenCalled();
+    expect(played).toHaveLength(0);
+    effect.destroy();
+  });
+
+  it('plays the phase sound once audio is enabled', async () => {
+    const element = target();
+    const animate = vi.fn(() => Promise.resolve());
+    const sound = vi.fn();
+    const effect = new Disintegrator({
+      effect: defineEffect({
+        remove: { needsSnapshot: false, animate, sound },
+        restore: { needsSnapshot: false, animate, sound },
+      }),
+      layout: false,
+      sound: true,
+    });
+
+    await effect.remove(element).finished;
+
+    expect(sound).toHaveBeenCalledOnce();
     effect.destroy();
   });
 

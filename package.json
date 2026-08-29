@@ -35,6 +35,11 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./snapdom": {
+      "types": "./dist/snapdom.d.ts",
+      "import": "./dist/snapdom.js",
+      "default": "./dist/snapdom.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -72,8 +77,13 @@
     "typecheck:library": "tsc --noEmit",
     "prepublishOnly": "pnpm run check"
   },
-  "dependencies": {
-    "@zumer/snapdom": "^2.24.10"
+  "peerDependencies": {
+    "@zumer/snapdom": "^2.24.12"
+  },
+  "peerDependenciesMeta": {
+    "@zumer/snapdom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
@@ -82,6 +92,7 @@
     "@astrojs/node": "^11.1.4",
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.18.0",
+    "@zumer/snapdom": "^2.24.12",
     "astro": "^7.2.9",
     "esbuild": "^0.28.2",
     "eslint": "^10.0.2",

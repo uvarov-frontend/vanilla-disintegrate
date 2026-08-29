@@ -3,17 +3,39 @@ import { readFile } from 'node:fs/promises';
 import { JSDOM } from 'jsdom';
 
 const full = await import('../dist/index.js');
-const esmRuntime = await readFile(new URL('../dist/index.js', import.meta.url), 'utf8');
+const snapdomEntry = await import('../dist/snapdom.js');
 const packageManifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+
+async function chunkGraph(entry) {
+  const url = new URL(entry, import.meta.url);
+  const code = await readFile(url, 'utf8');
+  let sources = code;
+  for (const match of code.matchAll(/from\s*["'](\.[^"']+\.js)["']/g)) {
+    sources += await readFile(new URL(match[1], url), 'utf8');
+  }
+  return sources;
+}
 
 if (typeof full.Disintegrator !== 'function') {
   throw new Error('The ESM entry did not expose Disintegrator.');
 }
-if (!esmRuntime.includes('@zumer/snapdom')) {
-  throw new Error('The ESM entry must load SnapDOM through a static import.');
+if (typeof snapdomEntry.Disintegrator !== 'function' || typeof snapdomEntry.createSnapdomCapture !== 'function') {
+  throw new Error('The SnapDOM entry did not expose Disintegrator and createSnapdomCapture.');
 }
-if ('./lite' in packageManifest.exports) {
-  throw new Error('The removed lite entry is still present in package exports.');
+if ((await chunkGraph('../dist/index.js')).includes('@zumer/snapdom')) {
+  throw new Error('The core entry must not reach SnapDOM; it belongs to the ./snapdom entry.');
+}
+if (!(await chunkGraph('../dist/snapdom.js')).includes('@zumer/snapdom')) {
+  throw new Error('The SnapDOM entry must load SnapDOM through a static import.');
+}
+if (!('./snapdom' in packageManifest.exports)) {
+  throw new Error('The ./snapdom entry is missing from package exports.');
+}
+if (packageManifest.dependencies !== undefined) {
+  throw new Error('The core package must stay free of runtime dependencies.');
+}
+if (packageManifest.peerDependenciesMeta?.['@zumer/snapdom']?.optional !== true) {
+  throw new Error('SnapDOM must be declared as an optional peer dependency.');
 }
 if (typeof full.defineEffect !== 'function' || 'disintegrate' in full.Disintegrator.prototype) {
   throw new Error('The public effect API does not match the remove/restore lifecycle.');

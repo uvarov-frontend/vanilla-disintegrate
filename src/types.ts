@@ -143,10 +143,9 @@ export interface EffectCallbacks {
 
 export interface DisintegratorOptions extends EffectCallbacks {
   readonly capture?: SnapshotCapture;
-  readonly snapdom?: SnapdomOptions;
   readonly effect?: EffectSelection;
   readonly effects?: Readonly<Record<string, EffectDefinition>>;
-  /** Associated effect audio is enabled by default. */
+  /** Effect audio is opt-in: pass `true` for the built-in sounds, or supply your own definition. */
   readonly sound?: boolean | SoundDefinition;
   readonly layout?: boolean | LayoutOptions;
   readonly preparation?: boolean | PreparationOptions;
@@ -188,4 +187,3 @@ export interface EffectOperation {
   /** Stops only animation and audio; it does not undo the content operation. */
   cancel(): void;
 }
-import type { SnapdomOptions } from '@zumer/snapdom';

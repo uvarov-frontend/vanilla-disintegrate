@@ -426,7 +426,7 @@ export class OperationRunner {
   }
 
   private resolveSound(phaseSound: SoundDefinition | null, override: OperationOptions['sound']) {
-    const selection = override ?? this.options.sound ?? true;
+    const selection = override ?? this.options.sound ?? false;
     if (selection === false) return null;
     if (selection === true) return phaseSound;
     return selection;
