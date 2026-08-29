@@ -2,20 +2,28 @@
 import { getCollection, getEntry, render } from 'astro:content';
 
 import InteractiveDemo from '../../../components/InteractiveDemo.astro';
-import { isLocale } from '../../../i18n';
+import NotFoundPage from '../../../components/NotFoundPage.astro';
+import { isLocale, localeFromPath } from '../../../i18n';
 import { localeEntries } from '../../../lib/docs';
 import DocsLayout from '../../../layouts/DocsLayout.astro';
 
 const { locale, path } = Astro.params;
-if (!isLocale(locale) || locale === 'en' || !path) return Astro.redirect('/404/');
+const pageLocale = isLocale(locale) && locale !== 'en' ? locale : localeFromPath(Astro.url.pathname);
+const invalidRoute = !isLocale(locale) || locale === 'en' || !path;
+const entry = invalidRoute ? undefined : await getEntry('docs', `${pageLocale}/${path}`);
+const isNotFound = invalidRoute || entry === undefined;
+if (isNotFound) Astro.response.status = 404;
 
-const entry = await getEntry('docs', `${locale}/${path}`);
-if (!entry) return Astro.redirect('/404/');
-
-const entries = localeEntries(await getCollection('docs'), locale);
-const { Content, headings } = await render(entry);
+const entries = entry ? localeEntries(await getCollection('docs'), pageLocale) : [];
+const rendered = entry ? await render(entry) : null;
 ---
 
-<DocsLayout entry={entry} entries={entries} headings={headings} locale={locale}>
-  <Content components={{ Demo: InteractiveDemo }} />
-</DocsLayout>
+{
+  rendered && entry ? (
+    <DocsLayout entry={entry} entries={entries} headings={rendered.headings} locale={pageLocale}>
+      <rendered.Content components={{ Demo: InteractiveDemo }} />
+    </DocsLayout>
+  ) : (
+    <NotFoundPage locale={pageLocale} pathname={Astro.url.pathname} />
+  )
+}

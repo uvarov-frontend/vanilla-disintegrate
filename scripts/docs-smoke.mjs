@@ -220,6 +220,20 @@ try {
   assert.equal(legacy.status, 302);
   assert.equal(legacy.headers.get('location'), '/docs/learn/installation/');
 
+  const missingRoutes = [
+    ['/nope/', 'en'],
+    ['/ru/nope/', 'ru'],
+    ['/docs/nope/', 'en'],
+    ['/ru/docs/nope/', 'ru'],
+  ];
+  for (const [path, locale] of missingRoutes) {
+    const response = await fetch(`${origin}${path}`, { redirect: 'manual' });
+    const html = await response.text();
+    assert.equal(response.status, 404, `${path} must remain a 404 instead of redirecting`);
+    assert.equal(response.headers.get('location'), null, `${path} must preserve the requested URL`);
+    assert.ok(html.includes(`<html lang="${locale}"`), `${path} must preserve its locale`);
+  }
+
   const missing = await fetch(`${origin}/ru/this-page-does-not-exist/`);
   const missingHtml = await missing.text();
   assert.equal(missing.status, 404);

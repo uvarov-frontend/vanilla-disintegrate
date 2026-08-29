@@ -1,41 +1,10 @@
 ---
-import { docsHref, homeHref, localeFromPath, ui } from '../i18n';
-import Footer from '../components/Footer.astro';
-import Header from '../components/Header.astro';
-import BaseLayout from '../layouts/BaseLayout.astro';
+import NotFoundPage from '../components/NotFoundPage.astro';
+import { localeFromPath } from '../i18n';
 
 Astro.response.status = 404;
 
 const locale = localeFromPath(Astro.url.pathname);
-const copy = ui[locale].notFound;
 ---
 
-<BaseLayout
-  title={copy.documentTitle}
-  description={copy.description}
-  locale={locale}
-  pageClass="not-found-body"
-  noindex
->
-  <Header locale={locale} pathname={Astro.url.pathname} />
-  <main class="not-found-page">
-    <section class="not-found-card" aria-labelledby="not-found-heading">
-      <div class="not-found-visual" aria-hidden="true">
-        <span>4</span>
-        <div class="not-found-orb">
-          <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
-          <b>0</b>
-        </div>
-        <span>4</span>
-      </div>
-      <p class="not-found-label">{copy.errorLabel}</p>
-      <h1 id="not-found-heading">{copy.heading}</h1>
-      <p class="not-found-description">{copy.body}</p>
-      <div class="not-found-actions">
-        <a class="hero-button hero-button-primary" href={docsHref(locale, 'learn/installation')}>{copy.action}</a>
-        <a class="hero-button not-found-home-link" href={homeHref(locale)}>{copy.homeAction}</a>
-      </div>
-    </section>
-  </main>
-  <Footer locale={locale} />
-</BaseLayout>
+<NotFoundPage locale={locale} pathname={Astro.url.pathname} />

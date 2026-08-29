@@ -2,6 +2,7 @@
 import { getCollection, getEntry, render } from 'astro:content';
 
 import InteractiveDemo from '../../components/InteractiveDemo.astro';
+import NotFoundPage from '../../components/NotFoundPage.astro';
 import { localeEntries } from '../../lib/docs';
 import DocsLayout from '../../layouts/DocsLayout.astro';
 
@@ -9,12 +10,18 @@ const path = Astro.params.path;
 if (!path) return Astro.redirect('/docs/learn/installation/');
 
 const entry = await getEntry('docs', `en/${path}`);
-if (!entry) return Astro.redirect('/404/');
+if (!entry) Astro.response.status = 404;
 
-const entries = localeEntries(await getCollection('docs'), 'en');
-const { Content, headings } = await render(entry);
+const entries = entry ? localeEntries(await getCollection('docs'), 'en') : [];
+const rendered = entry ? await render(entry) : null;
 ---
 
-<DocsLayout entry={entry} entries={entries} headings={headings} locale="en">
-  <Content components={{ Demo: InteractiveDemo }} />
-</DocsLayout>
+{
+  rendered && entry ? (
+    <DocsLayout entry={entry} entries={entries} headings={rendered.headings} locale="en">
+      <rendered.Content components={{ Demo: InteractiveDemo }} />
+    </DocsLayout>
+  ) : (
+    <NotFoundPage locale="en" pathname={Astro.url.pathname} />
+  )
+}
