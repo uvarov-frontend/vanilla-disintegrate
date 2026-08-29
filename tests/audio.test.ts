@@ -19,6 +19,7 @@ function mockAudio() {
     buffer: null,
     connect: vi.fn(),
     disconnect: vi.fn(),
+    playbackRate: { value: 1 },
     start,
     stop,
   } as unknown as AudioBufferSourceNode;
@@ -55,35 +56,67 @@ function mockAudio() {
     }),
   );
 
-  return { context, decoded, start, stop };
+  return { context, decoded, start };
 }
 
 describe('SoundPlayer', () => {
-  it('starts playback when a pending preload finishes', async () => {
+  const soundContext = () => ({
+    operation: 'remove' as const,
+    element: document.createElement('div'),
+    signal: new AbortController().signal,
+  });
+
+  it('reports unavailable audio without throwing into the visual effect', () => {
+    const error = new Error('audio unavailable');
+    vi.stubGlobal(
+      'AudioContext',
+      vi.fn(function AudioContextMock() {
+        throw error;
+      }),
+    );
+    const onError = vi.fn();
+    const player = new SoundPlayer();
+
+    expect(() => player.play({ src: '/dust.mp3' }, 0.9, soundContext(), onError)).not.toThrow();
+    expect(onError).toHaveBeenCalledWith(error);
+  });
+
+  it('plays an asynchronously decoded source', async () => {
     const { decoded, start } = mockAudio();
-    const player = new SoundPlayer({ src: '/disintegrate.mp3' }, vi.fn());
+    const player = new SoundPlayer();
 
-    player.preload();
-    player.play(0.9);
-    expect(start).not.toHaveBeenCalled();
+    player.play({ src: '/dust.mp3' }, 0.9, soundContext(), vi.fn());
+    decoded.resolve({ duration: 1.2 } as AudioBuffer);
 
-    decoded.resolve({ duration: 1.272 } as AudioBuffer);
     await vi.waitFor(() => expect(start).toHaveBeenCalledOnce());
     player.destroy();
   });
 
-  it('does not start delayed playback after the effect is cancelled', async () => {
+  it('does not start pending playback after destroy', async () => {
     const { decoded, start } = mockAudio();
-    const player = new SoundPlayer({ src: '/disintegrate.mp3' }, vi.fn());
+    const player = new SoundPlayer();
 
-    player.preload();
-    const stop = player.play(0.9);
-    stop();
-    decoded.resolve({ duration: 1.272 } as AudioBuffer);
+    player.play({ src: '/dust.mp3' }, 0.9, soundContext(), vi.fn());
+    player.destroy();
+    decoded.resolve({ duration: 1.2 } as AudioBuffer);
     await Promise.resolve();
     await Promise.resolve();
 
     expect(start).not.toHaveBeenCalled();
-    player.destroy();
+  });
+
+  it('supports a custom sound factory and disposes it on stop', async () => {
+    const stop = vi.fn();
+    const dispose = vi.fn();
+    const factory = vi.fn(() => ({ stop, dispose }));
+    const player = new SoundPlayer();
+
+    const cancel = player.play(factory, 1, soundContext(), vi.fn());
+    await Promise.resolve();
+    cancel();
+
+    expect(factory).toHaveBeenCalledOnce();
+    expect(stop).toHaveBeenCalledOnce();
+    expect(dispose).toHaveBeenCalledOnce();
   });
 });

@@ -1,22 +1,36 @@
 import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 
 import { JSDOM } from 'jsdom';
 
-const esm = await import('../dist/index.js');
-const commonJs = createRequire(import.meta.url)('../dist/index.cjs');
+const full = await import('../dist/index.js');
+const esmRuntime = await readFile(new URL('../dist/index.js', import.meta.url), 'utf8');
+const packageManifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
 
-if (typeof esm.Disintegrator !== 'function' || typeof commonJs.Disintegrator !== 'function') {
-  throw new Error('ESM or CommonJS entry did not expose Disintegrator.');
+if (typeof full.Disintegrator !== 'function') {
+  throw new Error('The ESM entry did not expose Disintegrator.');
+}
+if (!esmRuntime.includes('@zumer/snapdom')) {
+  throw new Error('The ESM entry must load SnapDOM through a static import.');
+}
+if ('./lite' in packageManifest.exports) {
+  throw new Error('The removed lite entry is still present in package exports.');
+}
+if (typeof full.defineEffect !== 'function' || 'disintegrate' in full.Disintegrator.prototype) {
+  throw new Error('The public effect API does not match the remove/restore lifecycle.');
+}
+if (Object.keys(full.builtInEffects).join(',') !== 'dust,vapor,scatter,wind') {
+  throw new Error('The built-in effect registry is incomplete.');
+}
+for (const effect of Object.values(full.builtInEffects)) {
+  if (typeof effect.remove?.animate !== 'function' || typeof effect.restore?.animate !== 'function') {
+    throw new Error('A built-in effect is missing its remove/restore pair.');
+  }
 }
 
 const dom = new JSDOM('', { runScripts: 'outside-only', url: 'https://cdn.example.com/vanilla-disintegrate/' });
 dom.window.eval(await readFile(new URL('../dist/vanilla-disintegrate.iife.min.js', import.meta.url), 'utf8'));
-const globalApi = dom.window.VanillaDisintegrate;
-
-if (typeof globalApi?.Disintegrator !== 'function') throw new Error('IIFE entry did not expose Disintegrator.');
-if (globalApi.defaultSoundUrl !== 'https://cdn.example.com/vanilla-disintegrate/sounds/disintegrate.mp3') {
-  throw new Error(`IIFE sound URL resolved incorrectly: ${String(globalApi.defaultSoundUrl)}`);
+if (typeof dom.window.VanillaDisintegrate?.Disintegrator !== 'function') {
+  throw new Error('The IIFE entry did not expose Disintegrator.');
 }
 
-console.log('ESM, CommonJS, and IIFE entry points loaded successfully.');
+console.log('ESM and IIFE entry points loaded successfully.');

@@ -1,4 +1,4 @@
-import type { SoundOptions, SoundSource } from './types';
+import type { SoundContext, SoundDefinition, SoundOptions, SoundPlayback, SoundSource } from './types';
 
 const noop = () => undefined;
 
@@ -16,97 +16,123 @@ function isAudioBuffer(source: SoundSource): source is AudioBuffer {
 
 export class SoundPlayer {
   private context: AudioContext | null = null;
-  private buffer: AudioBuffer | null = null;
-  private loadPromise: Promise<void> | null = null;
-  private activeSource: AudioBufferSourceNode | null = null;
+  private readonly buffers = new Map<SoundSource, Promise<AudioBuffer>>();
+  private readonly activeSources = new Set<AudioBufferSourceNode>();
+  private generation = 0;
 
-  constructor(
-    private readonly options: SoundOptions | false,
-    private readonly onError: (error: unknown) => void,
-  ) {}
-
-  preload() {
-    if (this.options === false || this.buffer !== null || this.loadPromise !== null) return;
-    const context = this.getContext();
-    if (context === null) return;
-
-    this.loadPromise = this.load(context)
-      .catch((error: unknown) => {
-        this.loadPromise = null;
-        this.onError(error);
-      })
-      .then(noop);
-  }
-
-  unlock() {
-    this.preload();
-    if (this.context?.state === 'suspended') void this.context.resume().catch(this.onError);
-  }
-
-  play(fallbackDurationSeconds: number) {
-    if (this.options === false) return noop;
-    this.preload();
-    const context = this.context;
+  play(
+    definition: SoundDefinition | null,
+    fallbackDurationSeconds: number,
+    soundContext: SoundContext,
+    onError: (error: unknown) => void,
+  ) {
+    if (definition === null) return noop;
+    if (typeof definition === 'function') return this.playCustom(definition, soundContext, onError);
+    const options: SoundOptions =
+      typeof definition === 'object' && 'src' in definition ? definition : { src: definition };
+    let context: AudioContext | null;
+    try {
+      context = this.getContext();
+    } catch (error) {
+      onError(error);
+      return noop;
+    }
     if (context === null) return noop;
-    const options = this.options;
-    let playbackSource: AudioBufferSourceNode | null = null;
-    let cancelled = false;
 
-    const start = () => {
-      const buffer = this.buffer;
-      if (cancelled || buffer === null) return;
-      this.stop();
-      const source = context.createBufferSource();
-      const gain = context.createGain();
-      const startedAt = context.currentTime;
-      const duration = Math.max(0, Math.min(options.duration ?? fallbackDurationSeconds, buffer.duration));
+    const generation = this.generation;
+    let cancelled = false;
+    let source: AudioBufferSourceNode | null = null;
+    if (context.state === 'suspended') {
+      try {
+        void context.resume().catch(onError);
+      } catch (error) {
+        onError(error);
+      }
+    }
+
+    const start = async () => {
+      const buffer = await this.load(options.src, context);
+      if (cancelled || generation !== this.generation || context.state === 'closed') return;
+      if (context.state !== 'running') await context.resume();
+      if (cancelled || generation !== this.generation) return;
+
+      const playbackRate = Math.max(0.01, options.playbackRate ?? 1);
+      const availableDuration = buffer.duration / playbackRate;
+      const requestedDuration =
+        options.duration ?? (fallbackDurationSeconds > 0 ? fallbackDurationSeconds : availableDuration);
+      const duration = Math.max(0, Math.min(requestedDuration, availableDuration));
       if (duration === 0) return;
       const fadeDuration = Math.max(0, Math.min(options.fadeDuration ?? 0.18, duration));
-      const volume = Math.max(0, Math.min(options.gain ?? 0.32, 1));
+      const gainValue = Math.max(0, Math.min(options.gain ?? 0.32, 1));
+      const startedAt = context.currentTime + Math.max(0, options.delay ?? 0) / 1000;
       const endsAt = startedAt + duration;
+      const gain = context.createGain();
+      const playback = context.createBufferSource();
 
-      source.buffer = buffer;
-      gain.gain.setValueAtTime(volume, startedAt);
-      gain.gain.setValueAtTime(volume, endsAt - fadeDuration);
+      playback.buffer = buffer;
+      playback.playbackRate.value = playbackRate;
+      gain.gain.setValueAtTime(gainValue, startedAt);
+      gain.gain.setValueAtTime(gainValue, endsAt - fadeDuration);
       gain.gain.linearRampToValueAtTime(0, endsAt);
-      source.connect(gain);
+      playback.connect(gain);
       gain.connect(context.destination);
-      this.activeSource = source;
-      playbackSource = source;
-      source.addEventListener(
+      source = playback;
+      this.activeSources.add(playback);
+      playback.addEventListener(
         'ended',
         () => {
-          source.disconnect();
+          playback.disconnect();
           gain.disconnect();
-          if (this.activeSource === source) this.activeSource = null;
+          this.activeSources.delete(playback);
         },
         { once: true },
       );
-      source.start(startedAt);
-      source.stop(endsAt);
+      playback.start(startedAt);
+      playback.stop(endsAt);
     };
 
-    const startWhenReady = async () => {
-      await this.loadPromise;
-      if (cancelled || this.buffer === null) return;
-      if (context.state !== 'running') await context.resume();
-      start();
-    };
-    void startWhenReady().catch(this.onError);
-
+    void start().catch(onError);
     return () => {
       cancelled = true;
-      if (playbackSource === null || this.activeSource !== playbackSource) return;
-      this.stopSource(playbackSource);
+      if (source !== null) this.stop(source);
     };
   }
 
+  private playCustom(
+    factory: Extract<SoundDefinition, (...args: never[]) => unknown>,
+    context: SoundContext,
+    onError: (error: unknown) => void,
+  ) {
+    let cancelled = false;
+    let playback: SoundPlayback | void;
+    const stop = () => {
+      cancelled = true;
+      try {
+        playback?.stop?.();
+        playback?.dispose?.();
+      } catch (error) {
+        onError(error);
+      }
+    };
+    try {
+      void Promise.resolve(factory(context)).then((resolved) => {
+        playback = resolved;
+        if (cancelled) stop();
+      }, onError);
+    } catch (error) {
+      onError(error);
+    }
+    return stop;
+  }
+
   destroy() {
-    this.stop();
-    if (this.context !== null && this.context.state !== 'closed') void this.context.close().catch(noop);
+    this.generation += 1;
+    for (const source of this.activeSources) this.stop(source);
+    this.activeSources.clear();
+    this.buffers.clear();
+    const context = this.context;
     this.context = null;
-    this.buffer = null;
-    this.loadPromise = null;
+    if (context !== null && context.state !== 'closed') void context.close().catch(noop);
   }
 
   private getContext() {
@@ -117,14 +143,20 @@ export class SoundPlayer {
     return this.context;
   }
 
-  private async load(context: AudioContext) {
-    if (this.options === false) return;
-    const source = this.options.src;
-    if (isAudioBuffer(source)) {
-      this.buffer = source;
-      return;
-    }
+  private load(source: SoundSource, context: AudioContext) {
+    if (isAudioBuffer(source)) return Promise.resolve(source);
+    const cached = this.buffers.get(source);
+    if (cached !== undefined) return cached;
 
+    const promise = this.loadSource(source, context).catch((error: unknown) => {
+      this.buffers.delete(source);
+      throw error;
+    });
+    this.buffers.set(source, promise);
+    return promise;
+  }
+
+  private async loadSource(source: Exclude<SoundSource, AudioBuffer>, context: AudioContext) {
     const data =
       source instanceof ArrayBuffer
         ? source.slice(0)
@@ -132,20 +164,15 @@ export class SoundPlayer {
             if (!response.ok) throw new Error(`Unable to load disintegration sound: ${response.status}`);
             return response.arrayBuffer();
           });
-    this.buffer = await context.decodeAudioData(data);
+    return context.decodeAudioData(data);
   }
 
-  private stop() {
-    if (this.activeSource === null) return;
-    this.stopSource(this.activeSource);
-  }
-
-  private stopSource(source: AudioBufferSourceNode) {
+  private stop(source: AudioBufferSourceNode) {
     try {
       source.stop();
     } catch {
-      // The source may already have ended between the state check and stop().
+      // A source may have ended between the state check and stop().
     }
-    if (this.activeSource === source) this.activeSource = null;
+    this.activeSources.delete(source);
   }
 }

@@ -1,129 +1,191 @@
-export type DisintegrateTarget = HTMLElement | string;
+export type EffectTarget = HTMLElement | string;
+export type EffectTargets = EffectTarget | Iterable<HTMLElement>;
 
-export type SnapshotCapture = (element: HTMLElement) => Promise<HTMLCanvasElement>;
-
+export type EffectOperationKind = 'remove' | 'restore';
+export type BuiltInEffect = 'dust' | 'vapor' | 'scatter' | 'wind';
 export type DisintegrationOrigin = 'left' | 'right' | 'random';
+export type ParticleMotion = 'drift' | 'vapor' | 'scatter' | 'wind';
+
+declare const removalIdBrand: unique symbol;
+export type RemovalId = string & { readonly [removalIdBrand]: true };
+
+export interface SnapshotCaptureContext {
+  readonly operation: EffectOperationKind | 'prepare';
+  readonly signal: AbortSignal;
+  /** The computed opacity the captured root had before a restore operation concealed the live element. */
+  readonly restoreRootOpacity?: string;
+}
+
+export type SnapshotCapture = (
+  element: HTMLElement,
+  context: SnapshotCaptureContext,
+) => HTMLCanvasElement | Promise<HTMLCanvasElement>;
 
 export interface ParticleOptions {
-  /** Number of transparent canvas layers used by the effect. */
-  frames?: number;
-  /** Number of layers each non-transparent pixel is copied into. */
-  repetitions?: number;
-  /** Duration of each particle layer in milliseconds. */
-  duration?: number;
-  /** Delay spread between the first and last layer in milliseconds. */
-  stagger?: number;
-  /** Horizontal movement range in CSS pixels. */
-  horizontalDrift?: number;
-  /** Minimum and maximum upward movement in CSS pixels. */
-  rise?: readonly [number, number];
-  /** Maximum clockwise/counter-clockwise rotation in degrees. */
-  rotation?: number;
-  /** Final scale of each layer. */
-  endScale?: number;
-  /** Direction from which the element starts disintegrating. */
-  origin?: DisintegrationOrigin;
-  /** Web Animations easing value. */
-  easing?: string;
+  readonly motion?: ParticleMotion;
+  readonly duration?: number;
+  readonly stagger?: number;
+  readonly horizontalDrift?: number;
+  readonly horizontalTravel?: readonly [number, number];
+  readonly rise?: readonly [number, number];
+  readonly swirl?: number;
+  readonly endScale?: number;
+  readonly origin?: DisintegrationOrigin;
 }
 
-export type LayoutSiblingResolver = (element: HTMLElement, container: HTMLElement) => HTMLElement[];
-
-export interface LayoutOptions {
-  /** Animate surrounding content into its final position. */
-  enabled?: boolean;
-  /** Layout animation duration in milliseconds. */
-  duration?: number;
-  /** Web Animations easing value. */
-  easing?: string;
-  /** Resolve the layout container. Defaults to the element's parent. */
-  container?: HTMLElement | ((element: HTMLElement) => HTMLElement | null);
-  /** Select which siblings should be animated. */
-  siblings?: 'following' | 'all' | LayoutSiblingResolver;
-  /** Animate the layout container height. */
-  animateContainer?: boolean;
+export interface AnimationPlayback {
+  readonly finished: PromiseLike<unknown>;
+  readonly element?: HTMLElement;
+  readonly duration?: number;
+  readonly layoutDelay?: number;
+  cancel?(): void;
+  dispose?(): void;
 }
 
-export interface PreparationOptions {
-  /** Enable idle snapshot preparation for registered elements. */
-  enabled?: boolean;
-  /** IntersectionObserver root. Defaults to the viewport. */
-  root?: Element | Document | null;
-  /** Extra viewport area in CSS pixels that should be prepared. */
-  margin?: number;
-  /** Maximum requestIdleCallback wait in milliseconds. */
-  idleTimeout?: number;
-  /** Timer delay used when requestIdleCallback is unavailable. */
-  fallbackDelay?: number;
-  /** Wait after scrolling before capturing in the background. */
-  scrollSettle?: number;
-  /** Maximum wait for finite animations before capturing. */
-  animationSettle?: number;
-  /** Rebuild prepared snapshots when relevant DOM content changes. */
-  observeMutations?: boolean;
+export type AnimationResult = Animation | PromiseLike<unknown> | AnimationPlayback | null;
+
+export interface AnimationContext {
+  readonly operation: EffectOperationKind;
+  readonly element: HTMLElement;
+  readonly layer: HTMLElement;
+  /** A lazily-created full-size canvas containing the captured element. */
+  readonly visual: HTMLCanvasElement | null;
+  readonly snapshot: HTMLCanvasElement | null;
+  readonly bounds: DOMRectReadOnly;
+  readonly signal: AbortSignal;
+  readonly reducedMotion: boolean;
+  readonly random: () => number;
+  addCleanup(callback: () => void): void;
 }
+
+export type AnimationFactory = (context: AnimationContext) => AnimationResult;
 
 export type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
 
 export interface SoundOptions {
-  src: SoundSource;
-  /** Linear Web Audio gain between 0 and 1. */
-  gain?: number;
-  /** Playback duration in seconds. Defaults to particle duration + stagger. */
-  duration?: number;
-  /** Fade-out duration in seconds. */
-  fadeDuration?: number;
+  readonly src: SoundSource;
+  readonly gain?: number;
+  readonly duration?: number;
+  readonly fadeDuration?: number;
+  readonly delay?: number;
+  readonly playbackRate?: number;
 }
 
-export interface DisintegrationContext {
-  element: HTMLElement;
-  overlay: HTMLElement | null;
+export interface SoundContext {
+  readonly operation: EffectOperationKind;
+  readonly element: HTMLElement;
+  readonly signal: AbortSignal;
+}
+
+export interface SoundPlayback {
+  readonly finished?: PromiseLike<unknown>;
+  stop?(): void;
+  dispose?(): void;
+}
+
+export type SoundFactory = (context: SoundContext) => SoundPlayback | PromiseLike<SoundPlayback | void> | void;
+export type SoundDefinition = SoundSource | SoundOptions | SoundFactory;
+
+export interface EffectPhase {
+  readonly needsSnapshot?: boolean;
+  readonly animate: AnimationFactory;
+  readonly sound?: SoundDefinition | null;
+}
+
+export interface EffectDefinition {
+  readonly remove: EffectPhase;
+  readonly restore: EffectPhase;
+}
+
+export type EffectSelection = BuiltInEffect | (string & {}) | EffectDefinition;
+
+export type LayoutSiblingResolver = (element: HTMLElement, container: HTMLElement) => HTMLElement[];
+
+export interface LayoutOptions {
+  readonly enabled?: boolean;
+  readonly duration?: number;
+  readonly easing?: string;
+  readonly container?: HTMLElement | ((element: HTMLElement) => HTMLElement | null);
+  readonly siblings?: 'following' | 'all' | LayoutSiblingResolver;
+  readonly animateContainer?: boolean;
+}
+
+export type PreparationStrategy = 'immediate' | 'idle' | 'visible-idle';
+
+export interface PreparationOptions {
+  readonly strategy?: PreparationStrategy;
+  readonly shouldPrepare?: (element: HTMLElement) => boolean;
+  readonly root?: Element | Document | null;
+  readonly rootMargin?: string;
+  readonly concurrency?: number;
+  readonly invalidateOnResize?: boolean;
+  readonly observeMutations?: boolean;
+  readonly idleTimeout?: number;
+  readonly fallbackDelay?: number;
+  readonly scrollSettle?: number;
+  readonly animationSettle?: number;
+  readonly cachePixelBudget?: number;
+}
+
+export interface EffectContext {
+  readonly operation: EffectOperationKind;
+  readonly element: HTMLElement;
+  readonly overlay: HTMLElement | null;
+  readonly removalId: RemovalId | null;
 }
 
 export interface EffectCallbacks {
-  /** Runs synchronously when disintegrate() is requested. Useful for haptics. */
-  onTrigger?: (context: DisintegrationContext) => void;
-  /** Runs when the first particle animation and optional sound start. */
-  onStart?: (context: DisintegrationContext) => void;
-  /** Runs after particle and layout animations finish. */
-  onComplete?: (context: DisintegrationContext) => void;
-  /** Receives recoverable capture, audio, and callback errors. */
-  onError?: (error: unknown, context: DisintegrationContext) => void;
+  onTrigger?: (context: EffectContext) => void;
+  onStart?: (context: EffectContext) => void;
+  onComplete?: (context: EffectContext) => void;
+  onError?: (error: unknown, context: EffectContext) => void;
 }
 
-export interface CoreDisintegratorOptions extends EffectCallbacks {
-  capture: SnapshotCapture;
-  particles?: ParticleOptions;
-  layout?: boolean | LayoutOptions;
-  preparation?: boolean | PreparationOptions;
-  sound?: false | SoundOptions;
-  /** Disable visual effects when prefers-reduced-motion is enabled. */
-  respectReducedMotion?: boolean;
-  /** Parent for the fixed particle overlay. Defaults to document.body. */
-  overlayRoot?: HTMLElement | (() => HTMLElement);
-  /** Particle overlay z-index. */
-  zIndex?: number;
-  /** Injectable random generator, primarily useful for deterministic tests. */
-  random?: () => number;
+export interface DisintegratorOptions extends EffectCallbacks {
+  readonly capture?: SnapshotCapture;
+  readonly snapdom?: SnapdomOptions;
+  readonly effect?: EffectSelection;
+  readonly effects?: Readonly<Record<string, EffectDefinition>>;
+  /** Associated effect audio is enabled by default. */
+  readonly sound?: boolean | SoundDefinition;
+  readonly layout?: boolean | LayoutOptions;
+  readonly preparation?: boolean | PreparationOptions;
+  readonly respectReducedMotion?: boolean;
+  readonly overlayRoot?: HTMLElement | (() => HTMLElement);
+  readonly zIndex?: number;
+  readonly random?: () => number;
 }
 
-export interface DisintegrateOptions extends EffectCallbacks {
-  /** Override layout behavior for this operation. */
-  layout?: boolean | LayoutOptions;
-  /** Enable or disable the configured sound for this operation. */
-  sound?: boolean;
+export interface OperationOptions extends EffectCallbacks {
+  readonly effect?: EffectSelection;
+  readonly sound?: boolean | SoundDefinition;
 }
 
-export type DisintegrationStatus = 'running' | 'skipped';
-
-export interface DisintegrationHandle {
-  readonly element: HTMLElement;
-  readonly status: DisintegrationStatus;
-  readonly particlesFinished: Promise<void>;
-  readonly layoutFinished: Promise<void>;
-  readonly finished: Promise<void>;
-  /** Cancel the visual effect and leave the element hidden. */
-  cancel: () => void;
-  /** Cancel the effect and restore the original element styles. */
-  restore: () => void;
+export interface RemoveOptions extends OperationOptions {
+  readonly retain?: boolean;
+  readonly layout?: boolean | LayoutOptions;
+  /**
+   * Replaces the default `element.remove()` commit. Reactive renderers can use
+   * this hook to update their own state and remain the owner of the DOM node.
+   */
+  readonly detach?: (element: HTMLElement) => void;
 }
+
+export type RestoreOptions = OperationOptions;
+
+export type EffectOperationStatus = 'completed' | 'cancelled' | 'skipped';
+
+export interface EffectOperationResult {
+  readonly operation: EffectOperationKind;
+  readonly status: EffectOperationStatus;
+  readonly removalId: RemovalId | null;
+}
+
+export interface EffectOperation {
+  readonly operation: EffectOperationKind;
+  readonly removalId: RemovalId | null;
+  readonly finished: Promise<EffectOperationResult>;
+  /** Stops only animation and audio; it does not undo the content operation. */
+  cancel(): void;
+}
+import type { SnapdomOptions } from '@zumer/snapdom';

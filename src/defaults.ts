@@ -1,49 +1,52 @@
 import type { LayoutOptions, ParticleOptions, PreparationOptions } from './types';
 
 export interface ResolvedParticleOptions {
-  frames: number;
-  repetitions: number;
-  duration: number;
-  stagger: number;
-  horizontalDrift: number;
-  rise: readonly [number, number];
-  rotation: number;
-  endScale: number;
-  origin: NonNullable<ParticleOptions['origin']>;
-  easing: string;
+  readonly motion: NonNullable<ParticleOptions['motion']>;
+  readonly duration: number;
+  readonly stagger: number;
+  readonly horizontalDrift: number;
+  readonly horizontalTravel: readonly [number, number];
+  readonly rise: readonly [number, number];
+  readonly swirl: number;
+  readonly endScale: number;
+  readonly origin: NonNullable<ParticleOptions['origin']>;
 }
 
 export interface ResolvedLayoutOptions {
-  enabled: boolean;
-  duration: number;
-  easing: string;
-  container?: LayoutOptions['container'];
-  siblings: NonNullable<LayoutOptions['siblings']>;
-  animateContainer: boolean;
+  readonly enabled: boolean;
+  readonly duration: number;
+  readonly easing: string;
+  readonly container?: LayoutOptions['container'];
+  readonly siblings: NonNullable<LayoutOptions['siblings']>;
+  readonly animateContainer: boolean;
 }
 
 export interface ResolvedPreparationOptions {
-  enabled: boolean;
-  root: Element | Document | null;
-  margin: number;
-  idleTimeout: number;
-  fallbackDelay: number;
-  scrollSettle: number;
-  animationSettle: number;
-  observeMutations: boolean;
+  readonly enabled: boolean;
+  readonly strategy: NonNullable<PreparationOptions['strategy']>;
+  readonly shouldPrepare: NonNullable<PreparationOptions['shouldPrepare']>;
+  readonly root: Element | Document | null;
+  readonly rootMargin: string;
+  readonly concurrency: number;
+  readonly invalidateOnResize: boolean;
+  readonly observeMutations: boolean;
+  readonly idleTimeout: number;
+  readonly fallbackDelay: number;
+  readonly scrollSettle: number;
+  readonly animationSettle: number;
+  readonly cachePixelBudget: number;
 }
 
 export const DEFAULT_PARTICLES: ResolvedParticleOptions = {
-  frames: 32,
-  repetitions: 2,
+  motion: 'drift',
   duration: 720,
   stagger: 180,
   horizontalDrift: 42,
+  horizontalTravel: [0, 0],
   rise: [45, 100],
-  rotation: 14,
+  swirl: 0,
   endScale: 0.92,
   origin: 'left',
-  easing: 'ease-out',
 };
 
 export const DEFAULT_LAYOUT: ResolvedLayoutOptions = {
@@ -55,14 +58,19 @@ export const DEFAULT_LAYOUT: ResolvedLayoutOptions = {
 };
 
 export const DEFAULT_PREPARATION: ResolvedPreparationOptions = {
-  enabled: true,
+  enabled: false,
+  strategy: 'visible-idle',
+  shouldPrepare: () => true,
   root: null,
-  margin: 200,
+  rootMargin: '300px 0px',
+  concurrency: 1,
+  invalidateOnResize: true,
+  observeMutations: false,
   idleTimeout: 750,
   fallbackDelay: 250,
   scrollSettle: 120,
   animationSettle: 400,
-  observeMutations: true,
+  cachePixelBudget: 8_000_000,
 };
 
 function finiteNumber(
@@ -71,49 +79,63 @@ function finiteNumber(
   minimum = Number.NEGATIVE_INFINITY,
   maximum = Number.POSITIVE_INFINITY,
 ) {
-  const finiteValue = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
-  return Math.min(maximum, Math.max(minimum, finiteValue));
+  const normalized = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return Math.min(maximum, Math.max(minimum, normalized));
 }
 
-export function resolveParticles(options?: ParticleOptions): ResolvedParticleOptions {
-  const rise = options?.rise ?? DEFAULT_PARTICLES.rise;
+function orderedRange(
+  value: readonly [number, number] | undefined,
+  fallback: readonly [number, number],
+  minimum = Number.NEGATIVE_INFINITY,
+): readonly [number, number] {
+  const first = finiteNumber(value?.[0], fallback[0], minimum);
+  const second = finiteNumber(value?.[1], fallback[1], minimum);
+  return first <= second ? [first, second] : [second, first];
+}
+
+export function resolveParticles(options: ParticleOptions = {}): ResolvedParticleOptions {
   return {
-    ...DEFAULT_PARTICLES,
-    ...options,
-    frames: Math.round(finiteNumber(options?.frames, DEFAULT_PARTICLES.frames, 1, 128)),
-    repetitions: Math.round(finiteNumber(options?.repetitions, DEFAULT_PARTICLES.repetitions, 1, 8)),
-    duration: finiteNumber(options?.duration, DEFAULT_PARTICLES.duration, 0),
-    stagger: finiteNumber(options?.stagger, DEFAULT_PARTICLES.stagger, 0),
-    horizontalDrift: finiteNumber(options?.horizontalDrift, DEFAULT_PARTICLES.horizontalDrift, 0),
-    rise: [
-      finiteNumber(Math.min(...rise), DEFAULT_PARTICLES.rise[0], 0),
-      finiteNumber(Math.max(...rise), DEFAULT_PARTICLES.rise[1], 0),
-    ],
-    rotation: finiteNumber(options?.rotation, DEFAULT_PARTICLES.rotation, 0),
-    endScale: finiteNumber(options?.endScale, DEFAULT_PARTICLES.endScale, 0),
+    motion: options.motion ?? DEFAULT_PARTICLES.motion,
+    duration: finiteNumber(options.duration, DEFAULT_PARTICLES.duration, 0),
+    stagger: finiteNumber(options.stagger, DEFAULT_PARTICLES.stagger, 0),
+    horizontalDrift: finiteNumber(options.horizontalDrift, DEFAULT_PARTICLES.horizontalDrift, 0),
+    horizontalTravel: orderedRange(options.horizontalTravel, DEFAULT_PARTICLES.horizontalTravel),
+    rise: orderedRange(options.rise, DEFAULT_PARTICLES.rise, 0),
+    swirl: finiteNumber(options.swirl, DEFAULT_PARTICLES.swirl, 0),
+    endScale: finiteNumber(options.endScale, DEFAULT_PARTICLES.endScale, 0),
+    origin: options.origin ?? DEFAULT_PARTICLES.origin,
   };
 }
 
-export function resolveLayout(options?: boolean | LayoutOptions): ResolvedLayoutOptions {
+export function resolveLayout(options: boolean | LayoutOptions | undefined): ResolvedLayoutOptions {
   if (options === false) return { ...DEFAULT_LAYOUT, enabled: false };
   if (options === true || options === undefined) return { ...DEFAULT_LAYOUT };
   return {
-    ...DEFAULT_LAYOUT,
-    ...options,
+    enabled: options.enabled ?? DEFAULT_LAYOUT.enabled,
     duration: finiteNumber(options.duration, DEFAULT_LAYOUT.duration, 0),
+    easing: options.easing ?? DEFAULT_LAYOUT.easing,
+    ...(options.container === undefined ? {} : { container: options.container }),
+    siblings: options.siblings ?? DEFAULT_LAYOUT.siblings,
+    animateContainer: options.animateContainer ?? DEFAULT_LAYOUT.animateContainer,
   };
 }
 
-export function resolvePreparation(options?: boolean | PreparationOptions): ResolvedPreparationOptions {
-  if (options === false) return { ...DEFAULT_PREPARATION, enabled: false };
-  if (options === true || options === undefined) return { ...DEFAULT_PREPARATION };
+export function resolvePreparation(options: boolean | PreparationOptions | undefined): ResolvedPreparationOptions {
+  if (options === false || options === undefined) return { ...DEFAULT_PREPARATION };
+  if (options === true) return { ...DEFAULT_PREPARATION, enabled: true };
   return {
-    ...DEFAULT_PREPARATION,
-    ...options,
-    margin: finiteNumber(options.margin, DEFAULT_PREPARATION.margin, 0),
+    enabled: true,
+    strategy: options.strategy ?? DEFAULT_PREPARATION.strategy,
+    shouldPrepare: options.shouldPrepare ?? DEFAULT_PREPARATION.shouldPrepare,
+    root: options.root ?? DEFAULT_PREPARATION.root,
+    rootMargin: options.rootMargin ?? DEFAULT_PREPARATION.rootMargin,
+    concurrency: Math.round(finiteNumber(options.concurrency, DEFAULT_PREPARATION.concurrency, 1, 8)),
+    invalidateOnResize: options.invalidateOnResize ?? DEFAULT_PREPARATION.invalidateOnResize,
+    observeMutations: options.observeMutations ?? DEFAULT_PREPARATION.observeMutations,
     idleTimeout: finiteNumber(options.idleTimeout, DEFAULT_PREPARATION.idleTimeout, 0),
     fallbackDelay: finiteNumber(options.fallbackDelay, DEFAULT_PREPARATION.fallbackDelay, 0),
     scrollSettle: finiteNumber(options.scrollSettle, DEFAULT_PREPARATION.scrollSettle, 0),
     animationSettle: finiteNumber(options.animationSettle, DEFAULT_PREPARATION.animationSettle, 0),
+    cachePixelBudget: finiteNumber(options.cachePixelBudget, DEFAULT_PREPARATION.cachePixelBudget, 0),
   };
 }

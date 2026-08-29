@@ -26,10 +26,10 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        assetFileNames: (asset) =>
-          asset.names.some((name) => name.endsWith('.mp3'))
-            ? 'sounds/disintegrate.mp3'
-            : 'assets/[name]-[hash][extname]',
+        assetFileNames: (asset) => {
+          const soundName = asset.names.find((name) => name.endsWith('.mp3'));
+          return soundName === undefined ? 'assets/[name]-[hash][extname]' : `sounds/${soundName}`;
+        },
         exports: 'named',
       },
     },

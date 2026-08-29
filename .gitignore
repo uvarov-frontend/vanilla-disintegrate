@@ -2,5 +2,6 @@ node_modules
 dist
 demo-dist
 coverage
+.astro
 .DS_Store
 *.tgz

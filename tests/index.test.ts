@@ -1,6 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import Disintegrator from '../src';
+import Disintegrator, { builtInEffects, defineEffect } from '../src';
+import type { AnimationFactory } from '../src/types';
 
 function rect(): DOMRect {
   return {
@@ -23,30 +24,113 @@ function snapshot() {
   return canvas;
 }
 
-describe('Disintegrator.bind', () => {
-  it('removes matching items through delegated triggers', async () => {
-    const list = document.createElement('div');
-    const card = document.createElement('article');
-    const button = document.createElement('button');
-    button.dataset.remove = '';
-    card.className = 'card';
-    card.append(button);
-    list.append(card);
-    document.body.append(list);
-    Object.defineProperty(card, 'getBoundingClientRect', { value: rect });
-    Object.defineProperty(list, 'getBoundingClientRect', { value: rect });
+function target() {
+  const element = document.createElement('article');
+  document.body.append(element);
+  Object.defineProperty(element, 'getBoundingClientRect', { value: rect });
+  return element;
+}
 
+function customEffect(animate = vi.fn(() => Promise.resolve())) {
+  return defineEffect({
+    remove: { needsSnapshot: false, animate, sound: null },
+    restore: { needsSnapshot: false, animate, sound: null },
+  });
+}
+
+beforeEach(() => document.body.replaceChildren());
+
+describe('public entries', () => {
+  it('contains four paired effects and eight explicit audio slots', () => {
+    expect(Object.keys(builtInEffects)).toEqual(['dust', 'vapor', 'scatter', 'wind']);
+    for (const effect of Object.values(builtInEffects)) {
+      expect(effect.remove.animate).toBeTypeOf('function');
+      expect(effect.restore.animate).toBeTypeOf('function');
+      expect('sound' in effect.remove).toBe(true);
+      expect('sound' in effect.restore).toBe(true);
+    }
+    expect(builtInEffects.dust.remove.sound).not.toBeNull();
+    expect(builtInEffects.wind.remove.sound).not.toBeNull();
+    expect(
+      Object.values(builtInEffects)
+        .flatMap((effect) => [effect.remove.sound, effect.restore.sound])
+        .filter(Boolean),
+    ).toHaveLength(2);
+  });
+
+  it('allows the SnapDOM entry capture to be overridden', async () => {
+    const element = target();
+    const capture = vi.fn().mockResolvedValue(snapshot());
+    const effect = new Disintegrator({ capture, effect: 'dust', layout: false, sound: false });
+
+    await effect.remove(element).finished;
+
+    expect(capture).toHaveBeenCalledWith(element, expect.objectContaining({ operation: 'remove' }));
+    effect.destroy();
+  });
+
+  it('runs snapshotless effects without invoking the default capture', async () => {
+    const element = target();
+    const animate = vi.fn(() => Promise.resolve());
+    const effect = new Disintegrator({ effect: customEffect(animate), layout: false });
+
+    const result = await effect.remove(element).finished;
+
+    expect(result.status).toBe('completed');
+    expect(animate).toHaveBeenCalledOnce();
+    effect.destroy();
+  });
+
+  it('commits built-in content operations without substituting a renderer when WebGL2 is absent', async () => {
+    const element = target();
     const effect = new Disintegrator({
       capture: vi.fn().mockResolvedValue(snapshot()),
-      particles: { frames: 2 },
+      effect: 'dust',
+      layout: false,
       sound: false,
     });
-    const unbind = effect.bind({ root: list, items: '.card', trigger: '[data-remove]' });
 
-    button.click();
-    await vi.waitFor(() => expect(card.isConnected).toBe(false));
+    const result = await effect.remove(element).finished;
 
-    unbind();
+    expect(result.status).toBe('skipped');
+    expect(element.isConnected).toBe(false);
+    effect.destroy();
+  });
+
+  it('resolves registered custom effects by name', async () => {
+    const element = target();
+    const animate = vi.fn(() => Promise.resolve());
+    const effect = new Disintegrator({
+      effect: 'fold',
+      effects: { fold: customEffect(animate) },
+      layout: false,
+    });
+
+    await effect.remove(element).finished;
+
+    expect(animate).toHaveBeenCalledOnce();
+    effect.destroy();
+  });
+
+  it('normalizes a native WAAPI animation returned by a custom phase', async () => {
+    const element = target();
+    const animate = vi.fn<AnimationFactory>(({ visual }) => {
+      expect(visual).toBeInstanceOf(HTMLCanvasElement);
+      return visual!.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 20 });
+    });
+    const custom = defineEffect({
+      remove: { animate, sound: null },
+      restore: { animate, sound: null },
+    });
+    const effect = new Disintegrator({
+      capture: vi.fn().mockResolvedValue(snapshot()),
+      effect: custom,
+      layout: false,
+    });
+
+    await effect.remove(element).finished;
+
+    expect(animate).toHaveBeenCalledOnce();
     effect.destroy();
   });
 });

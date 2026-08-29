@@ -3,6 +3,8 @@ import { beforeEach, vi } from 'vitest';
 export function resolvedAnimation(): Animation {
   return {
     cancel: vi.fn(),
+    pause: vi.fn(),
+    currentTime: 0,
     effect: {
       getComputedTiming: () => ({ iterations: 1 }),
     },
@@ -42,6 +44,7 @@ beforeEach(() => {
           height,
           colorSpace: 'srgb',
         }),
+        drawImage: vi.fn(),
         getImageData: (_x: number, _y: number, width: number, height: number) => {
           const data = new Uint8ClampedArray(width * height * 4);
           for (let index = 3; index < data.length; index += 4) data[index] = 255;
