@@ -4,6 +4,8 @@ export type Locale = (typeof locales)[number];
 
 export interface UiCopy {
   readonly language: string;
+  readonly navigation: string;
+  readonly homeLink: string;
   readonly learn: string;
   readonly reference: string;
   readonly menu: string;
@@ -55,9 +57,11 @@ export const localeNames: Readonly<Record<Locale, string>> = {
 export const ui: Readonly<Record<Locale, UiCopy>> = {
   en: {
     language: 'Language',
+    navigation: 'Navigation',
+    homeLink: 'Home',
     learn: 'Learn',
     reference: 'Reference',
-    menu: 'Open documentation navigation',
+    menu: 'Open navigation',
     onThisPage: 'On this page',
     previous: 'Previous',
     next: 'Next',
@@ -101,9 +105,11 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
   },
   ru: {
     language: 'Язык',
+    navigation: 'Навигация',
+    homeLink: 'Главная',
     learn: 'Руководство',
     reference: 'Справочник',
-    menu: 'Открыть навигацию по документации',
+    menu: 'Открыть навигацию',
     onThisPage: 'На этой странице',
     previous: 'Назад',
     next: 'Далее',
@@ -147,9 +153,11 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
   },
   zh: {
     language: '语言',
+    navigation: '导航',
+    homeLink: '首页',
     learn: '指南',
     reference: 'API 参考',
-    menu: '打开文档导航',
+    menu: '打开导航',
     onThisPage: '本页内容',
     previous: '上一页',
     next: '下一页',
@@ -190,9 +198,11 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
   },
   ko: {
     language: '언어',
+    navigation: '탐색',
+    homeLink: '홈',
     learn: '가이드',
     reference: 'API 레퍼런스',
-    menu: '문서 탐색 열기',
+    menu: '탐색 열기',
     onThisPage: '이 페이지에서',
     previous: '이전',
     next: '다음',

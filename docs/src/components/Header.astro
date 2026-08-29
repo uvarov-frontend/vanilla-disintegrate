@@ -19,17 +19,9 @@ const releasesHref = 'https://github.com/uvarov-frontend/vanilla-disintegrate/re
 
 <header class="docs-header">
   <div class="header-inner">
-    {
-      isDocumentation && (
-        <button class="menu-button" type="button" aria-label={copy.menu} aria-expanded="false" data-menu-button>
-          <>
-            <span />
-            <span />
-            <span />
-          </>
-        </button>
-      )
-    }
+    <button class="menu-button" type="button" aria-label={copy.menu} aria-expanded="false" data-menu-button>
+      <span></span><span></span><span></span>
+    </button>
     <a class="brand" href={homeHref(locale)} aria-label="Vanilla Disintegrate">
       <Logo />
       <span>Vanilla Disintegrate</span>
@@ -60,3 +52,28 @@ const releasesHref = 'https://github.com/uvarov-frontend/vanilla-disintegrate/re
     <LanguageSwitcher locale={locale} pathname={pathname} />
   </div>
 </header>
+{
+  !isDocumentation && (
+    <>
+      <div class="mobile-nav-backdrop" data-mobile-nav-backdrop />
+      <nav class="mobile-site-navigation" aria-label={copy.navigation} aria-hidden="true" data-mobile-nav>
+        <span>{copy.navigation}</span>
+        <a href={homeHref(locale)}>
+          {copy.homeLink}
+          <b aria-hidden="true">→</b>
+        </a>
+        <a href={docsHref(locale, 'learn/installation')}>
+          {copy.learn}
+          <b aria-hidden="true">→</b>
+        </a>
+        <a href={docsHref(locale, 'reference/api')}>
+          {copy.reference}
+          <b aria-hidden="true">→</b>
+        </a>
+        <a href="https://github.com/uvarov-frontend/vanilla-disintegrate" target="_blank" rel="noopener noreferrer">
+          GitHub<b aria-hidden="true">↗</b>
+        </a>
+      </nav>
+    </>
+  )
+}

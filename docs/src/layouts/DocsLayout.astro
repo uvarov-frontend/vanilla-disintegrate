@@ -5,7 +5,7 @@ import Footer from '../components/Footer.astro';
 import Header from '../components/Header.astro';
 import InteractiveDemo from '../components/InteractiveDemo.astro';
 import Sidebar from '../components/Sidebar.astro';
-import { ui, type Locale } from '../i18n';
+import { docsHref, homeHref, ui, type Locale } from '../i18n';
 import { editHref, entryHref, type DocEntry } from '../lib/docs';
 import BaseLayout from './BaseLayout.astro';
 
@@ -30,6 +30,14 @@ const toc = headings.filter((heading) => heading.depth === 2);
   <div class="sidebar-backdrop" data-sidebar-backdrop></div>
   <div class="docs-layout">
     <aside class="docs-sidebar" data-sidebar>
+      <nav class="mobile-docs-global" aria-label={copy.navigation}>
+        <a href={homeHref(locale)}>{copy.homeLink}<b aria-hidden="true">→</b></a>
+        <a href={docsHref(locale, 'learn/installation')}>{copy.learn}<b aria-hidden="true">→</b></a>
+        <a href={docsHref(locale, 'reference/api')}>{copy.reference}<b aria-hidden="true">→</b></a>
+        <a href="https://github.com/uvarov-frontend/vanilla-disintegrate" target="_blank" rel="noopener noreferrer"
+          >GitHub<b aria-hidden="true">↗</b></a
+        >
+      </nav>
       <Sidebar entries={entries} locale={locale} currentId={entry.id} />
     </aside>
 

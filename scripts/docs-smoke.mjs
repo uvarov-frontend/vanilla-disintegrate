@@ -150,8 +150,10 @@ try {
     .replaceAll('&gt;', '>')
     .replaceAll('&amp;', '&');
   const installation = await (await fetch(`${origin}/docs/learn/installation/`)).text();
-  assert.ok(!home.includes('data-menu-button'), 'home must not show a mobile menu without navigation');
+  assert.ok(home.includes('data-menu-button'), 'home must expose its mobile navigation menu');
+  assert.ok(home.includes('data-mobile-nav'), 'home must render its mobile navigation links');
   assert.ok(installation.includes('data-menu-button'), 'documentation must keep its mobile navigation menu');
+  assert.ok(installation.includes('class="mobile-docs-global"'), 'documentation menu must include global links');
   assert.ok(installation.includes('Copyright © 2026 MIT License. | Design and development by'));
   assert.ok(!installation.includes('Copyright © 2026 MIT Лицензия. | Дизайн и разработка'));
   const renderedPanel = /<aside class="bundle-size-panel"[\s\S]*?<\/aside>/;
@@ -244,7 +246,8 @@ try {
   assert.ok(missingHtml.includes('href="/ru/"'));
   assert.ok(missingHtml.includes('class="docs-header"'));
   assert.ok(missingHtml.includes('class="docs-footer"'));
-  assert.ok(!missingHtml.includes('data-menu-button'), '404 must not show a mobile menu without navigation');
+  assert.ok(missingHtml.includes('data-menu-button'), '404 must expose its mobile navigation menu');
+  assert.ok(missingHtml.includes('data-mobile-nav'), '404 must render its mobile navigation links');
 
   const detectedRussian = await fetch(`${origin}/docs/learn/effects/`, {
     headers: { 'accept-language': 'ru-RU,ru;q=0.9,en;q=0.8' },

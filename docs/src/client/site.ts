@@ -279,15 +279,18 @@ function setupPackageInstall() {
 function setupNavigation() {
   const menuButton = document.querySelector<HTMLButtonElement>('[data-menu-button]');
   const sidebar = document.querySelector<HTMLElement>('[data-sidebar]');
-  const backdrop = document.querySelector<HTMLElement>('[data-sidebar-backdrop]');
+  const mobileNavigation = document.querySelector<HTMLElement>('[data-mobile-nav]');
+  const backdrop = document.querySelector<HTMLElement>('[data-sidebar-backdrop], [data-mobile-nav-backdrop]');
+  const menu = sidebar ?? mobileNavigation;
   const setOpen = (open: boolean) => {
     document.body.classList.toggle('menu-open', open);
     menuButton?.setAttribute('aria-expanded', String(open));
+    if (mobileNavigation) mobileNavigation.setAttribute('aria-hidden', String(!open));
   };
 
   menuButton?.addEventListener('click', () => setOpen(!document.body.classList.contains('menu-open')));
   backdrop?.addEventListener('click', () => setOpen(false));
-  sidebar?.addEventListener('click', (event) => {
+  menu?.addEventListener('click', (event) => {
     if ((event.target as Element).closest('a')) setOpen(false);
   });
   document.addEventListener('keydown', (event) => {
