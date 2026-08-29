@@ -59,7 +59,7 @@ That is handy when one sound covers everything. To give remove and restore diffe
 | Two different files                   | `{ src: out }`  | `{ src: back }`                |
 | Sound only when removing              | `{ src: snap }` | `null`                         |
 
-`dust`, `scatter` and `wind` use the first row. `vapor` is `null` on both phases — there is no file for it yet.
+All four built-in effects use the first row.
 
 ## Supported sources
 
@@ -88,14 +88,14 @@ effects.remove(element, { sound });
 
 ## Playing a sound backwards
 
-Restore is remove in reverse, so one file covers both phases. No second recording:
+The restore animation is independent, but its sound can be the removal recording played backwards. One file then covers both phases; no second recording:
 
 ```ts
 const remove = { src: '/sounds/snap.mp3' };
 const restore = { src: '/sounds/snap.mp3', reverse: true };
 ```
 
-That is how the built-in `dust` and `wind` work.
+That is how all four built-in effects work.
 
 Reversing moves the loud part of the file from the start to the end, so two more things change with it:
 

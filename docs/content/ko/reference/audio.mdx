@@ -58,7 +58,7 @@ new Disintegrator({ sound: { src: '/sounds/snap.mp3' } });
 | 서로 다른 파일 둘         | `{ src: out }`  | `{ src: back }`                |
 | 삭제할 때만 소리          | `{ src: snap }` | `null`                         |
 
-`dust`, `scatter`, `wind`가 첫 번째 행입니다. `vapor`는 두 단계 모두 `null`이고, 아직 해당 파일이 없습니다.
+네 가지 내장 효과 모두 첫 번째 행을 사용합니다.
 
 ## 지원 소스
 
@@ -87,14 +87,14 @@ effects.remove(element, {
 
 ## 거꾸로 재생하기
 
-복원은 삭제를 뒤집은 동작이라 파일 하나로 두 단계를 모두 쓸 수 있습니다. 두 번째 녹음은 필요 없습니다.
+복원 애니메이션은 독립적이지만, 사운드는 삭제 녹음을 거꾸로 재생할 수 있습니다. 그러면 파일 하나로 두 단계를 모두 쓸 수 있고 두 번째 녹음은 필요 없습니다.
 
 ```ts
 const remove = { src: '/sounds/snap.mp3' };
 const restore = { src: '/sounds/snap.mp3', reverse: true };
 ```
 
-내장 `dust`와 `wind`가 이 방식입니다.
+네 가지 내장 효과 모두 이 방식을 사용합니다.
 
 거꾸로 재생하면 파일에서 가장 큰 소리가 앞에서 뒤로 옮겨갑니다. 그래서 두 가지가 함께 바뀝니다.
 

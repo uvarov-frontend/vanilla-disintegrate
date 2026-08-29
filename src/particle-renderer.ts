@@ -210,7 +210,7 @@ function clamp(value: number, minimum: number, maximum: number) {
 function resolveMotion(motion: ResolvedParticleOptions['motion']) {
   switch (motion) {
     case 'vapor':
-      return { curveMix: 1, fadeStart: 0.18, motionPower: 2, waveTurns: 1.6 };
+      return { curveMix: 0.65, fadeStart: 0.18, motionPower: 2.5, waveTurns: 1.6 };
     case 'scatter':
       return { curveMix: 0, fadeStart: 0.16, motionPower: 5, waveTurns: 2.4 };
     case 'wind':
@@ -322,6 +322,16 @@ function createBounds(
   };
 }
 
+function resolveThreshold(particles: ResolvedParticleOptions, column: number, noise: number) {
+  if (particles.motion === 'vapor') {
+    const distanceFromCenter = Math.abs(column - 0.5) * 2;
+    return 0.05 + distanceFromCenter * 0.65 + noise * 0.3;
+  }
+
+  const directional = particles.origin === 'right' ? 1 - column : column;
+  return particles.origin === 'random' ? noise : directional * 0.78 + noise * 0.22;
+}
+
 export function createParticleField(
   pixels: Uint8ClampedArray,
   width: number,
@@ -352,8 +362,7 @@ export function createParticleField(
 
       const noise = random();
       const column = (x + blockWidth * 0.5) / width;
-      const directional = particles.origin === 'right' ? 1 - column : column;
-      const rawThreshold = particles.origin === 'random' ? noise : directional * 0.78 + noise * 0.22;
+      const rawThreshold = resolveThreshold(particles, column, noise);
       const threshold = MIN_THRESHOLD + clamp(rawThreshold, 0, 1) * (MAX_THRESHOLD - MIN_THRESHOLD);
       const encodedThreshold = Math.round(threshold * 255);
       for (let blockY = 0; blockY < blockHeight; blockY += 1) {
@@ -367,7 +376,8 @@ export function createParticleField(
         particles.horizontalTravel[0] === particles.horizontalTravel[1]
           ? particles.horizontalTravel[0]
           : particles.horizontalTravel[0] + random() * (particles.horizontalTravel[1] - particles.horizontalTravel[0]);
-      const velocityX = (directedTravel + particles.horizontalDrift * (random() - 0.5)) * scaleX;
+      const vaporCenterPull = particles.motion === 'vapor' ? (0.5 - column) * width * 0.35 : 0;
+      const velocityX = (directedTravel + particles.horizontalDrift * (random() - 0.5)) * scaleX + vaporCenterPull;
       const velocityY = -(particles.rise[0] + random() * (particles.rise[1] - particles.rise[0])) * scaleY;
       const swirl = particles.swirl * (0.45 + random() * 0.55) * scaleY;
       values.push(x, y, threshold, velocityX, velocityY, swirl, random() * Math.PI * 2);

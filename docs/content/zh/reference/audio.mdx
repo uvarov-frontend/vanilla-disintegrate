@@ -58,7 +58,7 @@ new Disintegrator({ sound: { src: '/sounds/snap.mp3' } });
 | 两个不同的文件       | `{ src: out }`  | `{ src: back }`                |
 | 只在删除时发声       | `{ src: snap }` | `null`                         |
 
-`dust`、`scatter` 与 `wind` 用的是第一行。`vapor` 两个阶段都是 `null`——还没有对应的素材。
+四个内置效果都使用第一行。
 
 ## 支持的来源
 
@@ -87,14 +87,14 @@ effects.remove(element, {
 
 ## 倒着播放
 
-恢复就是删除的逆过程，所以一个文件够用，不必再录一份：
+恢复动画是独立的，但它的声音可以倒放删除录音。这样一个文件就够用，不必再录一份：
 
 ```ts
 const remove = { src: '/sounds/snap.mp3' };
 const restore = { src: '/sounds/snap.mp3', reverse: true };
 ```
 
-内置的 `dust` 与 `wind` 就是这么做的。
+四个内置效果都采用这种方式。
 
 倒放会把文件里最响的部分从开头挪到结尾，因此还有两件事跟着变：
 

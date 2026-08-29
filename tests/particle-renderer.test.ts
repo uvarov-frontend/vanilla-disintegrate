@@ -61,6 +61,26 @@ describe('particle renderer', () => {
     expect(field.data[2]).toBeCloseTo(0.68);
   });
 
+  it('releases vapor from the center before its edges', () => {
+    const pixels = new Uint8ClampedArray(9 * 4);
+    for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
+    const field = createParticleField(pixels, 9, 1, resolveParticles({ motion: 'vapor' }), 1, 1, () => 0.5);
+
+    const thresholdAt = (column: number) => field.data[column * 7 + 2] ?? 0;
+    expect(thresholdAt(4)).toBeLessThan(thresholdAt(0));
+    expect(thresholdAt(4)).toBeLessThan(thresholdAt(8));
+  });
+
+  it('draws vapor toward a narrower central plume', () => {
+    const pixels = new Uint8ClampedArray(9 * 4);
+    for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
+    const field = createParticleField(pixels, 9, 1, resolveParticles({ motion: 'vapor' }), 1, 1, () => 0.5);
+
+    const horizontalVelocityAt = (column: number) => field.data[column * 7 + 3] ?? 0;
+    expect(horizontalVelocityAt(0)).toBeGreaterThan(0);
+    expect(horizontalVelocityAt(8)).toBeLessThan(0);
+  });
+
   it('keeps the original upward scatter field geometry', () => {
     const pixels = new Uint8ClampedArray([255, 255, 255, 255]);
     const values = [0.5, 0.25, 0.5, 0.5, 0.5, 0.5];

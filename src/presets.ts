@@ -1,6 +1,7 @@
 import christmasSoundUrl from './sounds/christmas-wind.mp3?url&no-inline';
 import dustSoundUrl from './sounds/dust.mp3?url&no-inline';
 import scatterSoundUrl from './sounds/scatter.mp3?url&no-inline';
+import vaporSoundUrl from './sounds/vapor.mp3?url&no-inline';
 
 import { defineEffect } from './effects';
 import { createParticleAnimation, createParticleRestoreAnimation } from './particle-renderer';
@@ -10,10 +11,10 @@ const particlePresets: Readonly<Record<BuiltInEffect, ParticleOptions>> = Object
   dust: {},
   vapor: {
     motion: 'vapor',
-    duration: 1180,
-    stagger: 260,
-    horizontalDrift: 24,
-    horizontalTravel: [-12, 12],
+    duration: 840,
+    stagger: 140,
+    horizontalDrift: 16,
+    horizontalTravel: [-8, 8],
     rise: [130, 230],
     swirl: 18,
     endScale: 1.25,
@@ -58,11 +59,11 @@ export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> =
   vapor: defineEffect({
     remove: {
       animate: createParticleAnimation(particlePresets.vapor),
-      sound: null,
+      sound: { src: vaporSoundUrl },
     },
     restore: {
       animate: createParticleRestoreAnimation(particlePresets.vapor),
-      sound: null,
+      sound: { src: vaporSoundUrl, reverse: true },
     },
   }),
   scatter: defineEffect({

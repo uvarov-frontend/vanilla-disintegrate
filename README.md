@@ -142,12 +142,12 @@ if (notifications) {
 
 ### Built-in Effects
 
-| Effect    | Removal                             | Restoration                             |
-| --------- | ----------------------------------- | --------------------------------------- |
-| `dust`    | Breaks into rising dust.            | Dust collects into the final element.   |
-| `vapor`   | Softly evaporates.                  | Vapor condenses into the final element. |
-| `scatter` | Bursts particles outward.           | Particles converge from outside.        |
-| `wind`    | Carries particles away in a stream. | Returns them from the same direction.   |
+| Effect    | Removal                              | Restoration                                                |
+| --------- | ------------------------------------ | ---------------------------------------------------------- |
+| `dust`    | Breaks into rising dust.             | Dust collects into the final element.                      |
+| `vapor`   | Draws the element upward into vapor. | A narrowing vapor stream condenses into the final element. |
+| `scatter` | Bursts particles outward.            | Particles converge from outside.                           |
+| `wind`    | Carries particles away in a stream.  | Returns them from the same direction.                      |
 
 Set an instance default or choose an effect for one operation:
 

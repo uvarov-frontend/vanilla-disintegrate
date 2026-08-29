@@ -11,12 +11,12 @@ Each built-in name is a **pair**: one animation for removing, one for putting th
 
 ## The four effects
 
-| Name      | Remove                                 | Restore                                          |
-| --------- | -------------------------------------- | ------------------------------------------------ |
-| `dust`    | The element breaks into rising dust.   | Dust collects into the element's final geometry. |
-| `vapor`   | The image softens and evaporates.      | Vapor condenses into the visible element.        |
-| `scatter` | Particles burst away from the element. | Particles converge from outside.                 |
-| `wind`    | A stream carries particles sideways.   | The same stream returns them from its direction. |
+| Name      | Remove                                               | Restore                                                      |
+| --------- | ---------------------------------------------------- | ------------------------------------------------------------ |
+| `dust`    | The element breaks into rising dust.                 | Dust collects into the element's final geometry.             |
+| `vapor`   | The center pulls upward first, drawing in the edges. | A narrowing vapor stream condenses into the visible element. |
+| `scatter` | Particles burst away from the element.               | Particles converge from outside.                             |
+| `wind`    | A stream carries particles sideways.                 | The same stream returns them from its direction.             |
 
 ```ts
 effects.remove(card, { effect: 'dust' });
@@ -73,6 +73,6 @@ Pass `effect` to `restore()` when a different pair is intentional.
 
 Every phase has its own sound slot, so eight in total.
 
-`dust`, `scatter` and `wind` have audio on both phases. Their restore sound is the removal file played backwards, through the `reverse` option — the motion is reversed, so the sound is too. `vapor` is silent on both phases; there is no file for it yet.
+`dust`, `vapor`, `scatter` and `wind` have audio on both phases. Their restore sound is the removal file played backwards, through the `reverse` option — the motion is reversed, so the sound is too.
 
 Sound is off unless you ask for it. `sound: true` turns on the built-in audio for an instance or for one call, `sound: false` turns it off without changing the animation.
