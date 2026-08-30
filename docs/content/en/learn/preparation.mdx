@@ -70,3 +70,5 @@ Lower the budget on memory-tight devices. Raise it only after measuring what cap
 ## Invalidation
 
 `invalidateOnResize` is on by default. Watching for mutations is off, because watching a whole subtree costs real work and only you know when it is worth it. Call `invalidate()` after a change that alters how a registered element looks.
+
+With `observeMutations: true`, added nodes, text edits, non-style attribute changes, and descendant load events invalidate and requeue preparation. Inline `style` writes only drop the stale snapshot: animation libraries often update them every frame, so automatic recapture would create a loop. The next operation captures the current state on demand. After a one-time style update, call `invalidate()` if you want to prepare that state again in the background.

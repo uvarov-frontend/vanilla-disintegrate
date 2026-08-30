@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Fixed
+
+- Made inline `style` mutations invalidate stale prepared snapshots without scheduling a new capture on every animation frame. The next operation captures the current rendered state, while added nodes, edited text, and other attributes continue to trigger background preparation.
+- Refused an already-aborted SnapDOM capture before starting its non-cancellable pipeline.
+
 ## [1.1.3] - 2026-08-30
 
 ### Added

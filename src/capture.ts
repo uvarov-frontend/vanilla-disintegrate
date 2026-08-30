@@ -21,6 +21,9 @@ function resolveCaptureDpr() {
 export function createSnapdomCapture(options: SnapdomOptions = {}): SnapshotCapture {
   const customFilter = options.filter;
   return (element, context) => {
+    // SnapDOM exposes no abort signal, so an in-flight capture cannot be stopped.
+    // Refusing an already-aborted one avoids producing an unusable result.
+    if (context.signal.aborted) throw new DOMException('Snapshot capture was aborted.', 'AbortError');
     const restoreRootOpacity = context.restoreRootOpacity;
     const restoreOpacityPlugin: SnapdomPlugin | null =
       context.operation === 'restore' && restoreRootOpacity !== undefined

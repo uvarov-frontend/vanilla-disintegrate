@@ -1,18 +1,18 @@
 {
   "core": {
-    "minifiedBytes": 49267,
-    "gzipBytes": 12973
+    "minifiedBytes": 49489,
+    "gzipBytes": 13033
   },
   "esm": {
-    "minifiedBytes": 75038,
-    "gzipBytes": 20146
+    "minifiedBytes": 75260,
+    "gzipBytes": 20206
   },
   "esmWithSnapdom": {
-    "minifiedBytes": 238769,
-    "gzipBytes": 74196
+    "minifiedBytes": 239088,
+    "gzipBytes": 74318
   },
   "iife": {
-    "minifiedBytes": 218689,
-    "gzipBytes": 69185
+    "minifiedBytes": 218929,
+    "gzipBytes": 69247
   }
 }

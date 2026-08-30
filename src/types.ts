@@ -221,7 +221,11 @@ export interface PreparationOptions {
   readonly concurrency?: number;
   /** Invalidates a cached snapshot when the element's dimensions change. Defaults to `true`. */
   readonly invalidateOnResize?: boolean;
-  /** Watches subtree mutations and load events; disabled by default because it can be expensive. */
+  /**
+   * Watches subtree mutations and load events. Inline style writes invalidate
+   * without scheduling background recapture to avoid animation-frame loops.
+   * Disabled by default because broad observation can be expensive.
+   */
   readonly observeMutations?: boolean;
   /** Maximum wait for `requestIdleCallback` in milliseconds. */
   readonly idleTimeout?: number;

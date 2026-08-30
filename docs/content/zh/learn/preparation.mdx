@@ -68,3 +68,5 @@ effects.clearPrepared(); // 清空整个缓存
 ## 失效策略
 
 `invalidateOnResize` 默认开启；MutationObserver 默认关闭，因为广泛监听 DOM 可能很昂贵。内容外观改变后应主动调用 `invalidate()`。
+
+启用 `observeMutations: true` 后，新增节点、文本修改、除 `style` 之外的属性变化以及后代资源加载都会使快照失效并重新安排后台准备。内联 `style` 写入只会丢弃过期快照，因为动画库可能每帧更新它，自动重新捕获会形成循环。下一次操作会按需捕获当前状态。若样式只发生一次稳定变化，并希望重新进行后台准备，请调用 `invalidate()`。

@@ -21,6 +21,17 @@ beforeEach(() => {
 });
 
 describe('SnapDOM capture adapter', () => {
+  it('refuses an already-aborted capture without running the SnapDOM pipeline', () => {
+    const controller = new AbortController();
+    controller.abort();
+    const capture = createSnapdomCapture();
+
+    expect(() =>
+      capture(document.createElement('article'), { operation: 'prepare', signal: controller.signal }),
+    ).toThrow(expect.objectContaining({ name: 'AbortError' }));
+    expect(toCanvas).not.toHaveBeenCalled();
+  });
+
   it('restores the captured root opacity without revealing the live restore target', async () => {
     const target = document.createElement('article');
     const capture = createSnapdomCapture();

@@ -44,6 +44,78 @@ beforeEach(() => {
 });
 
 describe('snapshot preparation', () => {
+  it('drops a stale snapshot without recapturing during inline style churn', async () => {
+    const target = element();
+    const capturedColors: string[] = [];
+    const capture = vi.fn((candidate: HTMLElement) => {
+      capturedColors.push(candidate.style.backgroundColor);
+      return Promise.resolve(snapshot());
+    });
+    const effects = new Disintegrator({
+      capture,
+      effect: snapshotEffect(),
+      preparation: { strategy: 'immediate', observeMutations: true },
+      layout: false,
+      sound: false,
+    });
+
+    effects.register(target);
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledTimes(1));
+
+    const colors = ['rgb(10, 20, 30)', 'rgb(20, 30, 40)', 'rgb(30, 40, 50)'];
+    for (const color of colors) {
+      target.style.backgroundColor = color;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    expect(capture).toHaveBeenCalledTimes(1);
+
+    const removal = effects.remove(target);
+    await expect(removal.finished).resolves.toMatchObject({ status: 'completed' });
+
+    expect(capture).toHaveBeenCalledTimes(2);
+    expect(capture).toHaveBeenLastCalledWith(target, expect.objectContaining({ operation: 'remove' }));
+    expect(capturedColors).toEqual(['', colors.at(-1)]);
+
+    effects.destroy();
+  });
+
+  it('recaptures on rendered content changes other than inline styles', async () => {
+    const target = element();
+    const title = document.createElement('h3');
+    title.textContent = 'Story';
+    const image = document.createElement('img');
+    target.append(title, image);
+    const capture = vi.fn(() => Promise.resolve(snapshot()));
+    const effects = new Disintegrator({
+      capture,
+      effect: snapshotEffect(),
+      preparation: { strategy: 'immediate', observeMutations: true },
+    });
+
+    effects.register(target);
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledTimes(1));
+
+    let expected = 1;
+    const changes: Array<[string, () => void]> = [
+      ['class', () => target.classList.add('loaded')],
+      ['text', () => (title.textContent = 'Renamed')],
+      ['child node', () => target.append(document.createElement('span'))],
+      ['image source', () => image.setAttribute('src', '/poster.png')],
+      ['non-class attribute', () => target.setAttribute('hidden', '')],
+    ];
+    for (const [name, change] of changes) {
+      change();
+      expected += 1;
+      await vi.waitFor(() => expect(capture, `${name} must invalidate the snapshot`).toHaveBeenCalledTimes(expected));
+    }
+
+    image.dispatchEvent(new Event('load'));
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledTimes(expected + 1));
+
+    effects.destroy();
+  });
+
   it('does not start observers or capture when background preparation is disabled', async () => {
     const capture = vi.fn().mockResolvedValue(snapshot());
     const observer = vi.fn();

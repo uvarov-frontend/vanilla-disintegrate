@@ -32,6 +32,10 @@ const MUTATION_OPTIONS: MutationObserverInit = {
   subtree: true,
 };
 
+function hasNonStyleMutation(records: readonly MutationRecord[]) {
+  return records.some((record) => record.type !== 'attributes' || record.attributeName !== 'style');
+}
+
 function isAbortError(error: unknown) {
   return (error instanceof DOMException || error instanceof Error) && error.name === 'AbortError';
 }
@@ -278,7 +282,16 @@ export class SnapshotPreparation {
 
   private watchMutations(element: HTMLElement) {
     const invalidate = () => this.invalidateElement(element, true);
-    const observer = new MutationObserver(invalidate);
+    const observer = new MutationObserver((records) => {
+      if (hasNonStyleMutation(records)) {
+        invalidate();
+        return;
+      }
+      // Inline animation styles make a prepared snapshot stale, but scheduling
+      // another capture here would create a capture loop on every frame.
+      this.dequeue(element);
+      this.invalidateElement(element, false);
+    });
     observer.observe(element, MUTATION_OPTIONS);
     element.addEventListener('load', invalidate, true);
     this.mutationWatchers.set(element, { observer, onLoad: invalidate });
