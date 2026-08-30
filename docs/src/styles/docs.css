@@ -364,13 +364,18 @@
   vertical-align: top;
 }
 
-.page-content :is(th, td) code {
-  white-space: nowrap;
-}
-
 @media (max-width: 790px) {
+  /* No column layout fits these tables on a phone, so the table gets a workable
+   * width and the wrapper scrolls. Only here may code stay on one line: on a
+   * desktop the same rule pushes signatures past the content column and makes
+   * the wrapper scroll there too. Wrapping is left at the default, which breaks
+   * at spaces and never inside an identifier. */
   .page-content table {
     min-width: 720px;
+  }
+
+  .page-content :is(th, td) code {
+    white-space: nowrap;
   }
 }
 
