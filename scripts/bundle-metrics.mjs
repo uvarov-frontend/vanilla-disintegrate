@@ -12,7 +12,9 @@ import { gzipSync } from 'node:zlib';
  * asserted separately in `scripts/smoke.mjs`.
  */
 export const bundleBudgets = {
+  'dist/core.js': 15 * 1024,
   'dist/index.js': 25 * 1024,
+  'dist/particles.js': 12 * 1024,
   'dist/snapdom.js': 25 * 1024,
   'dist/vanilla-disintegrate.iife.min.js': 90 * 1024,
 };

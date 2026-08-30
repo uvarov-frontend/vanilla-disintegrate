@@ -2,7 +2,8 @@ import bundleSize from '../generated/bundle-size.json';
 import type { Locale } from '../i18n';
 
 export const bundleVariants = [
-  { id: 'esm', label: 'ESM core', size: bundleSize.esm },
+  { id: 'core', label: 'ESM core', size: bundleSize.core },
+  { id: 'esm', label: 'ESM built-ins', size: bundleSize.esm },
   { id: 'esmWithSnapdom', label: 'ESM + SnapDOM', size: bundleSize.esmWithSnapdom },
   { id: 'iife', label: 'IIFE', size: bundleSize.iife },
 ] as const;

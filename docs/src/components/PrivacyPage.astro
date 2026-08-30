@@ -1,0 +1,122 @@
+---
+import Footer from './Footer.astro';
+import Header from './Header.astro';
+import { ui, type Locale } from '../i18n';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const copy = ui[locale];
+const content = {
+  en: {
+    title: 'Privacy',
+    description: 'How this documentation handles locale preferences and usage analytics.',
+    intro:
+      'Yandex Metrica usage analytics is enabled by default to help identify problems and improve the library. You can disable it below without affecting the site.',
+    storageTitle: 'Data stored by the site',
+    storage:
+      'A secure locale cookie remembers the documentation language. Local storage keeps your package-manager choice, dismissed interface prompts, and your analytics decision.',
+    analyticsTitle: 'Usage analytics',
+    analytics:
+      'When enabled, Yandex Metrica may process the page URL, referrer, IP address, browser and device data, and its identifiers to produce page and navigation measurements. Webvisor session replay and click maps are enabled to help diagnose interface and demo problems; this site does not intentionally send advertising parameters.',
+    analyticsPolicy: 'Yandex privacy policy',
+    controlTitle: 'Analytics preference',
+    control:
+      'You can enable or disable analytics below. Disabling it reloads the page and prevents further collection.',
+    allow: 'Enable analytics',
+    deny: 'Disable analytics',
+  },
+  ru: {
+    title: 'Конфиденциальность',
+    description: 'Как документация хранит выбор языка и использует статистику посещений.',
+    intro:
+      'Статистика Яндекс Метрики включена по умолчанию, чтобы помогать находить проблемы и улучшать библиотеку. Ниже её можно отключить без ограничений в работе сайта.',
+    storageTitle: 'Данные, которые хранит сайт',
+    storage:
+      'Защищённая cookie запоминает язык документации. В localStorage сохраняются выбор пакетного менеджера, закрытые подсказки интерфейса и решение об аналитике.',
+    analyticsTitle: 'Статистика посещений',
+    analytics:
+      'Когда аналитика включена, Яндекс Метрика может обрабатывать URL страницы, referrer, IP-адрес, сведения о браузере и устройстве и собственные идентификаторы для измерения страниц и навигации. Записи сеансов Вебвизора и карта кликов включены, чтобы находить проблемы интерфейса и демонстраций; сайт намеренно не передаёт рекламные параметры.',
+    analyticsPolicy: 'Политика конфиденциальности Яндекса',
+    controlTitle: 'Настройка аналитики',
+    control:
+      'Ниже можно включить или отключить аналитику. При отключении страница перезагрузится, а дальнейший сбор прекратится.',
+    allow: 'Включить аналитику',
+    deny: 'Отключить аналитику',
+  },
+  zh: {
+    title: '隐私',
+    description: '本文档网站如何处理语言偏好和使用情况分析。',
+    intro: 'Yandex Metrica 使用情况分析默认启用，以帮助发现问题并改进项目。你可以在下方停用，网站功能不会受到影响。',
+    storageTitle: '网站存储的数据',
+    storage: '安全 Cookie 用于记住文档语言。本地存储用于保存包管理器选择、已关闭的界面提示和分析决定。',
+    analyticsTitle: '使用情况分析',
+    analytics:
+      '启用分析后，Yandex Metrica 可能会处理页面 URL、来源、IP 地址、浏览器和设备数据及其标识符，以生成页面和导航统计。Webvisor 会话回放和点击地图已启用，用于诊断界面和演示问题；本网站不会有意发送广告参数。',
+    analyticsPolicy: 'Yandex 隐私政策',
+    controlTitle: '分析设置',
+    control: '你可以在下方启用或停用分析。停用后页面会重新加载，并停止后续数据收集。',
+    allow: '启用分析',
+    deny: '禁用分析',
+  },
+  ko: {
+    title: '개인정보 보호',
+    description: '이 문서 사이트가 언어 설정과 사용 분석을 처리하는 방법입니다.',
+    intro:
+      '문제를 찾고 프로젝트를 개선하기 위해 Yandex Metrica 사용 분석이 기본으로 활성화됩니다. 사이트 기능에 영향 없이 아래에서 끌 수 있습니다.',
+    storageTitle: '사이트가 저장하는 데이터',
+    storage:
+      '보안 쿠키는 문서 언어를 기억합니다. 로컬 저장소에는 패키지 관리자 선택, 닫은 UI 안내와 분석 결정이 저장됩니다.',
+    analyticsTitle: '사용 분석',
+    analytics:
+      '분석이 켜져 있으면 Yandex Metrica가 페이지 URL, 리퍼러, IP 주소, 브라우저 및 기기 정보와 자체 식별자를 처리하여 페이지 및 탐색 측정값을 만들 수 있습니다. 인터페이스와 데모 문제를 진단하기 위해 Webvisor 세션 재생과 클릭 맵이 활성화되어 있으며 이 사이트는 광고 매개변수를 의도적으로 전송하지 않습니다.',
+    analyticsPolicy: 'Yandex 개인정보 보호정책',
+    controlTitle: '분석 설정',
+    control: '아래에서 분석을 켜거나 끌 수 있습니다. 끄면 페이지가 다시 로드되고 이후 수집이 중지됩니다.',
+    allow: '분석 켜기',
+    deny: '분석 사용 안 함',
+  },
+}[locale];
+---
+
+<BaseLayout title={`${content.title} · Vanilla Disintegrate`} description={content.description} locale={locale}>
+  <Header locale={locale} pathname={Astro.url.pathname} />
+  <main class="privacy-page" id="main-content">
+    <h1>{content.title}</h1>
+    <p class="privacy-intro">{content.intro}</p>
+    <section>
+      <h2>{content.storageTitle}</h2>
+      <p>{content.storage}</p>
+    </section>
+    <section>
+      <h2>{content.analyticsTitle}</h2>
+      <p>{content.analytics}</p>
+      <p>
+        <a href="https://yandex.com/legal/confidential/" target="_blank" rel="noopener noreferrer">
+          {content.analyticsPolicy}<span aria-hidden="true"> ↗</span>
+        </a>
+      </p>
+    </section>
+    <section>
+      <h2>{content.controlTitle}</h2>
+      <p>{content.control}</p>
+      <div class="privacy-actions" data-analytics-toggle-slot>
+        <span class="analytics-toggle-skeleton" aria-hidden="true"></span>
+        <button
+          type="button"
+          class="button-secondary"
+          aria-pressed="true"
+          data-analytics-toggle
+          data-enable-label={content.allow}
+          data-disable-label={content.deny}
+        >
+          {content.deny}
+        </button>
+      </div>
+    </section>
+  </main>
+  <Footer locale={locale} />
+</BaseLayout>

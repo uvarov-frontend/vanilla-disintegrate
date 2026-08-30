@@ -13,9 +13,17 @@ const noop = () => undefined;
 type AudioContextConstructor = typeof AudioContext;
 type SourceKey = string | ArrayBuffer | AudioBuffer;
 
+interface AudioClient {
+  readonly cacheByteBudget: number;
+  readonly entries: Set<CachedBuffer>;
+}
+
 interface CachedBuffer {
   readonly key: SourceKey;
   readonly reverse: boolean;
+  readonly clients: Set<AudioClient>;
+  readonly dependents: Set<CachedBuffer>;
+  dependency: CachedBuffer | null;
   promise: Promise<AudioBuffer>;
   buffer: AudioBuffer | null;
   controller: AbortController | null;
@@ -33,10 +41,11 @@ export type PreparedSound =
   | { readonly type: 'custom'; readonly factory: SoundFactory }
   | null;
 
-function getAudioContextConstructor(): AudioContextConstructor | null {
-  if (typeof window === 'undefined') return null;
-  const audioWindow = window as typeof window & { webkitAudioContext?: AudioContextConstructor };
-  return window.AudioContext ?? audioWindow.webkitAudioContext ?? null;
+const sharedEngines = new WeakMap<Window, SharedAudioEngine>();
+
+function getAudioContextConstructor(ownerWindow: Window): AudioContextConstructor | null {
+  const audioWindow = ownerWindow as Window & typeof globalThis & { webkitAudioContext?: AudioContextConstructor };
+  return audioWindow.AudioContext ?? audioWindow.webkitAudioContext ?? null;
 }
 
 function isAudioBuffer(source: SoundSource): source is AudioBuffer {
@@ -55,7 +64,6 @@ function bufferBytes(buffer: AudioBuffer) {
   return buffer.length * buffer.numberOfChannels * Float32Array.BYTES_PER_ELEMENT;
 }
 
-/** Copies rather than reversing in place: the source may be application-owned. */
 function reverseBuffer(buffer: AudioBuffer, context: BaseAudioContext) {
   const reversed = context.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
   for (let channel = 0; channel < buffer.numberOfChannels; channel += 1) {
@@ -66,19 +74,236 @@ function reverseBuffer(buffer: AudioBuffer, context: BaseAudioContext) {
   return reversed;
 }
 
-export class SoundPlayer {
+class SharedAudioEngine {
   private context: AudioContext | null = null;
   private contextError: unknown = null;
   private contextUnavailable = false;
   private readonly sources = new Map<SourceKey, SourceBuffers>();
   private readonly lru = new Map<CachedBuffer, undefined>();
-  private readonly activeSources = new Set<AudioBufferSourceNode>();
-  private readonly scheduled = new Set<() => void>();
+  private readonly clients = new Set<AudioClient>();
   private cachedBytes = 0;
+
+  constructor(private readonly ownerWindow: Window) {}
+
+  acquire(client: AudioClient) {
+    this.clients.add(client);
+  }
+
+  getContext() {
+    if (this.context !== null && this.context.state !== 'closed') return this.context;
+    if (this.contextUnavailable) return null;
+    const Context = getAudioContextConstructor(this.ownerWindow);
+    if (Context === null) {
+      this.contextUnavailable = true;
+      return null;
+    }
+    try {
+      this.context = new Context();
+    } catch (error) {
+      this.contextError = error;
+      this.contextUnavailable = true;
+      throw error;
+    }
+    return this.context;
+  }
+
+  getContextError() {
+    return this.contextError;
+  }
+
+  currentContext() {
+    return this.context?.state === 'closed' ? null : this.context;
+  }
+
+  load(client: AudioClient, source: SoundSource, reverse: boolean, context: AudioContext) {
+    if (!reverse && isAudioBuffer(source)) return Promise.resolve(source);
+
+    const entry = this.entryFor(source, reverse, context);
+    this.claim(client, entry);
+    this.touch(entry);
+    return entry.promise;
+  }
+
+  private entryFor(source: SoundSource, reverse: boolean, context: AudioContext) {
+    const key = sourceKey(source);
+    const pair = this.sources.get(key) ?? {};
+    this.sources.set(key, pair);
+    const cached = reverse ? pair.reverse : pair.forward;
+    if (cached !== undefined) return cached;
+
+    const entry: CachedBuffer = {
+      key,
+      reverse,
+      clients: new Set(),
+      dependents: new Set(),
+      dependency: null,
+      promise: Promise.resolve(source as unknown as AudioBuffer),
+      buffer: null,
+      controller: reverse ? null : new AbortController(),
+      bytes: 0,
+      invalidated: false,
+    };
+    if (reverse) pair.reverse = entry;
+    else pair.forward = entry;
+
+    let loading: Promise<AudioBuffer>;
+    if (reverse) {
+      if (isAudioBuffer(source)) {
+        loading = Promise.resolve(source);
+      } else {
+        const dependency = this.entryFor(source, false, context);
+        entry.dependency = dependency;
+        dependency.dependents.add(entry);
+        loading = dependency.promise;
+      }
+      loading = loading.then((buffer) => reverseBuffer(buffer, context));
+    } else {
+      loading = this.loadSource(source as Exclude<SoundSource, AudioBuffer>, context, entry.controller!.signal);
+    }
+    entry.promise = loading
+      .then((buffer) => {
+        this.releaseDependency(entry);
+        if (!entry.invalidated && (entry.clients.size > 0 || entry.dependents.size > 0)) {
+          entry.buffer = buffer;
+          entry.controller = null;
+          entry.bytes = bufferBytes(buffer);
+          this.cachedBytes += entry.bytes;
+          this.touch(entry);
+          this.evict();
+        }
+        return buffer;
+      })
+      .catch((error: unknown) => {
+        this.deleteEntry(entry);
+        throw error;
+      });
+    return entry;
+  }
+
+  discard(client: AudioClient, source: SoundSource, reverse: boolean) {
+    const pair = this.sources.get(sourceKey(source));
+    const entries = reverse ? [pair?.reverse] : [pair?.forward];
+    let discarded = 0;
+    for (const entry of entries) {
+      if (entry !== undefined && entry.clients.has(client)) {
+        this.release(client, entry);
+        discarded += 1;
+      }
+    }
+    return discarded;
+  }
+
+  clear(client: AudioClient) {
+    for (const entry of [...client.entries]) this.release(client, entry);
+  }
+
+  releaseClient(client: AudioClient) {
+    this.clear(client);
+    this.clients.delete(client);
+    if (this.clients.size > 0) {
+      this.evict();
+      return;
+    }
+
+    for (const pair of [...this.sources.values()]) {
+      if (pair.forward !== undefined) this.deleteEntry(pair.forward);
+      if (pair.reverse !== undefined) this.deleteEntry(pair.reverse);
+    }
+    this.sources.clear();
+    this.lru.clear();
+    this.cachedBytes = 0;
+    const context = this.context;
+    this.context = null;
+    if (context !== null && context.state !== 'closed') void context.close().catch(noop);
+    sharedEngines.delete(this.ownerWindow);
+  }
+
+  private async loadSource(source: Exclude<SoundSource, AudioBuffer>, context: AudioContext, signal: AbortSignal) {
+    const data =
+      source instanceof ArrayBuffer
+        ? source.slice(0)
+        : await fetch(source instanceof URL ? source.href : source, { signal }).then((response) => {
+            if (!response.ok) throw new Error(`Unable to load disintegration sound: ${response.status}`);
+            return response.arrayBuffer();
+          });
+    return context.decodeAudioData(data);
+  }
+
+  private claim(client: AudioClient, entry: CachedBuffer) {
+    if (entry.invalidated || entry.clients.has(client)) return;
+    entry.clients.add(client);
+    client.entries.add(entry);
+  }
+
+  private release(client: AudioClient, entry: CachedBuffer) {
+    entry.clients.delete(client);
+    client.entries.delete(entry);
+    if (entry.clients.size === 0 && entry.dependents.size === 0) this.deleteEntry(entry);
+  }
+
+  private touch(entry: CachedBuffer) {
+    if (entry.invalidated || entry.buffer === null) return;
+    this.lru.delete(entry);
+    this.lru.set(entry, undefined);
+  }
+
+  private evict() {
+    let cacheByteBudget = 0;
+    for (const client of this.clients) cacheByteBudget = Math.max(cacheByteBudget, client.cacheByteBudget);
+    while (this.cachedBytes > cacheByteBudget) {
+      const oldest = this.lru.keys().next().value;
+      if (oldest === undefined) return;
+      this.deleteEntry(oldest);
+    }
+  }
+
+  private deleteEntry(entry: CachedBuffer) {
+    if (entry.invalidated) return;
+    entry.invalidated = true;
+    entry.controller?.abort();
+    entry.controller = null;
+    this.lru.delete(entry);
+    this.cachedBytes = Math.max(0, this.cachedBytes - entry.bytes);
+    for (const client of entry.clients) client.entries.delete(entry);
+    entry.clients.clear();
+    const dependency = entry.dependency;
+    if (dependency !== null) {
+      entry.dependency = null;
+      dependency.dependents.delete(entry);
+    }
+    for (const dependent of entry.dependents) dependent.dependency = null;
+    entry.dependents.clear();
+    const pair = this.sources.get(entry.key);
+    if (pair !== undefined) {
+      if (pair.forward === entry) delete pair.forward;
+      if (pair.reverse === entry) delete pair.reverse;
+      if (pair.forward === undefined && pair.reverse === undefined) this.sources.delete(entry.key);
+    }
+    if (dependency !== null && dependency.clients.size === 0 && dependency.dependents.size === 0) {
+      this.deleteEntry(dependency);
+    }
+  }
+
+  private releaseDependency(entry: CachedBuffer) {
+    const dependency = entry.dependency;
+    if (dependency === null) return;
+    entry.dependency = null;
+    dependency.dependents.delete(entry);
+    if (dependency.clients.size === 0 && dependency.dependents.size === 0) this.deleteEntry(dependency);
+  }
+}
+
+export class SoundPlayer {
+  private readonly client: AudioClient;
+  private engine: SharedAudioEngine | null = null;
+  private readonly activeSources = new Map<AudioBufferSourceNode, GainNode>();
+  private readonly scheduled = new Set<() => void>();
   private generation = 0;
   private destroyed = false;
 
-  constructor(private readonly cacheByteBudget = 8 * 1024 * 1024) {}
+  constructor(cacheByteBudget = 8 * 1024 * 1024) {
+    this.client = { cacheByteBudget, entries: new Set() };
+  }
 
   /** Starts fetching and decoding without blocking the caller. */
   schedule(definitions: readonly (SoundDefinition | null)[], strategy: AudioPreparationStrategy) {
@@ -112,10 +337,11 @@ export class SoundPlayer {
     if (definition === null) return null;
     if (typeof definition === 'function') return { type: 'custom', factory: definition };
     const options = soundOptions(definition);
-    const context = this.getContext();
-    if (context === null) return null;
+    const engine = this.getEngine();
+    const context = engine?.getContext() ?? null;
+    if (engine === null || context === null) return null;
     const generation = this.generation;
-    const buffer = await this.load(options.src, context, options.reverse === true);
+    const buffer = await engine.load(this.client, options.src, options.reverse === true, context);
     if (this.destroyed || generation !== this.generation) {
       throw new DOMException('Audio preparation was cancelled.', 'AbortError');
     }
@@ -125,12 +351,11 @@ export class SoundPlayer {
   /** Must run in the original user gesture so a suspended playback context can resume. */
   unlock(definition: SoundDefinition | null, onError: (error: unknown) => void) {
     if (definition === null || typeof definition === 'function') return;
-    if (this.contextUnavailable) {
-      if (this.contextError !== null) onError(this.contextError);
-      return;
-    }
     try {
-      const context = this.getContext();
+      const engine = this.getEngine();
+      const context = engine?.getContext();
+      const contextError = engine?.getContextError() ?? null;
+      if (context === null && contextError !== null) onError(contextError);
       if (context?.state === 'suspended') void context.resume().catch(onError);
     } catch (error) {
       onError(error);
@@ -143,12 +368,14 @@ export class SoundPlayer {
     soundContext: SoundContext,
     onError: (error: unknown) => void,
   ) {
-    if (prepared === null) return noop;
+    if (prepared === null || this.destroyed) return noop;
     if (prepared.type === 'custom') return this.playCustom(prepared.factory, soundContext, onError);
 
+    let gain: GainNode | null = null;
+    let playback: AudioBufferSourceNode | null = null;
     try {
-      const context = this.context;
-      if (context === null || context.state === 'closed') return noop;
+      const context = this.engine?.currentContext() ?? null;
+      if (context === null) return noop;
       const { buffer, options } = prepared;
       const playbackRate = Math.max(0.01, options.playbackRate ?? 1);
       const availableDuration = buffer.duration / playbackRate;
@@ -160,11 +387,12 @@ export class SoundPlayer {
       const gainValue = Math.max(0, Math.min(options.gain ?? 0.32, 1));
       const startedAt = context.currentTime + Math.max(0, options.delay ?? 0) / 1000;
       const endsAt = startedAt + duration;
-      const gain = context.createGain();
-      const playback = context.createBufferSource();
+      gain = context.createGain();
+      const source = context.createBufferSource();
+      playback = source;
 
-      playback.buffer = buffer;
-      playback.playbackRate.value = playbackRate;
+      source.buffer = buffer;
+      source.playbackRate.value = playbackRate;
       const offset = options.reverse === true ? Math.max(0, buffer.duration - duration * playbackRate) : 0;
       if (options.reverse === true) {
         gain.gain.setValueAtTime(0, startedAt);
@@ -175,190 +403,115 @@ export class SoundPlayer {
         gain.gain.setValueAtTime(gainValue, endsAt - fadeDuration);
         gain.gain.linearRampToValueAtTime(0, endsAt);
       }
-      playback.connect(gain);
+      source.connect(gain);
       gain.connect(context.destination);
-      this.activeSources.add(playback);
-      playback.addEventListener(
-        'ended',
-        () => {
-          playback.disconnect();
-          gain.disconnect();
-          this.activeSources.delete(playback);
-        },
-        { once: true },
-      );
-      playback.start(startedAt, offset);
-      playback.stop(endsAt);
-      return () => this.stop(playback);
+      this.activeSources.set(source, gain);
+      source.addEventListener('ended', () => this.releaseSource(source), { once: true });
+      source.start(startedAt, offset);
+      source.stop(endsAt);
+      return () => this.stop(source);
     } catch (error) {
+      if (playback !== null && this.activeSources.has(playback)) {
+        this.stop(playback);
+      } else {
+        try {
+          playback?.disconnect();
+        } catch {
+          // Partially connected nodes are best-effort cleanup after setup failure.
+        }
+        try {
+          gain?.disconnect();
+        } catch {
+          // Partially connected nodes are best-effort cleanup after setup failure.
+        }
+      }
       onError(error);
       return noop;
     }
   }
 
   discard(definitions: readonly (SoundDefinition | null)[]) {
+    if (this.engine === null) return 0;
     let discarded = 0;
     for (const definition of definitions) {
       if (definition === null || typeof definition === 'function') continue;
       const options = soundOptions(definition);
-      const pair = this.sources.get(sourceKey(options.src));
-      const entries = options.reverse === true ? [pair?.reverse, pair?.forward] : [pair?.forward];
-      for (const entry of entries) {
-        if (entry !== undefined && !entry.invalidated) {
-          this.deleteEntry(entry);
-          discarded += 1;
-        }
-      }
+      discarded += this.engine.discard(this.client, options.src, options.reverse === true);
     }
     return discarded;
   }
 
   clearPrepared() {
+    this.generation += 1;
     for (const cancel of this.scheduled) cancel();
     this.scheduled.clear();
-    for (const pair of this.sources.values()) {
-      if (pair.forward !== undefined) this.deleteEntry(pair.forward);
-      if (pair.reverse !== undefined) this.deleteEntry(pair.reverse);
-    }
-    this.sources.clear();
-    this.lru.clear();
-    this.cachedBytes = 0;
+    this.engine?.clear(this.client);
   }
 
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
-    this.generation += 1;
-    for (const source of this.activeSources) this.stop(source);
-    this.activeSources.clear();
+    for (const source of [...this.activeSources.keys()]) this.stop(source);
     this.clearPrepared();
-    const context = this.context;
-    this.context = null;
-    if (context !== null && context.state !== 'closed') void context.close().catch(noop);
+    this.engine?.releaseClient(this.client);
+    this.engine = null;
   }
 
   private playCustom(factory: SoundFactory, context: SoundContext, onError: (error: unknown) => void) {
-    let cancelled = false;
+    let stopped = false;
     let playback: SoundPlayback | void;
+    const release = (stopPlayback: boolean) => {
+      const current = playback;
+      playback = undefined;
+      if (current === undefined) return;
+      if (stopPlayback) this.runSoundCleanup(() => current.stop?.(), onError);
+      this.runSoundCleanup(() => current.dispose?.(), onError);
+    };
     const stop = () => {
-      cancelled = true;
-      try {
-        playback?.stop?.();
-        playback?.dispose?.();
-      } catch (error) {
-        onError(error);
-      }
+      if (stopped) return;
+      stopped = true;
+      release(true);
+    };
+    const fail = (error: unknown) => {
+      if (stopped) return;
+      onError(error);
+      release(true);
     };
     try {
       void Promise.resolve(factory(context)).then((resolved) => {
         playback = resolved;
-        if (cancelled) stop();
-      }, onError);
+        if (stopped) {
+          release(true);
+          return;
+        }
+        try {
+          if (resolved?.finished !== undefined) {
+            void Promise.resolve(resolved.finished).then(() => release(false), fail);
+          }
+        } catch (error) {
+          fail(error);
+        }
+      }, fail);
     } catch (error) {
       onError(error);
     }
     return stop;
   }
 
-  private getContext() {
-    if (this.context !== null) return this.context;
-    if (this.contextUnavailable) return null;
-    const Context = getAudioContextConstructor();
-    if (Context === null) {
-      this.contextUnavailable = true;
-      return null;
-    }
+  private getEngine() {
+    if (this.engine !== null) return this.engine;
+    if (typeof window === 'undefined') return null;
+    this.engine = sharedEngines.get(window) ?? new SharedAudioEngine(window);
+    if (!sharedEngines.has(window)) sharedEngines.set(window, this.engine);
+    this.engine.acquire(this.client);
+    return this.engine;
+  }
+
+  private runSoundCleanup(cleanup: () => void, onError: (error: unknown) => void) {
     try {
-      this.context = new Context();
+      cleanup();
     } catch (error) {
-      this.contextUnavailable = true;
-      this.contextError = error;
-      throw error;
-    }
-    return this.context;
-  }
-
-  private load(source: SoundSource, context: AudioContext, reverse: boolean) {
-    if (!reverse && isAudioBuffer(source)) return Promise.resolve(source);
-    const key = sourceKey(source);
-    const pair = this.sources.get(key) ?? {};
-    this.sources.set(key, pair);
-    const cached = reverse ? pair.reverse : pair.forward;
-    if (cached !== undefined) {
-      this.touch(cached);
-      return cached.promise;
-    }
-
-    const entry: CachedBuffer = {
-      key,
-      reverse,
-      promise: Promise.resolve(source as unknown as AudioBuffer),
-      buffer: null,
-      controller: reverse ? null : new AbortController(),
-      bytes: 0,
-      invalidated: false,
-    };
-    const load = reverse
-      ? this.load(source, context, false).then((buffer) => reverseBuffer(buffer, context))
-      : this.loadSource(source as Exclude<SoundSource, AudioBuffer>, context, entry.controller!.signal);
-    entry.promise = load
-      .then((buffer) => {
-        if (!entry.invalidated && !this.destroyed) {
-          entry.buffer = buffer;
-          entry.controller = null;
-          entry.bytes = bufferBytes(buffer);
-          this.cachedBytes += entry.bytes;
-          this.touch(entry);
-          this.evict();
-        }
-        return buffer;
-      })
-      .catch((error: unknown) => {
-        this.deleteEntry(entry);
-        throw error;
-      });
-    if (reverse) pair.reverse = entry;
-    else pair.forward = entry;
-    return entry.promise;
-  }
-
-  private async loadSource(source: Exclude<SoundSource, AudioBuffer>, context: AudioContext, signal: AbortSignal) {
-    const data =
-      source instanceof ArrayBuffer
-        ? source.slice(0)
-        : await fetch(source instanceof URL ? source.href : source, { signal }).then((response) => {
-            if (!response.ok) throw new Error(`Unable to load disintegration sound: ${response.status}`);
-            return response.arrayBuffer();
-          });
-    return context.decodeAudioData(data);
-  }
-
-  private touch(entry: CachedBuffer) {
-    if (entry.invalidated || entry.buffer === null) return;
-    this.lru.delete(entry);
-    this.lru.set(entry, undefined);
-  }
-
-  private evict() {
-    while (this.cachedBytes > this.cacheByteBudget) {
-      const oldest = this.lru.keys().next().value;
-      if (oldest === undefined) return;
-      this.deleteEntry(oldest);
-    }
-  }
-
-  private deleteEntry(entry: CachedBuffer) {
-    if (entry.invalidated) return;
-    entry.invalidated = true;
-    entry.controller?.abort();
-    entry.controller = null;
-    this.lru.delete(entry);
-    this.cachedBytes = Math.max(0, this.cachedBytes - entry.bytes);
-    const pair = this.sources.get(entry.key);
-    if (pair !== undefined) {
-      if (pair.forward === entry) delete pair.forward;
-      if (pair.reverse === entry) delete pair.reverse;
-      if (pair.forward === undefined && pair.reverse === undefined) this.sources.delete(entry.key);
+      onError(error);
     }
   }
 
@@ -366,9 +519,25 @@ export class SoundPlayer {
     try {
       source.stop();
     } catch {
-      // A source may have ended between the state check and stop().
+      // The source can finish between lookup and stop().
     }
+    this.releaseSource(source);
+  }
+
+  private releaseSource(source: AudioBufferSourceNode) {
+    const gain = this.activeSources.get(source);
+    if (gain === undefined) return;
     this.activeSources.delete(source);
+    try {
+      source.disconnect();
+    } catch {
+      // A browser may already have disconnected a source that just ended.
+    }
+    try {
+      gain.disconnect();
+    } catch {
+      // A browser may already have disconnected a source that just ended.
+    }
   }
 
   private assertAlive() {

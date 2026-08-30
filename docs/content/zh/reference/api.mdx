@@ -9,6 +9,8 @@ order: 70
 
 默认导出就是一个类。它把捕获、动画、声音、相邻元素的位移、后台准备以及保留节点的存储串在一起。
 
+根入口和 `/snapdom` 会预先注册四种内置效果，并默认使用 `dust`；只有 `/snapdom` 还提供捕获适配器。`/core` 提供相同的生命周期 API，但不带默认效果、粒子和内置声音。`/particles` 提供工厂与效果定义，而不是 `Disintegrator` 类。
+
 ## 构造函数
 
 ```ts
@@ -19,14 +21,14 @@ const effects = new Disintegrator(options);
 
 | 选项                   | 类型                                                        | 默认值          | 作用                                             |
 | ---------------------- | ----------------------------------------------------------- | --------------- | ------------------------------------------------ |
-| `effect`               | `EffectSelection`                                           | `'dust'`        | 操作未指定时使用的效果                           |
+| `effect`               | `EffectSelection`                                           | `'dust'`¹       | 操作未指定时使用的效果                           |
 | `effects`              | `Record<string, EffectDefinition>`                          | `{}`            | 自定义效果，之后可按名称选用                     |
 | `sound`                | `boolean \| SoundDefinition`                                | `false`         | `true` 播放各阶段的声音；传定义则替换它们        |
 | `layout`               | `boolean \| LayoutOptions`                                  | `true`          | 删除后把相邻元素移动到新位置                     |
 | `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | 在后台准备已注册元素                             |
 | `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'immediate'`   | 只准备已启用的声音；`sound: false` 时不执行工作  |
 | `respectReducedMotion` | `boolean`                                                   | `true`          | 用户要求减少动效时跳过动画                       |
-| `capture`              | `SnapshotCapture`                                           | —               | 把元素变成画布。`/snapdom` 入口已接好 SnapDOM    |
+| `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | 把元素变成画布                                   |
 | `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | 动画覆盖层挂载到哪里                             |
 | `zIndex`               | `number`                                                    | `2147483646`    | 该覆盖层的层级                                   |
 | `random`               | `() => number`                                              | `Math.random`   | 种子来源，每次操作调用一次                       |
@@ -35,6 +37,12 @@ const effects = new Disintegrator(options);
 | `onStart`              | `(context) => void`                                         | —               | DOM 变更之后，播放开始时                         |
 | `onComplete`           | `(context) => void`                                         | —               | 视觉阶段正常结束后                               |
 | `onError`              | `(error, context) => void`                                  | —               | 捕获、动画、声音与回调的错误                     |
+
+¹ `dust` 与 SnapDOM 默认值一起适用于 `/snapdom`；根入口提供 `dust`，但不提供捕获。`/core` 两者都不提供。
+
+操作失败时，`context.operation` 为 `remove` 或 `restore`。后台快照准备失败会报告 `prepare`，不会被误标为内容操作。
+
+传入固定的 `random` 可让效果复现：相同种子每次都会生成相同粒子布局，适合视觉回归测试。
 
 ## remove(target, options?)
 
@@ -77,6 +85,8 @@ effects.clearPrepared();
 
 `register()` 遵循你配置的策略。`prepare()` 会立即捕获，即使后台准备是关闭的；全部元素完成后它不返回任何值。
 
+同一元素的重复注册采用引用计数：每个注销函数只释放自己的注册，最后一个注册释放后才停止观察。
+
 ## 音频准备
 
 ```ts
@@ -87,11 +97,9 @@ effects.clearPreparedAudio();
 
 实例设置 `sound: true` 后会自动准备默认效果。声音关闭时显式方法仍可使用。解码缓冲区存放在有界 LRU 缓存中。
 
-传一个固定的 `random`，效果就可复现：同一个种子每次都会把粒子排布成一样的样子，视觉回归测试正是靠这一点。
-
 ## destroy()
 
-取消活动操作，停止观察器，释放快照与解码音频，关闭播放上下文并清除保留节点。重复调用是安全的；销毁后不能开始新操作。
+取消活动操作，停止观察器与后台任务，释放快照和解码音频的所有权，并清除保留节点。最后一个 `Disintegrator` 所有者销毁时，共享播放上下文才会关闭。重复调用是安全的；销毁后不能开始新操作。
 
 ## EffectOperation
 
@@ -101,11 +109,22 @@ interface EffectOperation {
   readonly removalId: RemovalId | null;
   readonly finished: Promise<{
     operation: 'remove' | 'restore';
-    status: 'completed' | 'cancelled' | 'skipped';
+    status: 'completed' | 'cancelled' | 'skipped' | 'rejected';
     removalId: RemovalId | null;
   }>;
   cancel(): void;
 }
 ```
 
-操作对象不会暴露 `element`。单次操作选项优先于实例默认值。
+操作对象不会暴露 `element`，并在结束后释放元素引用。
+
+| 状态        | 含义                                     |
+| ----------- | ---------------------------------------- |
+| `completed` | 内容操作与视觉阶段都正常完成。           |
+| `cancelled` | 内容操作已提交，但视觉或音频播放被停止。 |
+| `skipped`   | 内容操作已提交，但没有可运行的视觉阶段。 |
+| `rejected`  | 操作没有开始，也没有修改 DOM。           |
+
+## 回调与优先级
+
+实例回调会参与每次操作，也可以同时提供单次操作回调。单次操作选项覆盖实例默认值。保留节点记住的效果仅在 `restore()` 没有显式 `effect` 时使用。

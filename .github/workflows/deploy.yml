@@ -1,8 +1,5 @@
 name: Deploy documentation site
 
-# Manual only: nothing reaches the server without an explicit run. Start it from
-# the Actions tab, or with `gh workflow run deploy.yml -f ref=<branch|tag|sha>`.
-
 on:
   workflow_dispatch:
     inputs:
@@ -21,100 +18,127 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.commit.outputs.sha }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
           ref: ${{ inputs.ref }}
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
       - run: pnpm run check
 
   deploy:
     runs-on: ubuntu-latest
     needs: check
     env:
-      # Relative to the SSH user's home directory. Not a secret: keeping it out
-      # of them also lets the environment URL be published, which GitHub skips
-      # whenever a masked value overlaps it.
       DEPLOY_PATH: web/disintegrate.uvarov.tech
+      DEPLOY_SHA: ${{ needs.check.outputs.commit }}
     environment:
       name: production
       url: https://disintegrate.uvarov.tech
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ needs.check.outputs.commit }}
           fetch-depth: 1
 
-      - name: Copy repository contents via scp
-        uses: appleboy/scp-action@v1.0.0
+      - name: Create an immutable source archive
+        run: git archive --format=tar.gz --output=deploy-source.tar.gz HEAD
+
+      - name: Upload the source archive
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345 # v1.0.0
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           port: ${{ secrets.PORT }}
           key: ${{ secrets.KEY }}
-          source: '.'
-          target: ${{ env.DEPLOY_PATH }}
-          rm: true
+          source: deploy-source.tar.gz
+          target: ${{ env.DEPLOY_PATH }}/incoming
 
-      - name: Build image and restart the container
-        uses: appleboy/ssh-action@v1.2.5
+      - name: Build, validate and roll out with rollback
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
+        env:
+          DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
+          DEPLOY_SHA: ${{ env.DEPLOY_SHA }}
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           port: ${{ secrets.PORT }}
           key: ${{ secrets.KEY }}
           command_timeout: 20m
-          # Not named TARGET: the action stores the drone-ssh binary path under
-          # that name, so a variable called TARGET never reaches the host.
-          envs: DEPLOY_PATH
+          envs: DEPLOY_PATH,DEPLOY_SHA
           script: |
-            set -euo pipefail
+            set -Eeuo pipefail
+
+            case "$DEPLOY_SHA" in
+              *[!0-9a-f]*|'') echo 'Invalid deployment SHA.' >&2; exit 1 ;;
+            esac
+            [ "${#DEPLOY_SHA}" -eq 40 ] || { echo 'Deployment SHA must contain 40 characters.' >&2; exit 1; }
 
             IMAGE=disintegrate_uvarov_tech
             NAME=disintegrate_uvarov_tech
-            PORT=3501
+            CANDIDATE_NAME=disintegrate_uvarov_tech_candidate
+            RELEASE="$DEPLOY_PATH/releases/$DEPLOY_SHA"
+            RELEASE_TEMP="${RELEASE}.tmp"
+            ARCHIVE="$DEPLOY_PATH/incoming/deploy-source.tar.gz"
 
-            cd "$DEPLOY_PATH"
-            docker build -f deploy/Dockerfile -t "$IMAGE:latest" .
+            mkdir -p "$DEPLOY_PATH/releases"
+            rm -rf "$RELEASE_TEMP"
+            mkdir -p "$RELEASE_TEMP"
+            tar -xzf "$ARCHIVE" -C "$RELEASE_TEMP"
+            rm -f "$ARCHIVE"
+            if [ -d "$RELEASE" ]; then
+              rm -rf "$RELEASE_TEMP"
+            else
+              mv "$RELEASE_TEMP" "$RELEASE"
+            fi
 
-            # Remembered so a failed rollout can be put back on the previous image.
-            PREVIOUS=$(docker inspect --format '{{.Image}}' "$NAME" 2>/dev/null || echo '')
-
-            docker rm -f -v "$NAME" 2>/dev/null || true
-            docker run -d \
-              --name "$NAME" \
-              --restart unless-stopped \
-              -p "127.0.0.1:$PORT:$PORT" \
-              "$IMAGE:latest"
+            docker build -f "$RELEASE/deploy/Dockerfile" -t "$IMAGE:$DEPLOY_SHA" "$RELEASE"
+            docker rm -f -v "$CANDIDATE_NAME" 2>/dev/null || true
+            docker run -d --name "$CANDIDATE_NAME" -p 127.0.0.1:3502:3501 "$IMAGE:$DEPLOY_SHA"
 
             for attempt in $(seq 1 30); do
-              if curl -fsS -o /dev/null "http://127.0.0.1:$PORT/"; then
-                echo "Healthy after ${attempt} attempt(s)."
-                docker image prune -f >/dev/null
-                exit 0
+              if curl -fsS -o /dev/null http://127.0.0.1:3502/; then
+                echo "Candidate healthy after ${attempt} attempt(s)."
+                break
               fi
+              [ "$attempt" -lt 30 ] || { docker logs --tail 100 "$CANDIDATE_NAME" >&2; exit 1; }
               sleep 2
             done
+            docker rm -f -v "$CANDIDATE_NAME"
 
-            echo 'Health check failed; rolling back.' >&2
-            docker logs --tail 50 "$NAME" >&2 || true
+            PREVIOUS_IMAGE=$(docker inspect --format '{{.Image}}' "$NAME" 2>/dev/null || true)
+            rollback() {
+              echo 'Rollout failed; restoring the previous container.' >&2
+              docker rm -f -v "$NAME" 2>/dev/null || true
+              if [ -n "$PREVIOUS_IMAGE" ]; then
+                docker run -d --name "$NAME" --restart unless-stopped -p 127.0.0.1:3501:3501 "$PREVIOUS_IMAGE"
+              fi
+            }
+            trap rollback ERR
+
             docker rm -f -v "$NAME" 2>/dev/null || true
-            if [ -n "$PREVIOUS" ]; then
-              docker run -d --name "$NAME" --restart unless-stopped -p "127.0.0.1:$PORT:$PORT" "$PREVIOUS"
-              echo 'Rolled back to the previous image.' >&2
-            fi
-            exit 1
+            docker run -d --name "$NAME" --restart unless-stopped -p 127.0.0.1:3501:3501 "$IMAGE:$DEPLOY_SHA"
 
-      - name: Verify the public site
-        run: |
-          set -euo pipefail
-          for path in / /ru/ /docs/learn/installation/; do
-            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "https://disintegrate.uvarov.tech${path}")
-            echo "${path} -> ${code}"
-            [ "$code" = '200' ] || exit 1
-          done
+            for attempt in $(seq 1 30); do
+              if curl -fsS -o /dev/null http://127.0.0.1:3501/; then
+                break
+              fi
+              [ "$attempt" -lt 30 ] || { docker logs --tail 100 "$NAME" >&2; false; }
+              sleep 2
+            done
+            for path in / /ru/ /docs/learn/installation/; do
+              curl -fsS --max-time 20 -o /dev/null "https://disintegrate.uvarov.tech${path}"
+            done
+
+            trap - ERR
+            docker image prune -f >/dev/null
+            echo "Deployed $DEPLOY_SHA successfully."

@@ -21,6 +21,8 @@ const unregister = effects.register(document.querySelectorAll('[data-effects]'))
 
 默认值与显式设置 `preparation: true` 都使用 `visible-idle`：元素接近视口且浏览器空闲时才准备。
 
+不再需要准备该元素时调用 `unregister()`。注册采用引用计数：若两个组件注册了同一节点，每个注销函数只释放自己的注册，二者都释放后才停止观察。
+
 ## 配置条件
 
 ```ts

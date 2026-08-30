@@ -66,9 +66,9 @@ const breadcrumbNode = {
   structuredData={[articleNode, breadcrumbNode]}
 >
   <Header locale={locale} pathname={pathname} />
-  <div class="sidebar-backdrop" data-sidebar-backdrop></div>
+  <div class="sidebar-backdrop" aria-hidden="true" data-sidebar-backdrop></div>
   <div class="docs-layout">
-    <aside class="docs-sidebar" data-sidebar>
+    <aside id="docs-mobile-navigation" class="docs-sidebar" data-sidebar>
       <nav class="mobile-docs-global" aria-label={copy.navigation}>
         <a href={homeHref(locale)}>{copy.homeLink}<b aria-hidden="true">→</b></a>
         <a href={docsHref(locale, 'learn/installation')}>{copy.learn}<b aria-hidden="true">→</b></a>

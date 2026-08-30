@@ -4,6 +4,7 @@ import { dependencyGzipSize, dependencyRawSize } from './bundle-metrics.mjs';
 
 const target = new URL('../docs/src/generated/bundle-size.json', import.meta.url);
 const bundles = {
+  core: 'dist/core.js',
   esm: 'dist/index.js',
   snapdomEsm: 'dist/snapdom.js',
   iife: 'dist/vanilla-disintegrate.iife.min.js',
@@ -25,6 +26,7 @@ const snapdom = {
   gzipBytes: await dependencyGzipSize(snapdomEntry),
 };
 const sizes = {
+  core: measured.core,
   esm: measured.esm,
   esmWithSnapdom: {
     minifiedBytes: measured.snapdomEsm.minifiedBytes + snapdom.minifiedBytes,

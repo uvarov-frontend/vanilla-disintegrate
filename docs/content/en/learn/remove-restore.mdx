@@ -67,7 +67,7 @@ operation.removalId; // RemovalId | null
 operation.cancel();
 
 const result = await operation.finished;
-result.status; // 'completed' | 'cancelled' | 'skipped'
+result.status; // 'completed' | 'cancelled' | 'skipped' | 'rejected'
 ```
 
 The handle does not retain the DOM element after the operation settles.
@@ -77,6 +77,8 @@ The handle does not retain the DOM element after the operation settles.
 `cancel()` stops animation and sound. It does not reverse the content action: a removed element stays removed, and a restoring element becomes visible.
 
 That way a cancel button, or a view that unmounts mid-animation, cannot quietly undo a change your app already made.
+
+A second operation requested for the same element while the first is active resolves as `rejected`. It does not change the DOM or allocate a retention ID.
 
 ## Errors do not block content
 

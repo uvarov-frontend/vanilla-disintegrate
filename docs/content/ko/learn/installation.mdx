@@ -27,14 +27,31 @@ pnpm add vanilla-disintegrate @zumer/snapdom
 bun add vanilla-disintegrate @zumer/snapdom
 ```
 
-라이브러리는 요소가 파티클로 나뉘기 전에 현재 모습을 캡처하며, 캡처 라이브러리는 직접 고를 수 있습니다. 패키지는 두 개의 진입점을 제공합니다.
+라이브러리는 요소가 파티클로 나뉘기 전에 현재 모습을 캡처하며, 캡처 엔진은 직접 고를 수 있습니다. 패키지는 tree-shaking 가능한 네 개의 진입점을 제공합니다.
 
-| 진입점                         | 내용                                                                                        | 필요 패키지      |
-| ------------------------------ | ------------------------------------------------------------------------------------------- | ---------------- |
-| `vanilla-disintegrate`         | 코어: 효과, 생명주기, 레이아웃, 사운드. `capture`는 직접 전달합니다.                        | 없음             |
-| `vanilla-disintegrate/snapdom` | 동일한 API에 [SnapDOM](https://zumerlab.github.io/snapdom/)이 기본 `capture`로 연결된 형태. | `@zumer/snapdom` |
+| 진입점                           | 내용                                                                                         | 필요 패키지      |
+| -------------------------------- | -------------------------------------------------------------------------------------------- | ---------------- |
+| `vanilla-disintegrate/core`      | 사용자 효과용 생명주기, 레이아웃, 오디오. 파티클 렌더러와 내장 사운드는 제외합니다.          | 없음             |
+| `vanilla-disintegrate/particles` | 파티클 애니메이션 팩토리와 네 가지 내장 효과 정의.                                           | 없음             |
+| `vanilla-disintegrate`           | 네 가지 내장 효과가 설정된 `Disintegrator`. `capture`는 직접 전달합니다.                     | 없음             |
+| `vanilla-disintegrate/snapdom`   | 내장 효과와 [SnapDOM](https://zumerlab.github.io/snapdom/) 기본 `capture`를 함께 제공합니다. | `@zumer/snapdom` |
 
-두 진입점은 완전히 같은 `Disintegrator` API를 내보냅니다. `@zumer/snapdom`은 선택적 peer 의존성이라 `/snapdom` 진입점을 쓸 때만 설치하면 되고, 코어 진입점은 이를 참조하지 않습니다.
+기본 진입점과 `/snapdom`은 같은 `Disintegrator` API를 내보냅니다. `@zumer/snapdom`은 선택적 peer 의존성이며 `/snapdom`만 사용하고 다른 진입점은 참조하지 않습니다.
+
+`/core`는 `Disintegrator`, `defineEffect`, 공개 타입을 내보냅니다. 기본 효과는 의도적으로 없으므로 인라인 효과나 등록된 이름을 전달해야 합니다. `/particles`는 `builtInEffects`, 두 파티클 애니메이션 팩토리와 옵션 타입을 내보내지만 인스턴스를 만들지는 않습니다. 필요한 계층만 직접 조합할 수 있으며 아래 `captureElement`는 이 페이지 뒤에서 설명하는 어댑터를 뜻합니다.
+
+```ts
+import Disintegrator from 'vanilla-disintegrate/core';
+import { builtInEffects } from 'vanilla-disintegrate/particles';
+
+const effects = new Disintegrator({
+  capture: captureElement,
+  effect: 'dust',
+  effects: builtInEffects,
+});
+```
+
+스냅샷이 필요 없는 사용자 효과라면 `/particles`와 `capture`를 모두 생략하고 두 단계에 `needsSnapshot: false`를 지정하세요.
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';
@@ -81,7 +98,7 @@ import Disintegrator from 'vanilla-disintegrate';
 
 const effects = new Disintegrator({
   capture: (element, context) => {
-    context.signal.throwIfAborted();
+    if (context.signal.aborted) throw new DOMException('Capture aborted.', 'AbortError');
 
     return html2canvas(element, {
       backgroundColor: null,
@@ -98,7 +115,21 @@ const effects = new Disintegrator({
 });
 ```
 
-전달한 함수는 캡처 동작을 완전히 대체합니다. 이 경로에서는 코어 진입점 `vanilla-disintegrate`를 가져오세요. 런타임 의존성이 없고 SnapDOM도 모듈 그래프에 들어오지 않습니다.
+전달한 함수는 캡처 동작을 완전히 대체합니다. 이 경로에서는 기본 진입점 `vanilla-disintegrate`를 가져오세요. 필수 런타임 의존성이 없고 SnapDOM도 모듈 그래프에 들어오지 않습니다.
+
+## script 태그로 사용하기
+
+IIFE 빌드에는 SnapDOM이 포함되며 전역 `VanillaDisintegrate`를 노출합니다.
+
+```html
+<script src="/vendor/vanilla-disintegrate.iife.min.js"></script>
+<script>
+  const effects = new VanillaDisintegrate.Disintegrator();
+  effects.remove(document.querySelector('.card'));
+</script>
+```
+
+내장 오디오를 사용하려면 `dist/sounds`를 스크립트 옆의 `/vendor/sounds`로 복사하세요. 사운드 URL은 IIFE 파일을 기준으로 해석됩니다.
 
 ## 정리
 
@@ -111,3 +142,5 @@ const effects = new Disintegrator({
 WebGL2가 없거나 컨텍스트를 만들 수 없는 환경에서 내장 효과는 실패하지 않고 축소 동작합니다. `remove()`는 요소를 그대로 분리하고 `restore()`는 그대로 드러내며, 작업은 `skipped` 상태로 끝나고 원인은 `onError`로 전달됩니다. WAAPI, CSS, Canvas 2D로 만든 사용자 효과는 구형 엔진에서도 그대로 재생됩니다.
 
 실행 중인 내장 효과는 WebGL2 컨텍스트를 하나만 점유하고 작업이 끝나는 즉시 반환하므로, 긴 목록을 지워도 브라우저의 페이지당 컨텍스트 한도에 닿지 않습니다.
+
+`Disintegrator`는 서버 렌더링 중이 아니라 브라우저에서만 생성하세요. 교차 출처 이미지, 글꼴, 스타일시트는 CORS를 허용하거나 캡처 어댑터의 프록시 옵션을 사용해야 하며, 그렇지 않으면 Canvas 스냅샷에서 빠질 수 있습니다.

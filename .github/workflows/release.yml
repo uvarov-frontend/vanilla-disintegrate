@@ -4,24 +4,24 @@ on:
   push:
     tags: ['v*']
 
-permissions:
-  contents: write
-  id-token: write
-
 jobs:
-  publish:
+  verify:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
-    environment: npm
+    outputs:
+      package_name: ${{ steps.pack.outputs.package_name }}
+      package_version: ${{ steps.pack.outputs.package_version }}
+      tarball: ${{ steps.pack.outputs.tarball }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.0
+        with:
+          ref: ${{ github.sha }}
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-          package-manager-cache: false
-          registry-url: https://registry.npmjs.org
-      - name: Install npm with trusted publishing support
-        run: npm install --global npm@11
+          cache: pnpm
       - name: Verify release tag
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -29,9 +29,79 @@ jobs:
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           test "v${PACKAGE_VERSION}" = "${RELEASE_TAG}"
       - run: pnpm install --frozen-lockfile
-      - run: npm publish --access public
-      - name: Create GitHub release
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm run check
+      - id: pack
+        name: Create the verified package artifact
+        run: |
+          npm pack --ignore-scripts --json > release-pack.json
+          TARBALL="$(node -p "JSON.parse(require('fs').readFileSync('release-pack.json'))[0].filename")"
+          PACKAGE_NAME="$(node -p "require('./package.json').name")"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          {
+            echo "tarball=${TARBALL}"
+            echo "package_name=${PACKAGE_NAME}"
+            echo "package_version=${PACKAGE_VERSION}"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: npm-package
+          path: |
+            ${{ steps.pack.outputs.tarball }}
+            release-pack.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: verify
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: npm-package
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11
+      - name: Publish once and verify idempotent reruns
         env:
+          PACKAGE_NAME: ${{ needs.verify.outputs.package_name }}
+          PACKAGE_VERSION: ${{ needs.verify.outputs.package_version }}
+          TARBALL: ${{ needs.verify.outputs.tarball }}
+        run: |
+          LOCAL_INTEGRITY="$(node -p "JSON.parse(require('fs').readFileSync('release-pack.json'))[0].integrity")"
+          if REGISTRY_INTEGRITY="$(npm view "${PACKAGE_NAME}@${PACKAGE_VERSION}" dist.integrity 2>/dev/null)"; then
+            test "$LOCAL_INTEGRITY" = "$REGISTRY_INTEGRITY"
+            echo "${PACKAGE_NAME}@${PACKAGE_VERSION} is already published with the verified integrity."
+          else
+            npm publish "$TARBALL" --access public --provenance
+          fi
+
+  release:
+    needs: [verify, publish]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: npm-package
+      - name: Create or update the GitHub release
+        env:
+          GH_REPO: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" --generate-notes
+          TARBALL: ${{ needs.verify.outputs.tarball }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$TARBALL" --clobber
+          else
+            gh release create "$RELEASE_TAG" "$TARBALL" --verify-tag --generate-notes
+          fi

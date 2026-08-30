@@ -4,10 +4,12 @@ import { SoundPlayer } from '../src/audio';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  return { promise, reject, resolve };
 }
 
 function fakeBuffer(channels: readonly Float32Array[], sampleRate: number): AudioBuffer {
@@ -28,26 +30,30 @@ function sourceBuffer(samples: readonly number[]) {
 
 function mockAudio() {
   const decoded = deferred<AudioBuffer>();
+  const close = vi.fn().mockResolvedValue(undefined);
+  const decodeAudioData = vi.fn(() => decoded.promise);
   const start = vi.fn();
   const stop = vi.fn();
+  const sourceDisconnect = vi.fn();
   const source = {
     addEventListener: vi.fn(),
     buffer: null,
     connect: vi.fn(),
-    disconnect: vi.fn(),
+    disconnect: sourceDisconnect,
     playbackRate: { value: 1 },
     start,
     stop,
   } as unknown as AudioBufferSourceNode;
   const linearRampToValueAtTime = vi.fn();
   const setValueAtTime = vi.fn();
+  const gainDisconnect = vi.fn();
   const gain = {
     connect: vi.fn(),
-    disconnect: vi.fn(),
+    disconnect: gainDisconnect,
     gain: { linearRampToValueAtTime, setValueAtTime },
   } as unknown as GainNode;
   const context = {
-    close: vi.fn().mockResolvedValue(undefined),
+    close,
     createBuffer: vi.fn((numberOfChannels: number, length: number, sampleRate: number) =>
       fakeBuffer(
         Array.from({ length: numberOfChannels }, () => new Float32Array(length)),
@@ -57,7 +63,7 @@ function mockAudio() {
     createBufferSource: vi.fn(() => source),
     createGain: vi.fn(() => gain),
     currentTime: 0,
-    decodeAudioData: vi.fn(() => decoded.promise),
+    decodeAudioData,
     destination: {},
     resume: vi.fn().mockResolvedValue(undefined),
     state: 'running',
@@ -77,7 +83,19 @@ function mockAudio() {
     }),
   );
 
-  return { context, decoded, linearRampToValueAtTime, setValueAtTime, source, start };
+  return {
+    close,
+    context,
+    decodeAudioData,
+    decoded,
+    gainDisconnect,
+    linearRampToValueAtTime,
+    setValueAtTime,
+    source,
+    sourceDisconnect,
+    start,
+    stop,
+  };
 }
 
 describe('SoundPlayer', () => {
@@ -100,6 +118,7 @@ describe('SoundPlayer', () => {
 
     expect(() => player.unlock({ src: '/dust.mp3' }, onError)).not.toThrow();
     expect(onError).toHaveBeenCalledWith(error);
+    player.destroy();
   });
 
   it('does not start playback until a source has been fully decoded', async () => {
@@ -197,6 +216,154 @@ describe('SoundPlayer', () => {
     expect(factory).toHaveBeenCalledOnce();
     expect(stop).toHaveBeenCalledOnce();
     expect(dispose).toHaveBeenCalledOnce();
+    player.destroy();
+  });
+
+  it('shares one context and decoded buffer across players', async () => {
+    const { close, decodeAudioData, decoded } = mockAudio();
+    const first = new SoundPlayer();
+    const second = new SoundPlayer();
+    const firstPreparation = first.prepare({ src: '/shared.mp3' });
+    const secondPreparation = second.prepare({ src: '/shared.mp3' });
+
+    decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
+    await Promise.all([firstPreparation, secondPreparation]);
+
+    expect(AudioContext).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(decodeAudioData).toHaveBeenCalledOnce();
+    first.destroy();
+    expect(close).not.toHaveBeenCalled();
+    second.destroy();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('keeps a shared pending load alive while another player still owns it', async () => {
+    const { decoded } = mockAudio();
+    let fetchSignal: AbortSignal | undefined;
+    const response = deferred<Response>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_source: string, init?: RequestInit) => {
+        fetchSignal = init?.signal ?? undefined;
+        return response.promise;
+      }),
+    );
+    const first = new SoundPlayer();
+    const second = new SoundPlayer();
+    const firstPreparation = first.prepare({ src: '/shared-pending.mp3' });
+    const secondPreparation = second.prepare({ src: '/shared-pending.mp3' });
+
+    await vi.waitFor(() => expect(fetchSignal).toBeDefined());
+    first.destroy();
+    expect(fetchSignal?.aborted).toBe(false);
+    response.resolve({
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
+      ok: true,
+    } as Response);
+    decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
+
+    await expect(firstPreparation).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(secondPreparation).resolves.toMatchObject({ type: 'native' });
+    second.destroy();
+  });
+
+  it('keeps a shared reverse dependency alive while another player still owns it', async () => {
+    const { decoded } = mockAudio();
+    let fetchSignal: AbortSignal | undefined;
+    const response = deferred<Response>();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_source: string, init?: RequestInit) => {
+        fetchSignal = init?.signal ?? undefined;
+        return response.promise;
+      }),
+    );
+    const first = new SoundPlayer();
+    const second = new SoundPlayer();
+    const firstPreparation = first.prepare({ src: '/shared-reverse.mp3', reverse: true });
+    const secondPreparation = second.prepare({ src: '/shared-reverse.mp3', reverse: true });
+
+    await vi.waitFor(() => expect(fetchSignal).toBeDefined());
+    first.destroy();
+    expect(fetchSignal?.aborted).toBe(false);
+    response.resolve({
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
+      ok: true,
+    } as Response);
+    decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
+
+    await expect(firstPreparation).rejects.toMatchObject({ name: 'AbortError' });
+    await expect(secondPreparation).resolves.toMatchObject({ type: 'native' });
+    second.destroy();
+  });
+
+  it('uses custom playback completion to dispose resources and report failures', async () => {
+    const completed = deferred<void>();
+    const failed = deferred<void>();
+    const completeDispose = vi.fn();
+    const failedStop = vi.fn();
+    const failedDispose = vi.fn();
+    const onError = vi.fn();
+    const player = new SoundPlayer();
+
+    const completedSound = await player.prepare(() => ({ finished: completed.promise, dispose: completeDispose }));
+    player.play(completedSound, 1, soundContext(), onError);
+    completed.resolve();
+    await completed.promise;
+    await Promise.resolve();
+    expect(completeDispose).toHaveBeenCalledOnce();
+
+    const error = new Error('custom playback failed');
+    const failedSound = await player.prepare(() => ({
+      finished: failed.promise,
+      stop: failedStop,
+      dispose: failedDispose,
+    }));
+    player.play(failedSound, 1, soundContext(), onError);
+    failed.reject(error);
+    await failed.promise.catch(() => undefined);
+    await Promise.resolve();
+
+    expect(onError).toHaveBeenCalledWith(error);
+    expect(failedStop).toHaveBeenCalledOnce();
+    expect(failedDispose).toHaveBeenCalledOnce();
+    player.destroy();
+  });
+
+  it('suppresses a custom factory rejection after playback is cancelled', async () => {
+    const pending = deferred<{ stop(): void }>();
+    const onError = vi.fn();
+    const player = new SoundPlayer();
+    const prepared = await player.prepare(() => pending.promise);
+
+    const cancel = player.play(prepared, 1, soundContext(), onError);
+    cancel();
+    pending.reject(new Error('late playback failure'));
+    await pending.promise.catch(() => undefined);
+    await Promise.resolve();
+
+    expect(onError).not.toHaveBeenCalled();
+    player.destroy();
+  });
+
+  it('disconnects native nodes when scheduling playback fails', async () => {
+    const { decoded, gainDisconnect, sourceDisconnect, stop } = mockAudio();
+    const error = new Error('unable to schedule stop');
+    stop.mockImplementationOnce(() => {
+      throw error;
+    });
+    const onError = vi.fn();
+    const player = new SoundPlayer();
+    const preparation = player.prepare({ src: '/dust.mp3' });
+
+    decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
+    player.play(await preparation, 1, soundContext(), onError);
+
+    expect(onError).toHaveBeenCalledWith(error);
+    expect(sourceDisconnect).toHaveBeenCalledOnce();
+    expect(gainDisconnect).toHaveBeenCalledOnce();
+    player.destroy();
   });
 
   it('deduplicates the forward source used to prepare a reversed copy', async () => {

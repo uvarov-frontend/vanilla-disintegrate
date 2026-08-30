@@ -45,7 +45,7 @@ export function disposeSnapshot(snapshot: HTMLCanvasElement | null) {
 
 export class SnapshotPreparation {
   private readonly prepared = new Map<HTMLElement, PreparedSnapshot>();
-  private readonly registered = new Set<HTMLElement>();
+  private readonly registered = new Map<HTMLElement, number>();
   private readonly nearby = new Set<HTMLElement>();
   private readonly suspended = new Map<HTMLElement, number>();
   private readonly queue: HTMLElement[] = [];
@@ -182,7 +182,7 @@ export class SnapshotPreparation {
     ) {
       this.prepared.delete(element);
       existing.claimed = true;
-      if (existing.snapshot !== null) this.cachedPixels -= existing.pixels;
+      this.cachedPixels -= existing.pixels;
       return existing.promise;
     }
     if (existing !== undefined) this.invalidateElement(element, false);
@@ -210,8 +210,9 @@ export class SnapshotPreparation {
   }
 
   private registerElement(element: HTMLElement) {
-    if (this.registered.has(element)) return;
-    this.registered.add(element);
+    const registrations = this.registered.get(element) ?? 0;
+    this.registered.set(element, registrations + 1);
+    if (registrations > 0) return;
     if (this.options.invalidateOnResize && typeof ResizeObserver !== 'undefined') {
       this.resizeObserver ??= new ResizeObserver((entries) => {
         for (const entry of entries) {
@@ -234,7 +235,13 @@ export class SnapshotPreparation {
   }
 
   private unregisterElement(element: HTMLElement) {
-    if (!this.registered.delete(element)) return;
+    const registrations = this.registered.get(element);
+    if (registrations === undefined) return;
+    if (registrations > 1) {
+      this.registered.set(element, registrations - 1);
+      return;
+    }
+    this.registered.delete(element);
     this.nearby.delete(element);
     this.dequeue(element);
     this.intersectionObserver?.unobserve(element);

@@ -2,6 +2,7 @@ import { docsHref, type Locale } from '../i18n';
 
 export interface DocEntry {
   readonly id: string;
+  readonly filePath?: string;
   readonly data: {
     readonly title: string;
     readonly description: string;
@@ -21,7 +22,16 @@ export function entryHref(entry: DocEntry) {
 }
 
 export function editHref(entry: DocEntry) {
-  return `https://github.com/uvarov-frontend/vanilla-disintegrate/edit/main/docs/content/${entry.id}.mdx`;
+  const normalized = entry.filePath?.replace(/\\/g, '/');
+  const contentMarker = '/docs/content/';
+  const sourcePath =
+    normalized === undefined
+      ? `docs/content/${entry.id}.mdx`
+      : normalized.includes(contentMarker)
+        ? `docs/content/${normalized.split(contentMarker)[1]}`
+        : normalized.replace(/^\/+/, '');
+  const encodedPath = sourcePath.split('/').map(encodeURIComponent).join('/');
+  return `https://github.com/uvarov-frontend/vanilla-disintegrate/edit/main/${encodedPath}`;
 }
 
 export function localeEntries(entries: readonly DocEntry[], locale: Locale) {

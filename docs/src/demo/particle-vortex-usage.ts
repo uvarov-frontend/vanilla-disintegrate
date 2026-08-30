@@ -1,4 +1,4 @@
-import Disintegrator from '../src/snapdom';
+import Disintegrator from '../../../src/snapdom';
 
 import { particleVortex } from './particle-vortex';
 

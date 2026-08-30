@@ -102,6 +102,155 @@ describe('remove and restore lifecycle', () => {
     effect.destroy();
   });
 
+  it('rejects a concurrent operation without committing or allocating a retention id', async () => {
+    const { target } = createTarget();
+    const captured = deferred<HTMLCanvasElement>();
+    const animate = vi.fn<AnimationFactory>(() => playback());
+    const effect = new Disintegrator({
+      capture: () => captured.promise,
+      effect: customEffect(animate),
+      layout: false,
+    });
+
+    const first = effect.remove(target, { retain: true });
+    const second = effect.remove(target, { effect: 'not-registered', retain: true });
+    const rejected = await second.finished;
+
+    expect(rejected.status).toBe('rejected');
+    expect(second.removalId).toBeNull();
+    expect(target.isConnected).toBe(true);
+
+    captured.resolve(snapshot());
+    expect((await first.finished).status).toBe('completed');
+    expect(animate).toHaveBeenCalledOnce();
+    expect(effect.take(first.removalId!)).toBe(target);
+    effect.destroy();
+  });
+
+  it('settles and releases ownership when setup throws before capture', async () => {
+    const { target } = createTarget();
+    const error = new Error('computed style failed');
+    const onError = vi.fn();
+    const computedStyle = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw error;
+      })
+      .mockReturnValue({ opacity: '1' });
+    vi.stubGlobal('getComputedStyle', computedStyle);
+    const effectDefinition = customEffect();
+    const effect = new Disintegrator({
+      capture: vi.fn().mockResolvedValue(snapshot()),
+      effect: effectDefinition,
+      layout: false,
+      onError,
+    });
+
+    expect((await effect.restore(target).finished).status).toBe('skipped');
+    expect(onError).toHaveBeenCalledWith(error, expect.objectContaining({ operation: 'restore' }));
+    expect((await effect.remove(target).finished).status).toBe('completed');
+    effect.destroy();
+  });
+
+  it('stops setup when onTrigger destroys the instance', async () => {
+    const { target } = createTarget();
+    const capture = vi.fn().mockResolvedValue(snapshot());
+    const effect = new Disintegrator({
+      capture,
+      effect: customEffect(),
+      layout: false,
+      onTrigger: () => effect.destroy(),
+    });
+
+    const result = await effect.remove(target).finished;
+
+    expect(result.status).toBe('cancelled');
+    expect(capture).not.toHaveBeenCalled();
+    expect(target.style.pointerEvents).toBe('');
+    expect(target.isConnected).toBe(false);
+  });
+
+  it('cleans resources created by an animation that destroys the instance', async () => {
+    const { target } = createTarget();
+    const beforeDestroy = vi.fn();
+    const afterDestroy = vi.fn();
+    const cancel = vi.fn();
+    const dispose = vi.fn();
+    const createdPlayback = { ...playback(new Promise(() => undefined)), cancel, dispose };
+    const animate = vi.fn<AnimationFactory>((context) => {
+      context.addCleanup(beforeDestroy);
+      effect.destroy();
+      context.addCleanup(afterDestroy);
+      return createdPlayback;
+    });
+    const effect = new Disintegrator({
+      capture: vi.fn().mockResolvedValue(snapshot()),
+      effect: customEffect(animate),
+      layout: false,
+    });
+
+    const result = await effect.remove(target).finished;
+    await Promise.resolve();
+
+    expect(result.status).toBe('cancelled');
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(beforeDestroy).toHaveBeenCalledOnce();
+    expect(afterDestroy).toHaveBeenCalledOnce();
+    expect(document.body.querySelector('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('stops before renderer setup when the random source destroys the instance', async () => {
+    const { target } = createTarget();
+    const animate = vi.fn<AnimationFactory>(() => playback());
+    const effect = new Disintegrator({
+      capture: vi.fn().mockResolvedValue(snapshot()),
+      effect: customEffect(animate),
+      layout: false,
+      random: () => {
+        effect.destroy();
+        return 0.5;
+      },
+    });
+
+    const result = await effect.remove(target).finished;
+
+    expect(result.status).toBe('cancelled');
+    expect(animate).not.toHaveBeenCalled();
+    expect(document.body.querySelector('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it('cleans every visual resource when playback completion rejects', async () => {
+    const { target } = createTarget();
+    const error = new Error('renderer failed');
+    const dispose = vi.fn();
+    const registeredCleanup = vi.fn();
+    const onError = vi.fn();
+    const animate = vi.fn<AnimationFactory>((context) => {
+      context.addCleanup(registeredCleanup);
+      return {
+        element: document.createElement('canvas'),
+        finished: Promise.reject(error),
+        dispose,
+      };
+    });
+    const effect = new Disintegrator({
+      capture: vi.fn().mockResolvedValue(snapshot()),
+      effect: customEffect(animate),
+      layout: false,
+      onError,
+    });
+
+    const result = await effect.remove(target).finished;
+
+    expect(result.status).toBe('skipped');
+    expect(dispose).toHaveBeenCalledOnce();
+    expect(registeredCleanup).toHaveBeenCalledOnce();
+    expect(document.body.querySelector('[aria-hidden="true"]')).toBeNull();
+    expect(onError).toHaveBeenCalledWith(error, expect.objectContaining({ operation: 'remove' }));
+    effect.destroy();
+  });
+
   it('lets a reactive renderer own the DOM removal through detach', async () => {
     const { target } = createTarget();
     const detach = vi.fn((element: HTMLElement) => element.remove());
@@ -117,6 +266,28 @@ describe('remove and restore lifecycle', () => {
     expect(detach).toHaveBeenCalledOnce();
     expect(detach).toHaveBeenCalledWith(target);
     expect(target.isConnected).toBe(false);
+    effect.destroy();
+  });
+
+  it('does not retain an element when detach cancels the committing operation', async () => {
+    const { target } = createTarget();
+    const effect = new Disintegrator({
+      capture: vi.fn().mockResolvedValue(snapshot()),
+      effect: customEffect(),
+      layout: false,
+    });
+    const operation = effect.remove(target, {
+      detach: (element) => {
+        element.remove();
+        operation.cancel();
+      },
+      retain: true,
+    });
+
+    const result = await operation.finished;
+
+    expect(result.status).toBe('cancelled');
+    expect(effect.take(operation.removalId!)).toBeNull();
     effect.destroy();
   });
 
@@ -272,6 +443,7 @@ describe('remove and restore lifecycle', () => {
       capture: () => {
         throw error;
       },
+      effect: customEffect(),
       layout: false,
       onError,
     });
@@ -287,7 +459,7 @@ describe('remove and restore lifecycle', () => {
   it('cancels a pending visual operation but keeps the requested content result', async () => {
     const { target } = createTarget();
     const capture = deferred<HTMLCanvasElement>();
-    const effect = new Disintegrator({ capture: () => capture.promise, layout: false });
+    const effect = new Disintegrator({ capture: () => capture.promise, effect: customEffect(), layout: false });
 
     const operation = effect.remove(target, { retain: true });
     operation.cancel();
@@ -303,7 +475,7 @@ describe('remove and restore lifecycle', () => {
   it('can discard a retained id before its pending removal finishes', async () => {
     const { target } = createTarget();
     const capture = deferred<HTMLCanvasElement>();
-    const effect = new Disintegrator({ capture: () => capture.promise, layout: false });
+    const effect = new Disintegrator({ capture: () => capture.promise, effect: customEffect(), layout: false });
     const operation = effect.remove(target, { retain: true });
 
     expect(effect.discard(operation.removalId!)).toBe(true);
@@ -317,7 +489,11 @@ describe('remove and restore lifecycle', () => {
   it('supports targeted and complete retained-element disposal', async () => {
     const first = createTarget().target;
     const second = createTarget().target;
-    const effect = new Disintegrator({ capture: vi.fn().mockResolvedValue(snapshot()), layout: false });
+    const effect = new Disintegrator({
+      capture: vi.fn().mockResolvedValue(snapshot()),
+      effect: customEffect(),
+      layout: false,
+    });
     const firstRemoval = effect.remove(first, { retain: true });
     const secondRemoval = effect.remove(second, { retain: true });
     await Promise.all([firstRemoval.finished, secondRemoval.finished]);
@@ -336,7 +512,7 @@ describe('remove and restore lifecycle', () => {
     });
     const { target } = createTarget();
     const capture = vi.fn().mockResolvedValue(snapshot());
-    const effect = new Disintegrator({ capture, layout: false });
+    const effect = new Disintegrator({ capture, effect: customEffect(), layout: false });
 
     const result = await effect.remove(target).finished;
 

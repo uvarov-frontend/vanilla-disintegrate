@@ -60,10 +60,12 @@ operation.removalId; // RemovalId | null
 operation.cancel();
 
 const result = await operation.finished;
-result.status; // 'completed' | 'cancelled' | 'skipped'
+result.status; // 'completed' | 'cancelled' | 'skipped' | 'rejected'
 ```
 
 완료된 작업 객체는 DOM 요소를 보관하지 않습니다.
+
+같은 요소에서 작업이 이미 실행 중이면 두 번째 호출은 `rejected` 상태로 끝납니다. DOM을 변경하지 않으며 보관 ID도 할당하지 않습니다.
 
 ## 취소는 시각 효과만 중지
 

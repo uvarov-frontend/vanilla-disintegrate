@@ -1263,6 +1263,116 @@ code {
   text-underline-offset: 3px;
 }
 
+.footer-links {
+  display: flex;
+  gap: 18px;
+}
+
+.privacy-actions {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  width: fit-content;
+}
+
+[data-analytics-toggle]:not([data-analytics-ready]) {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.analytics-toggle-skeleton {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border: 1px solid var(--border-light);
+  border-radius: 7px;
+  background: linear-gradient(100deg, var(--surface-raised) 25%, var(--border) 50%, var(--surface-raised) 75%);
+  background-size: 200% 100%;
+  animation: analytics-toggle-skeleton 1.4s ease-in-out infinite;
+  pointer-events: none;
+  transition:
+    opacity 220ms ease-out,
+    visibility 0s linear 220ms;
+}
+
+[data-analytics-toggle-slot][data-analytics-ready] .analytics-toggle-skeleton {
+  visibility: hidden;
+  opacity: 0;
+}
+
+.privacy-actions button {
+  min-width: 184px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  color: #111117;
+  background: var(--accent-bright);
+  cursor: pointer;
+  font-weight: 700;
+  opacity: 1;
+  transition:
+    color 160ms ease-out,
+    background-color 160ms ease-out,
+    border-color 160ms ease-out,
+    opacity 220ms ease-out;
+}
+
+.privacy-actions .button-secondary {
+  border-color: var(--border-light);
+  color: var(--text);
+  background: transparent;
+}
+
+.privacy-page {
+  width: min(760px, calc(100% - 40px));
+  min-height: calc(100vh - 180px);
+  margin: 0 auto;
+  padding: 80px 0;
+}
+
+.privacy-page h1 {
+  margin: 0 0 18px;
+  font-size: clamp(2.5rem, 7vw, 4rem);
+  line-height: 1;
+}
+
+.privacy-page h2 {
+  margin: 0 0 10px;
+  font-size: 21px;
+}
+
+.privacy-page p {
+  color: var(--muted);
+}
+
+.privacy-page section {
+  margin-top: 42px;
+}
+
+.privacy-intro {
+  font-size: 18px;
+}
+
+@keyframes analytics-toggle-skeleton {
+  from {
+    background-position: 200% 0;
+  }
+
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .privacy-actions {
+    align-items: stretch;
+    flex-direction: column;
+    width: 100%;
+  }
+}
+
 .sidebar-backdrop {
   display: none;
 }
@@ -2718,5 +2828,9 @@ code {
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
+  }
+
+  .analytics-toggle-skeleton {
+    animation: none;
   }
 }

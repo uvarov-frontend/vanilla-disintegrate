@@ -138,7 +138,7 @@ export interface SoundContext {
 
 /** Optional controls returned by a custom sound factory. */
 export interface SoundPlayback {
-  /** Optional completion signal; playback continues independently if omitted. */
+  /** Optional completion signal for early disposal; otherwise cleanup follows the visual operation. */
   readonly finished?: PromiseLike<unknown>;
   /** Stops playback immediately. */
   stop?(): void;
@@ -247,6 +247,18 @@ export interface EffectContext {
   readonly removalId: RemovalId | null;
 }
 
+/** Context supplied when the library reports an isolated failure. */
+export interface EffectErrorContext {
+  /** Operation that failed, or `prepare` for background snapshot work. */
+  readonly operation: EffectOperationKind | 'prepare';
+  /** Element associated with the failure. */
+  readonly element: HTMLElement;
+  /** Active animation overlay when the failure happened, otherwise `null`. */
+  readonly overlay: HTMLElement | null;
+  /** Retention handle for a remove operation, otherwise `null`. */
+  readonly removalId: RemovalId | null;
+}
+
 /** Optional callbacks shared by an instance and individual operations. */
 export interface EffectCallbacks {
   /** Called after trigger validation and before capture starts. */
@@ -255,13 +267,13 @@ export interface EffectCallbacks {
   onStart?: (context: EffectContext) => void;
   /** Called after a visual phase completes normally. */
   onComplete?: (context: EffectContext) => void;
-  /** Reports capture, animation, sound and callback errors without throwing into the application flow. */
-  onError?: (error: unknown, context: EffectContext) => void;
+  /** Reports preparation, capture, animation, sound and callback errors without interrupting application flow. */
+  onError?: (error: unknown, context: EffectErrorContext) => void;
 }
 
 /** Instance-wide defaults and infrastructure adapters. */
 export interface DisintegratorOptions extends EffectCallbacks {
-  /** Canvas capture adapter. Required by snapshot-based effects in the core entry. */
+  /** Canvas capture adapter. Required by every snapshot-based effect. */
   readonly capture?: SnapshotCapture;
   /** Default effect used when an operation does not choose one. */
   readonly effect?: EffectSelection;
@@ -309,14 +321,17 @@ export interface RemoveOptions extends OperationOptions {
 /** Options specific to `restore()`. */
 export type RestoreOptions = OperationOptions;
 
-/** Final visual result of an operation. Content actions are never rolled back by cancellation. */
-export type EffectOperationStatus = 'completed' | 'cancelled' | 'skipped';
+/** Final result of an operation. */
+export type EffectOperationStatus = 'completed' | 'cancelled' | 'skipped' | 'rejected';
 
 /** Value resolved by `EffectOperation.finished`. */
 export interface EffectOperationResult {
   /** Remove or restore operation that completed. */
   readonly operation: EffectOperationKind;
-  /** Whether the visual phase completed, was cancelled or could not run. */
+  /**
+   * `completed` finished normally; `cancelled` committed without finishing its visual;
+   * `skipped` committed without starting a visual; `rejected` did not start or commit.
+   */
   readonly status: EffectOperationStatus;
   /** Retention id for a removal, otherwise `null`. */
   readonly removalId: RemovalId | null;
@@ -326,7 +341,7 @@ export interface EffectOperationResult {
 export interface EffectOperation {
   /** Remove or restore operation represented by this handle. */
   readonly operation: EffectOperationKind;
-  /** Retention id for a removal created with `retain: true`, otherwise `null`. */
+  /** Retention id for an accepted removal with `retain: true`, otherwise `null`. */
   readonly removalId: RemovalId | null;
   /** Resolves after visual cleanup and reports the final operation status. */
   readonly finished: Promise<EffectOperationResult>;

@@ -1,0 +1,12 @@
+---
+import NotFoundPage from '../../components/NotFoundPage.astro';
+import PrivacyPage from '../../components/PrivacyPage.astro';
+import { isLocale, localeFromPath } from '../../i18n';
+
+const { locale } = Astro.params;
+const isNotFound = !isLocale(locale) || locale === 'en';
+const pageLocale = isNotFound ? localeFromPath(Astro.url.pathname) : locale;
+if (isNotFound) Astro.response.status = 404;
+---
+
+{isNotFound ? <NotFoundPage locale={pageLocale} pathname={Astro.url.pathname} /> : <PrivacyPage locale={pageLocale} />}

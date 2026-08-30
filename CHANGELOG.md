@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- Dedicated `/core` and `/particles` entry points so custom effects do not pull WebGL, built-in sounds, or SnapDOM into their module graph.
+- Shared, reference-counted audio preparation with deterministic cleanup and bounded decoded-buffer caching.
+- Browser coverage in Chromium, Firefox, and WebKit, unit coverage thresholds, and reproducible-build verification.
+- Explicit third-party notices, a security policy, privacy pages, and user controls for documentation analytics.
+
+### Changed
+
+- Hardened concurrent operations, cancellation, setup failures, custom audio playback, and WebGL cleanup against leaked resources or unsettled promises.
+- Made element preparation reference-counted and extended operation results with the non-mutating `rejected` status.
+- Reduced package weight while preserving usable source maps, the CDN build, eager audio preparation, and TypeScript sources.
+- Hardened release and deployment workflows with immutable action references, artifact verification, staged health checks, and rollback.
+
 ## [1.0.0] - 2026-08-29
 
 ### Added

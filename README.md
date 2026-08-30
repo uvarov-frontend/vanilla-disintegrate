@@ -19,8 +19,8 @@ Vanilla Disintegrate is a lightweight TypeScript library for removing and restor
 - **Simple integration**: Create an instance and call `remove(element)` directly from a click handler.
 - **Framework-agnostic**: Use it with vanilla JavaScript, React, Vue, Svelte, Solid, Angular, Web Components, or another DOM renderer.
 - **Custom effects**: Define independent removal and restoration phases with WAAPI, Canvas, SVG, WebGL, CSS, or another animation engine.
-- **Custom capture**: The `vanilla-disintegrate/snapdom` entry wires SnapDOM for you; import the core entry to plug in another renderer such as html2canvas.
-- **Zero runtime dependencies**: The core entry ships no dependencies; SnapDOM is an optional peer installed only if you use its entry.
+- **Custom capture**: The `vanilla-disintegrate/snapdom` entry wires SnapDOM for you; the default entry accepts another renderer such as html2canvas.
+- **Zero runtime dependencies**: The ESM package has no mandatory dependencies; SnapDOM is an optional peer installed only if you use its entry.
 - **Sound control**: Effect audio is opt-in; enable the built-in sounds with `sound: true`, or supply your own source, `AudioBuffer`, or audio factory.
 - **Background preparation**: Registered elements are pre-captured with a visible-idle policy and a bounded LRU snapshot cache; disable it when unnecessary.
 - **Explicit memory control**: Keep a removed original node only with `retain: true`, then consume it with `take()` or release it with `discard()`.
@@ -55,7 +55,7 @@ If it helps your project, consider giving it a 🌟 star on [GitHub](https://git
 
 ### Installation
 
-The core package has no runtime dependencies. Capture is pluggable, so the capture library is installed alongside it — [SnapDOM](https://zumerlab.github.io/snapdom/) for the ready-made adapter:
+The package has no mandatory runtime dependencies. Capture is pluggable, so the capture library is installed alongside it — [SnapDOM](https://zumerlab.github.io/snapdom/) for the ready-made adapter:
 
 ```sh
 npm install vanilla-disintegrate @zumer/snapdom
@@ -67,14 +67,16 @@ pnpm add vanilla-disintegrate @zumer/snapdom
 bun add vanilla-disintegrate @zumer/snapdom
 ```
 
-The package has two entry points:
+The package has four tree-shakable entry points:
 
-| Entry                          | Contents                                                          | Install                   |
-| ------------------------------ | ----------------------------------------------------------------- | ------------------------- |
-| `vanilla-disintegrate`         | Core: effects, lifecycle, layout, audio. You supply `capture`.    | No runtime dependencies   |
-| `vanilla-disintegrate/snapdom` | The same API with SnapDOM already wired as the default `capture`. | Requires `@zumer/snapdom` |
+| Entry                            | Contents                                                               | Install                   |
+| -------------------------------- | ---------------------------------------------------------------------- | ------------------------- |
+| `vanilla-disintegrate/core`      | Lifecycle, layout and audio for custom effects; no particle renderer.  | No runtime dependencies   |
+| `vanilla-disintegrate/particles` | Particle factories and built-in effect definitions.                    | No runtime dependencies   |
+| `vanilla-disintegrate`           | `Disintegrator` preconfigured with all four built-in particle effects. | No runtime dependencies   |
+| `vanilla-disintegrate/snapdom`   | Built-in effects with SnapDOM already wired as the default `capture`.  | Requires `@zumer/snapdom` |
 
-Both entries export the identical `Disintegrator` API, so you can start on `/snapdom` and move to the core entry when you bring your own capture adapter. `@zumer/snapdom` is an optional peer dependency: package managers will not install it unless you ask for it, and the core entry never reaches for it.
+The default and `/snapdom` entries export the same `Disintegrator` API. `@zumer/snapdom` is an optional peer dependency: package managers will not install it unless you ask for it, and the other entries never reach for it. Import `/core` for a custom, snapshotless effect without pulling the particle renderer or built-in sounds into the module graph.
 
 ### Remove an Element
 
@@ -106,6 +108,8 @@ const operation = effects.remove(card);
 
 await operation.finished;
 ```
+
+Only one operation can own an element at a time. A concurrent call for that element resolves with `status: 'rejected'`, does not touch the DOM, and does not allocate a retention ID.
 
 ### Remove and Restore the Same Node
 
@@ -215,7 +219,7 @@ effects.remove(card, { effect: fade });
 effects.restore(insertedCard, { effect: fade });
 ```
 
-To use a renderer other than SnapDOM, import the core entry and pass an adapter that returns a canvas:
+To use a renderer other than SnapDOM with the built-in effects, import the default entry and pass an adapter that returns a canvas:
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate';
@@ -227,6 +231,20 @@ const effects = new Disintegrator({
 ```
 
 Install your chosen capture library separately; this example uses `npm install html2canvas`. Nothing from SnapDOM enters your bundle on this path.
+
+### Script tag
+
+The IIFE build includes SnapDOM and exposes the API as `VanillaDisintegrate`:
+
+```html
+<script src="/vendor/vanilla-disintegrate.iife.min.js"></script>
+<script>
+  const effects = new VanillaDisintegrate.Disintegrator({ sound: true });
+  effects.remove(document.querySelector('.card'));
+</script>
+```
+
+When self-hosting, copy the package's `dist/sounds` directory next to the script as `/vendor/sounds`; built-in audio URLs are resolved relative to the IIFE file.
 
 ### Sound
 
@@ -268,8 +286,8 @@ pnpm run dev
 pnpm run check
 ```
 
-`pnpm run check` runs formatting, linting, TypeScript checks, tests, package validation, production builds, size budgets, and the SSR documentation smoke tests.
+`pnpm run check` runs formatting, linting, TypeScript checks, unit and browser tests, coverage thresholds, package validation, production builds, size budgets, and the SSR documentation smoke tests.
 
 ## License
 
-[MIT](./LICENSE) © 2026 [Yury Uvarov](https://github.com/uvarov-frontend)
+[MIT](./LICENSE) © 2026 [Yury Uvarov](https://github.com/uvarov-frontend). Bundled third-party licenses are listed in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).

@@ -1,17 +1,18 @@
 import { SoundPlayer } from './audio';
 import { resolveAudioPreparation, resolvePreparation } from './defaults';
+import { resolveEffect } from './effects';
 import { OperationRunner } from './operation-runner';
 import { SnapshotPreparation } from './preparation';
-import { resolveEffect } from './presets';
 import { RetainedElements } from './retained-elements';
 import type {
-  EffectContext,
+  DisintegratorOptions,
+  EffectDefinition,
+  EffectErrorContext,
+  EffectSelection,
   EffectTarget,
   EffectTargets,
-  DisintegratorOptions,
-  EffectSelection,
-  RemovalId,
   RemoveOptions,
+  RemovalId,
   RestoreOptions,
 } from './types';
 
@@ -24,10 +25,12 @@ export class Disintegrator {
   private readonly preparation: SnapshotPreparation;
   private readonly sound: SoundPlayer;
   private readonly runner: OperationRunner;
+  private readonly effects: Readonly<Record<string, EffectDefinition>>;
   private destroyed = false;
 
   /** Creates an independent animation instance. Call `destroy()` when its UI is disposed. */
   constructor(private readonly options: DisintegratorOptions = {}) {
+    this.effects = options.effects ?? {};
     const audioPreparation = resolveAudioPreparation(options.audioPreparation);
     this.preparation = new SnapshotPreparation(
       options.capture,
@@ -51,9 +54,10 @@ export class Disintegrator {
   remove(target: EffectTarget, options: RemoveOptions = {}) {
     this.assertAlive();
     const element = this.resolveElement(target);
-    const effect = resolveEffect(options.effect ?? this.options.effect, this.options.effects);
-    const removalId = options.retain === true ? this.retained.createId() : null;
-    return this.runner.run({ kind: 'remove', element, effect, removalId, overrides: options });
+    const rejected = this.runner.rejectIfBusy('remove', element);
+    if (rejected !== null) return rejected;
+    const effect = resolveEffect(options.effect ?? this.options.effect, this.effects);
+    return this.runner.run({ kind: 'remove', element, effect, overrides: options });
   }
 
   /**
@@ -63,21 +67,25 @@ export class Disintegrator {
   restore(target: EffectTarget, options: RestoreOptions = {}) {
     this.assertAlive();
     const element = this.resolveElement(target);
+    const rejected = this.runner.rejectIfBusy('restore', element);
+    if (rejected !== null) return rejected;
     const bounds = element.getBoundingClientRect();
     if (!element.isConnected || bounds.width <= 0 || bounds.height <= 0) {
       throw new TypeError('restore() requires a connected element with measurable geometry.');
     }
     const effect =
       options.effect === undefined
-        ? (this.retained.effectFor(element) ?? resolveEffect(this.options.effect, this.options.effects))
-        : resolveEffect(options.effect, this.options.effects);
+        ? (this.retained.effectFor(element) ?? resolveEffect(this.options.effect, this.effects))
+        : resolveEffect(options.effect, this.effects);
+    const operation = this.runner.run({ kind: 'restore', element, effect, overrides: options });
     this.retained.associate(element, effect);
-    return this.runner.run({ kind: 'restore', element, effect, removalId: null, overrides: options });
+    return operation;
   }
 
   /**
    * Registers elements as candidates for optional background preparation.
-   * Returns an idempotent function that unregisters exactly these elements.
+   * Registrations are reference-counted. The returned idempotent function
+   * releases only this registration.
    */
   register(targets: EffectTargets) {
     this.assertAlive();
@@ -103,13 +111,13 @@ export class Disintegrator {
   }
 
   /** Immediately fetches and decodes the selected effects' native audio. */
-  prepareAudio(effects: EffectSelection | readonly EffectSelection[] = this.options.effect ?? 'dust') {
+  prepareAudio(effects: EffectSelection | readonly EffectSelection[] | undefined = this.options.effect) {
     this.assertAlive();
     return this.sound.prepareAll(this.resolveSoundDefinitions(effects));
   }
 
   /** Releases decoded audio belonging to the selected effects without stopping active playback. */
-  discardPreparedAudio(effects: EffectSelection | readonly EffectSelection[] = this.options.effect ?? 'dust') {
+  discardPreparedAudio(effects: EffectSelection | readonly EffectSelection[] | undefined = this.options.effect) {
     this.assertAlive();
     return this.sound.discard(this.resolveSoundDefinitions(effects));
   }
@@ -168,7 +176,7 @@ export class Disintegrator {
   }
 
   private reportBackgroundError(error: unknown, element: HTMLElement) {
-    const context: EffectContext = { operation: 'remove', element, overlay: null, removalId: null };
+    const context: EffectErrorContext = { operation: 'prepare', element, overlay: null, removalId: null };
     try {
       this.options.onError?.(error, context);
     } catch {
@@ -181,12 +189,12 @@ export class Disintegrator {
     if (configuredSound !== undefined && typeof configuredSound !== 'boolean') return [configuredSound];
     const effects: readonly EffectSelection[] =
       selections === undefined
-        ? ['dust']
+        ? [resolveEffect(undefined, this.effects)]
         : Array.isArray(selections)
           ? (selections as readonly EffectSelection[])
           : [selections as EffectSelection];
     return effects.flatMap((selection) => {
-      const effect = resolveEffect(selection, this.options.effects);
+      const effect = resolveEffect(selection, this.effects);
       return [effect.remove.sound ?? null, effect.restore.sound ?? null];
     });
   }

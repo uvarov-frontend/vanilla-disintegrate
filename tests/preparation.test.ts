@@ -31,6 +31,13 @@ function snapshot() {
   return canvas;
 }
 
+function snapshotEffect() {
+  return defineEffect({
+    remove: { animate: () => Promise.resolve(), sound: null },
+    restore: { animate: () => Promise.resolve(), sound: null },
+  });
+}
+
 beforeEach(() => {
   document.body.replaceChildren();
   vi.unstubAllGlobals();
@@ -109,6 +116,29 @@ describe('snapshot preparation', () => {
     resolvers[1]?.(snapshot());
     resolvers[2]?.(snapshot());
     await Promise.resolve();
+    effect.destroy();
+  });
+
+  it('keeps preparation active until every registration is released', async () => {
+    const capture = vi.fn().mockResolvedValue(snapshot());
+    const effect = new Disintegrator({
+      capture,
+      preparation: { strategy: 'immediate', invalidateOnResize: false },
+    });
+    const target = element();
+    const unregisterFirst = effect.register(target);
+    const unregisterSecond = effect.register(target);
+
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledOnce());
+    unregisterFirst();
+    effect.invalidate(target);
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledTimes(2));
+
+    unregisterSecond();
+    effect.invalidate(target);
+    await Promise.resolve();
+    expect(capture).toHaveBeenCalledTimes(2);
+
     effect.destroy();
   });
 
@@ -390,6 +420,7 @@ describe('snapshot preparation', () => {
     const capture = vi.fn(() => Promise.resolve(snapshot()));
     const effect = new Disintegrator({
       capture,
+      effect: snapshotEffect(),
       preparation: { strategy: 'immediate', cachePixelBudget: 100, invalidateOnResize: false },
       layout: false,
       sound: false,

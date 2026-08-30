@@ -252,7 +252,7 @@
 
 .bundle-size-panel {
   width: 100%;
-  max-width: 660px;
+  max-width: 880px;
   min-width: 0;
   margin: 18px auto 0;
   overflow: hidden;
@@ -272,7 +272,7 @@
 
 .bundle-size-values {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
 }
 
@@ -317,6 +317,20 @@
 .bundle-size-values strong span {
   color: var(--faint);
   font-weight: 500;
+}
+
+@media (max-width: 900px) {
+  .bundle-size-values {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bundle-size-values > div:nth-child(n + 3) {
+    border-top: 1px solid rgb(255 255 255 / 5%);
+  }
+
+  .bundle-size-values > div:nth-child(odd) {
+    border-left: 0;
+  }
 }
 
 .page-content a:not(.page-navigation a) {

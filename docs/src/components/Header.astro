@@ -14,12 +14,20 @@ const { locale, pathname } = Astro.props;
 const copy = ui[locale];
 const isDocumentation = pathname.includes('/docs/');
 const isReference = pathname.includes('/reference/');
+const mobileNavigationId = isDocumentation ? 'docs-mobile-navigation' : 'site-mobile-navigation';
 const releasesHref = 'https://github.com/uvarov-frontend/vanilla-disintegrate/releases';
 ---
 
 <header class="docs-header">
   <div class="header-inner">
-    <button class="menu-button" type="button" aria-label={copy.menu} aria-expanded="false" data-menu-button>
+    <button
+      class="menu-button"
+      type="button"
+      aria-label={copy.menu}
+      aria-controls={mobileNavigationId}
+      aria-expanded="false"
+      data-menu-button
+    >
       <span></span><span></span><span></span>
     </button>
     <a class="brand" href={homeHref(locale)} aria-label="Vanilla Disintegrate">
@@ -66,8 +74,15 @@ const releasesHref = 'https://github.com/uvarov-frontend/vanilla-disintegrate/re
 {
   !isDocumentation && (
     <>
-      <div class="mobile-nav-backdrop" data-mobile-nav-backdrop />
-      <nav class="mobile-site-navigation" aria-label={copy.navigation} aria-hidden="true" data-mobile-nav>
+      <div class="mobile-nav-backdrop" aria-hidden="true" data-mobile-nav-backdrop />
+      <nav
+        id={mobileNavigationId}
+        class="mobile-site-navigation"
+        aria-label={copy.navigation}
+        aria-hidden="true"
+        inert
+        data-mobile-nav
+      >
         <span>{copy.navigation}</span>
         <a href={homeHref(locale)}>
           {copy.homeLink}

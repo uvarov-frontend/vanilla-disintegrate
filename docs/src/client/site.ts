@@ -4,7 +4,7 @@ import Disintegrator, {
   type EffectOperation,
   type RemovalId,
 } from '../../../src/snapdom';
-import { particleVortex } from '../../../demo/particle-vortex';
+import { particleVortex } from '../demo/particle-vortex';
 
 type Locale = 'en' | 'ru' | 'zh' | 'ko';
 type DemoKind = 'built-in' | 'preparation' | 'particle-vortex';
@@ -280,25 +280,130 @@ function setupNavigation() {
   const mobileNavigation = document.querySelector<HTMLElement>('[data-mobile-nav]');
   const backdrop = document.querySelector<HTMLElement>('[data-sidebar-backdrop], [data-mobile-nav-backdrop]');
   const menu = sidebar ?? mobileNavigation;
-  const setOpen = (open: boolean) => {
+  if (!menuButton || !menu) return;
+  const mobileViewport = window.matchMedia('(max-width: 790px)');
+  const focusableSelector = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  const setOpen = (open: boolean, restoreFocus = false) => {
+    const wasOpen = document.body.classList.contains('menu-open');
     document.body.classList.toggle('menu-open', open);
-    menuButton?.setAttribute('aria-expanded', String(open));
-    if (mobileNavigation) mobileNavigation.setAttribute('aria-hidden', String(!open));
+    menuButton.setAttribute('aria-expanded', String(open));
+    const hidden = mobileViewport.matches ? !open : mobileNavigation !== null;
+    menu.inert = hidden;
+    if (hidden) menu.setAttribute('aria-hidden', 'true');
+    else menu.removeAttribute('aria-hidden');
+    if (open) {
+      window.requestAnimationFrame(() => menu.querySelector<HTMLElement>(focusableSelector)?.focus());
+    } else if (restoreFocus && wasOpen) {
+      menuButton.focus();
+    }
   };
 
-  menuButton?.addEventListener('click', () => setOpen(!document.body.classList.contains('menu-open')));
-  backdrop?.addEventListener('click', () => setOpen(false));
+  setOpen(false);
+  menuButton.addEventListener('click', () => setOpen(!document.body.classList.contains('menu-open'), true));
+  backdrop?.addEventListener('click', () => setOpen(false, true));
   menu?.addEventListener('click', (event) => {
     if ((event.target as Element).closest('a')) setOpen(false);
   });
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') setOpen(false);
+    if (!document.body.classList.contains('menu-open')) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      setOpen(false, true);
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [...menu.querySelectorAll<HTMLElement>(focusableSelector)].filter(
+      (element) => !element.inert && element.getClientRects().length > 0,
+    );
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   });
+  mobileViewport.addEventListener('change', () => setOpen(false));
   document.addEventListener('click', (event) => {
     for (const switcher of document.querySelectorAll<HTMLDetailsElement>('[data-language-switcher][open]')) {
       if (!switcher.contains(event.target as Node)) switcher.open = false;
     }
   });
+}
+
+const analyticsStorageKey = 'vanilla-disintegrate-analytics';
+const analyticsCounterId = 112076480;
+
+function setupAnalytics() {
+  type AnalyticsChoice = 'granted' | 'denied';
+  type AnalyticsWindow = Window & {
+    ym?: ((...arguments_: unknown[]) => void) & { a?: unknown[][]; l?: number };
+  };
+  let stored: string | null = null;
+  try {
+    stored = window.localStorage.getItem(analyticsStorageKey);
+  } catch {
+    // Analytics stays enabled by default when storage is unavailable.
+  }
+  const toggles = [...document.querySelectorAll<HTMLButtonElement>('[data-analytics-toggle]')];
+  const syncToggles = () => {
+    const disabled = stored === 'denied';
+    for (const toggle of toggles) {
+      const label = disabled ? toggle.dataset.enableLabel : toggle.dataset.disableLabel;
+      if (label !== undefined) toggle.textContent = label;
+      toggle.classList.toggle('button-secondary', !disabled);
+      toggle.setAttribute('aria-pressed', String(!disabled));
+      toggle.dataset.analyticsReady = '';
+      toggle.closest<HTMLElement>('[data-analytics-toggle-slot]')?.setAttribute('data-analytics-ready', '');
+    }
+  };
+  const load = () => {
+    const analyticsWindow = window as AnalyticsWindow;
+    if (document.querySelector<HTMLScriptElement>('[data-yandex-metrica]')) return;
+    analyticsWindow.ym ??= (...arguments_: unknown[]) => {
+      (analyticsWindow.ym!.a ??= []).push(arguments_);
+    };
+    analyticsWindow.ym.l = Date.now();
+    analyticsWindow.ym(analyticsCounterId, 'init', {
+      accurateTrackBounce: true,
+      clickmap: true,
+      ssr: true,
+      trackHash: true,
+      trackLinks: true,
+      webvisor: true,
+    });
+    const script = document.createElement('script');
+    script.async = true;
+    script.dataset.yandexMetrica = '';
+    script.src = 'https://mc.yandex.ru/metrika/tag.js';
+    document.head.append(script);
+  };
+  const select = (choice: AnalyticsChoice, reload = false) => {
+    try {
+      window.localStorage.setItem(analyticsStorageKey, choice);
+    } catch {
+      // The current choice still applies when storage is unavailable.
+    }
+    stored = choice;
+    syncToggles();
+    if (choice === 'granted') load();
+    else {
+      Reflect.set(window, `disableYaCounter${analyticsCounterId}`, true);
+      if (reload) window.location.reload();
+    }
+  };
+
+  if (stored !== 'denied') load();
+  syncToggles();
+  for (const toggle of toggles) {
+    toggle.addEventListener('click', () => {
+      const choice: AnalyticsChoice = stored === 'denied' ? 'granted' : 'denied';
+      select(choice, choice === 'denied' && stored !== 'denied');
+    });
+  }
 }
 
 function setupCodeBlocks() {
@@ -808,6 +913,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
 
 export function setupSite() {
   setupNavigation();
+  setupAnalytics();
   setupGitHubStarPrompt();
   setupPackageInstall();
   setupCodeTabs();

@@ -5,7 +5,7 @@ import vaporSoundUrl from './sounds/vapor.mp3?url&no-inline';
 
 import { defineEffect } from './effects';
 import { createParticleAnimation, createParticleRestoreAnimation } from './particle-renderer';
-import type { BuiltInEffect, EffectDefinition, EffectSelection, ParticleOptions } from './types';
+import type { BuiltInEffect, EffectDefinition, ParticleOptions } from './types';
 
 const particlePresets: Readonly<Record<BuiltInEffect, ParticleOptions>> = Object.freeze({
   dust: {},
@@ -86,14 +86,3 @@ export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> =
     },
   }),
 });
-
-export function resolveEffect(
-  selection: EffectSelection | undefined,
-  customEffects: Readonly<Record<string, EffectDefinition>> = {},
-) {
-  if (typeof selection === 'object') return selection;
-  const name = selection ?? 'dust';
-  const effect = customEffects[name] ?? builtInEffects[name as BuiltInEffect];
-  if (effect === undefined) throw new TypeError(`Unknown disintegration effect: ${name}`);
-  return effect;
-}

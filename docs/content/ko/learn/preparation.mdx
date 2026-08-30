@@ -21,6 +21,8 @@ const unregister = effects.register(document.querySelectorAll('[data-effects]'))
 
 기본값과 명시적인 `preparation: true` 모두 `visible-idle`을 선택합니다. 등록된 요소가 뷰포트에 가까워지고 브라우저가 idle일 때 준비합니다.
 
+더 이상 준비할 필요가 없으면 `unregister()`를 호출하세요. 등록은 참조 횟수를 셉니다. 두 컴포넌트가 같은 노드를 등록했다면 각 해제 함수는 자신의 등록만 해제하며 둘 다 해제된 뒤에 관찰을 멈춥니다.
+
 ## 실행 조건 설정
 
 ```ts

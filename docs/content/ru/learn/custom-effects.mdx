@@ -34,6 +34,51 @@ effects.restore(insertedElement, { effect: particleVortex });
 
 `needsSnapshot: false` подходит эффекту, который анимирует DOM, SVG или что-то ещё, чему пиксели не нужны. Тогда для этой фазы захвата не будет вовсе.
 
+## Лёгкий вход без снимков
+
+Если обе фазы задают `needsSnapshot: false`, импортируйте `/core`: адаптер захвата, рендерер частиц и встроенное аудио не попадут в граф модулей.
+
+```ts
+import Disintegrator, { defineEffect } from 'vanilla-disintegrate/core';
+
+const fade = defineEffect({
+  remove: {
+    needsSnapshot: false,
+    animate: ({ element, layer }) => {
+      const visual = element.cloneNode(true) as HTMLElement;
+      Object.assign(visual.style, {
+        height: '100%',
+        inset: '0',
+        margin: '0',
+        pointerEvents: 'none',
+        position: 'absolute',
+        width: '100%',
+      });
+      layer.append(visual);
+      return visual.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240 });
+    },
+  },
+  restore: {
+    needsSnapshot: false,
+    animate: ({ element, layer }) => {
+      const visual = element.cloneNode(true) as HTMLElement;
+      Object.assign(visual.style, {
+        height: '100%',
+        inset: '0',
+        margin: '0',
+        pointerEvents: 'none',
+        position: 'absolute',
+        width: '100%',
+      });
+      layer.append(visual);
+      return visual.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240 });
+    },
+  },
+});
+
+const effects = new Disintegrator({ effect: fade });
+```
+
 ## Контекст анимации
 
 Фабрика получает:
@@ -46,7 +91,7 @@ effects.restore(insertedElement, { effect: particleVortex });
 - `visual` — канвас в полный размер с нарисованным снимком, создаётся при первом обращении
 - `signal` — сработает при отмене операции или уничтожении экземпляра
 - `random()` — случайные числа для этой операции, с сидом, чтобы прогон можно было повторить
-- `reducedMotion` — попросил ли пользователь меньше движения
+- `reducedMotion` — всегда `false` внутри запущенной фабрики; запрос на уменьшение движения пропускает операцию до её вызова
 - `addCleanup(fn)` — что сюда положите, выполнится при любом исходе
 
 При восстановлении `bounds` — это **новое** место, куда вы вставили элемент, а не то, откуда его удалили.

@@ -11,6 +11,9 @@ export default defineConfig({
   build: {
     assets: 'assets',
   },
+  devToolbar: {
+    enabled: false,
+  },
   integrations: [mdx()],
   i18n: {
     defaultLocale: 'en',
@@ -29,4 +32,13 @@ export default defineConfig({
   site: 'https://disintegrate.uvarov.tech',
   srcDir: './docs/src',
   trailingSlash: 'always',
+  vite: {
+    plugins: [
+      {
+        name: 'bundle-ssr-dependencies',
+        apply: 'build',
+        config: () => ({ ssr: { noExternal: true } }),
+      },
+    ],
+  },
 });

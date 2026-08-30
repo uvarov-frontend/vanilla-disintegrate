@@ -49,7 +49,7 @@ effects.clearPreparedAudio();
 
 `audioPreparation: false` 会禁用自动准备。`prepareAudio()` 是显式操作，因此即使实例声音关闭也能工作。若某次操作选择了尚未准备的原生声音，视觉与音频会等待解码完成后同步开始，内置声音不会在动画进行中途加入。自定义播放器工厂自行负责加载，不会在准备阶段被调用。
 
-正向与反向解码缓冲区默认共享 8 MiB 的 LRU 预算。可通过 `audioPreparation.cacheByteBudget` 调整；`destroy()` 会清空全部缓存并关闭播放上下文。
+正向与反向解码缓冲区默认共享 8 MiB 的 LRU 预算。同一页面上的实例会复用一次获取、解码缓冲区和 `AudioContext`，但各自管理播放。可通过 `audioPreparation.cacheByteBudget` 调整预算；`destroy()` 会释放该实例的所有权，最后一个所有者会关闭共享上下文。
 
 ## 声音放在哪里
 

@@ -1,5 +1,5 @@
 ---
-import { ui, type Locale } from '../i18n';
+import { privacyHref, ui, type Locale } from '../i18n';
 
 interface Props {
   locale: Locale;
@@ -20,7 +20,10 @@ const author = locale === 'ru' ? 'Юрий Уваров' : 'Yury Uvarov';
     {copyright}{' '}
     <a href="https://github.com/uvarov-frontend" target="_blank" rel="noopener noreferrer">{author}</a>.
   </span>
-  <a href="https://github.com/uvarov-frontend/vanilla-disintegrate" target="_blank" rel="noopener noreferrer">
-    {ui[locale].source}
-  </a>
+  <span class="footer-links">
+    <a href={privacyHref(locale)}>{ui[locale].privacy}</a>
+    <a href="https://github.com/uvarov-frontend/vanilla-disintegrate" target="_blank" rel="noopener noreferrer">
+      {ui[locale].source}
+    </a>
+  </span>
 </footer>

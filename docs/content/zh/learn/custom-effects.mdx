@@ -34,6 +34,51 @@ effects.restore(insertedElement, { effect: particleVortex });
 
 `needsSnapshot: false` 适合动画 DOM、SVG 或其他不需要像素的效果。该阶段将完全跳过捕获。
 
+## 使用无快照核心入口
+
+若两个阶段都设置 `needsSnapshot: false`，请导入 `/core`：捕获适配器、粒子渲染器与内置音频都不会进入模块图。
+
+```ts
+import Disintegrator, { defineEffect } from 'vanilla-disintegrate/core';
+
+const fade = defineEffect({
+  remove: {
+    needsSnapshot: false,
+    animate: ({ element, layer }) => {
+      const visual = element.cloneNode(true) as HTMLElement;
+      Object.assign(visual.style, {
+        height: '100%',
+        inset: '0',
+        margin: '0',
+        pointerEvents: 'none',
+        position: 'absolute',
+        width: '100%',
+      });
+      layer.append(visual);
+      return visual.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240 });
+    },
+  },
+  restore: {
+    needsSnapshot: false,
+    animate: ({ element, layer }) => {
+      const visual = element.cloneNode(true) as HTMLElement;
+      Object.assign(visual.style, {
+        height: '100%',
+        inset: '0',
+        margin: '0',
+        pointerEvents: 'none',
+        position: 'absolute',
+        width: '100%',
+      });
+      layer.append(visual);
+      return visual.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240 });
+    },
+  },
+});
+
+const effects = new Disintegrator({ effect: fade });
+```
+
 ## 动画上下文
 
 工厂会收到：
@@ -46,14 +91,14 @@ effects.restore(insertedElement, { effect: particleVortex });
 - `visual` — 画好快照的全尺寸画布，首次访问时才创建
 - `signal` — 操作被取消或实例被销毁时触发
 - `random()` — 本次操作的随机数，带种子，便于复现
-- `reducedMotion` — 用户是否要求减少动效
+- `reducedMotion` — 工厂运行时始终为 `false`；减少动效请求会在调用工厂前跳过操作
 - `addCleanup(fn)` — 放进去的清理逻辑，无论结果如何都会执行
 
 恢复时，`bounds` 描述的是**插入后的新位置**，而不是删除前的位置。
 
 ## 返回值
 
-工厂可返回 Web Animation、Promise、`null`，或带 `finished`、`cancel()`、`dispose()` 的控制器。该协议可用于 CSS/WAAPI、Canvas、SVG、WebGL 与第三方引擎。
+工厂可返回 Web Animation、Promise、`null`，或带 `finished`、`cancel()`、`dispose()` 的控制器。该协议可用于 CSS/WAAPI、Canvas、SVG、WebGL 与第三方引擎。`cancel()` 停止播放；`dispose()` 无条件释放渲染器资源，无论动画完成、取消还是失败都会执行。
 
 ```ts
 const effects = new Disintegrator({

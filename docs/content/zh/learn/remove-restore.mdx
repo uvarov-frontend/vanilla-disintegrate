@@ -60,10 +60,12 @@ operation.removalId; // RemovalId | null
 operation.cancel();
 
 const result = await operation.finished;
-result.status; // 'completed' | 'cancelled' | 'skipped'
+result.status; // 'completed' | 'cancelled' | 'skipped' | 'rejected'
 ```
 
 操作结束后，对象不会保留 DOM 元素。
+
+如果同一元素已有正在执行的操作，第二次调用将以 `rejected` 状态结束：它不会修改 DOM，也不会分配保留 ID。
 
 ## 取消只影响视觉
 

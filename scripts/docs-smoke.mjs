@@ -73,6 +73,13 @@ try {
     assert.match(html, new RegExp(`<html lang="${locale}"`), path);
     assert.ok(html.includes(heading), `${path} must contain server-rendered page content`);
     assert.ok(html.includes('/assets/'), `${path} must include built assets`);
+    const contentSecurityPolicy = response.headers.get('content-security-policy') ?? '';
+    assert.match(contentSecurityPolicy, /default-src 'self'/, path);
+    assert.match(contentSecurityPolicy, /frame-src 'self' blob: https:\/\/mc\.yandex\.ru/, path);
+    assert.match(contentSecurityPolicy, /frame-ancestors 'self' metrika\.yandex\.ru/, path);
+    assert.equal(response.headers.get('x-frame-options'), null, path);
+    assert.equal(response.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains', path);
+    assert.equal(response.headers.get('cache-control'), 'private, no-cache', path);
   }
 
   const homeTitles = new Map();
@@ -118,6 +125,23 @@ try {
         ),
         `${path} must link to its editable MDX source`,
       );
+      if (contentPath === 'learn/installation') {
+        for (const entry of [
+          'vanilla-disintegrate/core',
+          'vanilla-disintegrate/particles',
+          'vanilla-disintegrate/snapdom',
+          'vanilla-disintegrate.iife.min.js',
+        ]) {
+          assert.ok(html.includes(entry), `${path} must document ${entry}`);
+        }
+      }
+      if (contentPath === 'learn/custom-effects') {
+        assert.ok(html.includes('vanilla-disintegrate/core'), `${path} must document snapshotless core effects`);
+      }
+      if (contentPath === 'reference/api') {
+        assert.ok(html.includes('<code>prepare</code>'), `${path} must document preparation error context`);
+        assert.ok(html.includes('<code>rejected</code>'), `${path} must document rejected operations`);
+      }
     }
   }
 
@@ -157,6 +181,8 @@ try {
   const installation = await (await fetch(`${origin}/docs/learn/installation/`)).text();
   assert.ok(home.includes('data-menu-button'), 'home must expose its mobile navigation menu');
   assert.ok(home.includes('data-mobile-nav'), 'home must render its mobile navigation links');
+  assert.ok(home.includes('href="/privacy/"'), 'home must link to the privacy controls');
+  assert.ok(!home.includes('metrika/tag.js'), 'analytics loader must remain in the external client bundle');
   assert.ok(installation.includes('data-menu-button'), 'documentation must keep its mobile navigation menu');
   assert.ok(installation.includes('class="mobile-docs-global"'), 'documentation menu must include global links');
   assert.ok(installation.includes('Copyright © 2026 MIT License. | Design and development by'));
@@ -165,9 +191,10 @@ try {
   const homePanel = home.match(renderedPanel)?.[0] ?? '';
   const documentationPanel = installation.match(renderedPanel)?.[0] ?? '';
   const homeSizes = homePanel.match(/\d+\.\d{2} KiB/g) ?? [];
-  assert.equal(homeSizes.length, 6, 'size panel must show minified and gzip sizes for all three variants');
+  assert.equal(homeSizes.length, 8, 'size panel must show minified and gzip sizes for all four variants');
   assert.equal(documentationPanel, '', 'documentation must not render the bundle-size panel');
   assert.ok(homePanel.includes('<dt>ESM core</dt>'));
+  assert.ok(homePanel.includes('<dt>ESM built-ins</dt>'));
   assert.ok(homePanel.includes('<dt>ESM + SnapDOM</dt>'));
   assert.ok(homePanel.includes('<dt>IIFE</dt>'));
 
@@ -218,12 +245,13 @@ try {
   const sitemap = await sitemapResponse.text();
   assert.equal(sitemapResponse.status, 200);
   assert.match(sitemapResponse.headers.get('content-type') ?? '', /^application\/xml/);
-  assert.equal(sitemap.match(/<url>/g)?.length, 40, 'sitemap must contain every localized public page');
+  assert.equal(sitemap.match(/<url>/g)?.length, 44, 'sitemap must contain every localized public page');
   assert.ok(sitemap.includes(`<loc>${site}/ru/docs/learn/frameworks/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/ru/docs/learn/installation/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/zh/docs/reference/audio/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/ko/</loc>`));
+  assert.ok(sitemap.includes(`<loc>${site}/ru/privacy/</loc>`));
   assert.ok(sitemap.includes(`hreflang="x-default" href="${site}/docs/learn/installation/"`));
   assert.ok(!sitemap.includes('/404/'));
   assert.ok(site.startsWith('https://'), 'the configured site must be https');
@@ -267,6 +295,7 @@ try {
   assert.equal(detectedRussian.status, 302);
   assert.equal(detectedRussian.headers.get('location'), '/ru/docs/learn/effects/');
   assert.match(detectedRussian.headers.get('set-cookie') ?? '', /vanilla-disintegrate-locale=ru/);
+  assert.match(detectedRussian.headers.get('set-cookie') ?? '', /Secure/);
 
   const persistedEnglish = await fetch(`${origin}/docs/learn/effects/`, {
     headers: {

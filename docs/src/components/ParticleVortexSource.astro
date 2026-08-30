@@ -1,9 +1,9 @@
 ---
 import { Code } from 'astro:components';
 
-import source from '../../../demo/particle-vortex.ts?raw';
+import source from '../demo/particle-vortex.ts?raw';
 
-const code = source.replace("from '../src';", "from 'vanilla-disintegrate';").trim();
+const code = source.replace("from '../../../src';", "from 'vanilla-disintegrate';").trim();
 ---
 
 <Code code={code} lang="ts" />

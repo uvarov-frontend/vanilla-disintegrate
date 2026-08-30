@@ -23,6 +23,8 @@ The default, and the explicit `preparation: true` value, mean `visible-idle`: an
 
 Call `unregister()` when you stop caring about those elements. It stops watching them and does not touch the DOM.
 
+Registrations are reference-counted. If two components register the same element, each receives its own release function and observation stops only after both have released it.
+
 ## Configure when work is allowed
 
 ```ts

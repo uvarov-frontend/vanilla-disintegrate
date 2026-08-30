@@ -1,8 +1,8 @@
 ---
 import { Code } from 'astro:components';
 
-import particleVortexSource from '../../../demo/particle-vortex.ts?raw';
-import particleVortexUsageSource from '../../../demo/particle-vortex-usage.ts?raw';
+import particleVortexSource from '../demo/particle-vortex.ts?raw';
+import particleVortexUsageSource from '../demo/particle-vortex-usage.ts?raw';
 import packageJson from '../../../package.json';
 import { docsHref, type Locale, ui } from '../i18n';
 import BaseLayout from '../layouts/BaseLayout.astro';
@@ -21,8 +21,8 @@ const copy = ui[locale];
 const pathname = Astro.url.pathname;
 const usePackageImport = (source: string) =>
   source
-    .replaceAll("from '../src/snapdom';", "from 'vanilla-disintegrate/snapdom';")
-    .replaceAll("from '../src';", "from 'vanilla-disintegrate';")
+    .replaceAll("from '../../../src/snapdom';", "from 'vanilla-disintegrate/snapdom';")
+    .replaceAll("from '../../../src';", "from 'vanilla-disintegrate';")
     .trim();
 const vortexCodeTabs = [
   {

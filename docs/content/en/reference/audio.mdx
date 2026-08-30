@@ -50,7 +50,7 @@ effects.clearPreparedAudio();
 
 `audioPreparation: false` disables automatic work. `prepareAudio()` remains explicit and therefore works even while instance sound is off. If an operation selects an unprepared native sound, the visual and audio wait for decoding and then start together; audio never joins a running built-in animation late. Custom player factories own their loading and are not invoked by preparation.
 
-Decoded forward and reversed buffers share an 8 MiB LRU budget by default. Configure it with `audioPreparation.cacheByteBudget`; `destroy()` releases the complete cache and closes the playback context.
+Decoded forward and reversed buffers share an 8 MiB LRU budget by default. Instances on the same page reuse one fetch, decoded buffer, and `AudioContext`; each instance keeps independent playback ownership. Configure the budget with `audioPreparation.cacheByteBudget`. `destroy()` releases that instance's ownership, and the last owner closes the shared context.
 
 ## Where to put the sound
 

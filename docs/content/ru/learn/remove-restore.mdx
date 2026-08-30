@@ -60,10 +60,12 @@ operation.removalId; // RemovalId | null
 operation.cancel();
 
 const result = await operation.finished;
-result.status; // 'completed' | 'cancelled' | 'skipped'
+result.status; // 'completed' | 'cancelled' | 'skipped' | 'rejected'
 ```
 
 После завершения объект операции не удерживает DOM-элемент.
+
+Если для элемента уже выполняется операция, второй вызов завершится со статусом `rejected`: он не изменит DOM и не создаст идентификатор сохранения.
 
 ## Отмена останавливает только визуал
 

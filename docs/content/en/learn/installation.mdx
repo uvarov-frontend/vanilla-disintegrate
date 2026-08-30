@@ -27,14 +27,31 @@ pnpm add vanilla-disintegrate @zumer/snapdom
 bun add vanilla-disintegrate @zumer/snapdom
 ```
 
-The library captures the current appearance of an element before splitting it into particles, and the capture library is your choice. The package ships two entry points:
+The library captures the current appearance of an element before splitting it into particles, and the capture library is your choice. The package ships four tree-shakable entry points:
 
-| Entry                          | Contents                                                                                         | Requires         |
-| ------------------------------ | ------------------------------------------------------------------------------------------------ | ---------------- |
-| `vanilla-disintegrate`         | Core: effects, lifecycle, layout, audio. You supply `capture`.                                   | Nothing          |
-| `vanilla-disintegrate/snapdom` | The same API with [SnapDOM](https://zumerlab.github.io/snapdom/) wired as the default `capture`. | `@zumer/snapdom` |
+| Entry                            | Contents                                                                                         | Requires         |
+| -------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------- |
+| `vanilla-disintegrate/core`      | Lifecycle, layout and audio for custom effects, without particles or built-in sounds.            | Nothing          |
+| `vanilla-disintegrate/particles` | Particle factories and the four built-in effect definitions.                                     | Nothing          |
+| `vanilla-disintegrate`           | `Disintegrator` preconfigured with all four built-in effects. You supply `capture`.              | Nothing          |
+| `vanilla-disintegrate/snapdom`   | Built-in effects with [SnapDOM](https://zumerlab.github.io/snapdom/) wired as default `capture`. | `@zumer/snapdom` |
 
-Both entries export the identical `Disintegrator` API. `@zumer/snapdom` is an optional peer dependency: install it only for the `/snapdom` entry, and the core entry never reaches for it.
+The default and `/snapdom` entries export the identical `Disintegrator` API. `@zumer/snapdom` is an optional peer dependency and the other entries never reach for it. Use `/core` for custom snapshotless effects without bundling WebGL or built-in audio.
+
+`/core` exports `Disintegrator`, `defineEffect`, and the public types. It deliberately has no default effect: pass an inline effect or configure a named one. `/particles` exports `builtInEffects`, both particle animation factories, and their option types; it does not create an instance. This lets an advanced build compose only the layers it needs; `captureElement` below stands for the adapter described later on this page:
+
+```ts
+import Disintegrator from 'vanilla-disintegrate/core';
+import { builtInEffects } from 'vanilla-disintegrate/particles';
+
+const effects = new Disintegrator({
+  capture: captureElement,
+  effect: 'dust',
+  effects: builtInEffects,
+});
+```
+
+For a snapshotless custom effect, omit `/particles` and `capture` entirely and pass an effect whose phases set `needsSnapshot: false`.
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';
@@ -83,7 +100,7 @@ import Disintegrator from 'vanilla-disintegrate';
 
 const effects = new Disintegrator({
   capture: (element, context) => {
-    context.signal.throwIfAborted();
+    if (context.signal.aborted) throw new DOMException('Capture aborted.', 'AbortError');
 
     return html2canvas(element, {
       backgroundColor: null,
@@ -100,7 +117,21 @@ const effects = new Disintegrator({
 });
 ```
 
-The supplied function completely replaces capture. Import the core `vanilla-disintegrate` entry on this path: it has no runtime dependencies, and nothing from SnapDOM enters the module graph.
+The supplied function completely replaces capture. Import the default `vanilla-disintegrate` entry on this path: it has no runtime dependencies, and nothing from SnapDOM enters the module graph.
+
+## Use a script tag
+
+The IIFE build includes SnapDOM and exposes `VanillaDisintegrate` globally:
+
+```html
+<script src="/vendor/vanilla-disintegrate.iife.min.js"></script>
+<script>
+  const effects = new VanillaDisintegrate.Disintegrator();
+  effects.remove(document.querySelector('.card'));
+</script>
+```
+
+For built-in audio, copy `dist/sounds` next to the script as `/vendor/sounds`.
 
 ## Clean up
 
@@ -117,3 +148,5 @@ The core needs ES2020 output, Canvas, Web Animations, `AbortController`, and `re
 Where WebGL2 is missing or a context cannot be created, the built-in effects degrade instead of failing: `remove()` still detaches the element, `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives the reason. Custom effects built on WAAPI, CSS, or Canvas 2D keep animating on older engines.
 
 Each running built-in effect holds one WebGL2 context and releases it the moment the operation ends, so removing a long list stays well inside the per-page context limit browsers enforce.
+
+Create `Disintegrator` only in the browser, not during server rendering. Cross-origin images, fonts, and stylesheets must allow CORS or use the capture adapter's proxy option; otherwise they may be absent from the canvas snapshot.

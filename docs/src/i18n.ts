@@ -16,6 +16,7 @@ export interface UiCopy {
   readonly next: string;
   readonly edit: string;
   readonly source: string;
+  readonly privacy: string;
   readonly sections: Readonly<Record<'start' | 'learn' | 'reference', string>>;
   readonly notFound: {
     readonly documentTitle: string;
@@ -71,6 +72,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     next: 'Next',
     edit: 'Edit this page on GitHub',
     source: 'Source on GitHub',
+    privacy: 'Privacy',
     sections: { start: 'Start', learn: 'Learn', reference: 'Reference' },
     notFound: {
       documentTitle: 'Page not found · Vanilla Disintegrate',
@@ -121,6 +123,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     next: 'Далее',
     edit: 'Редактировать страницу на GitHub',
     source: 'Исходный код на GitHub',
+    privacy: 'Конфиденциальность',
     sections: { start: 'Начало', learn: 'Руководство', reference: 'Справочник' },
     notFound: {
       documentTitle: 'Страница не найдена · Vanilla Disintegrate',
@@ -171,6 +174,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     next: '下一页',
     edit: '在 GitHub 上编辑此页',
     source: 'GitHub 源码',
+    privacy: '隐私',
     sections: { start: '开始', learn: '指南', reference: 'API 参考' },
     notFound: {
       documentTitle: '页面未找到 · Vanilla Disintegrate',
@@ -218,6 +222,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     next: '다음',
     edit: 'GitHub에서 이 페이지 편집',
     source: 'GitHub 소스',
+    privacy: '개인정보 보호',
     sections: { start: '시작', learn: '가이드', reference: 'API 레퍼런스' },
     notFound: {
       documentTitle: '페이지를 찾을 수 없습니다 · Vanilla Disintegrate',
@@ -274,6 +279,10 @@ export function homeHref(locale: Locale) {
 
 export function docsHref(locale: Locale, path: string) {
   return `${localePrefix(locale)}/docs/${path.replace(/^\/+|\/+$/g, '')}/`;
+}
+
+export function privacyHref(locale: Locale) {
+  return `${localePrefix(locale)}/privacy/`;
 }
 
 export function switchLocalePath(pathname: string, locale: Locale) {

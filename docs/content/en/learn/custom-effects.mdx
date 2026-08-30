@@ -34,6 +34,51 @@ The demo above and the code block come from the same file, so what you see runni
 
 `needsSnapshot: false` fits an effect that animates DOM, SVG or anything else that does not need the pixels. That phase then skips capture entirely.
 
+## Use the snapshotless core
+
+When both phases set `needsSnapshot: false`, import `/core`: no capture adapter, particle renderer, or built-in audio enters the module graph.
+
+```ts
+import Disintegrator, { defineEffect } from 'vanilla-disintegrate/core';
+
+const fade = defineEffect({
+  remove: {
+    needsSnapshot: false,
+    animate: ({ element, layer }) => {
+      const visual = element.cloneNode(true) as HTMLElement;
+      Object.assign(visual.style, {
+        height: '100%',
+        inset: '0',
+        margin: '0',
+        pointerEvents: 'none',
+        position: 'absolute',
+        width: '100%',
+      });
+      layer.append(visual);
+      return visual.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 240 });
+    },
+  },
+  restore: {
+    needsSnapshot: false,
+    animate: ({ element, layer }) => {
+      const visual = element.cloneNode(true) as HTMLElement;
+      Object.assign(visual.style, {
+        height: '100%',
+        inset: '0',
+        margin: '0',
+        pointerEvents: 'none',
+        position: 'absolute',
+        width: '100%',
+      });
+      layer.append(visual);
+      return visual.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 240 });
+    },
+  },
+});
+
+const effects = new Disintegrator({ effect: fade });
+```
+
 ## Animation context
 
 The factory receives:
@@ -46,7 +91,7 @@ The factory receives:
 - `visual` — a full-size canvas with the snapshot drawn on it, created on first use
 - `signal` — aborts when the operation is cancelled or the instance is destroyed
 - `random()` — random numbers for this operation, seeded so a run can be reproduced
-- `reducedMotion` — whether the user asked for less motion
+- `reducedMotion` — always `false` while a factory runs; reduced-motion requests skip before it is called
 - `addCleanup(fn)` — whatever you register here runs however the operation ends
 
 On restore, `bounds` is the **new** place where you inserted the element, not where it was removed from.

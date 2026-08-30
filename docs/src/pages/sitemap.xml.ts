@@ -1,7 +1,7 @@
 import type { APIRoute } from 'astro';
 import { getCollection } from 'astro:content';
 
-import { docsHref, homeHref, locales, type Locale } from '../i18n';
+import { docsHref, homeHref, locales, privacyHref, type Locale } from '../i18n';
 import { entryPath, type DocEntry } from '../lib/docs';
 import { absoluteUrl } from '../lib/site-url';
 
@@ -61,6 +61,7 @@ export const GET: APIRoute = async ({ site, url }) => {
 
   const groups = [
     locales.map((locale) => ({ href: homeHref(locale), locale })),
+    locales.map((locale) => ({ href: privacyHref(locale), locale })),
     ...[...documentation.entries()]
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([, pages]) => orderByLocale(pages)),

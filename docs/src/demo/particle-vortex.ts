@@ -1,4 +1,4 @@
-import { defineEffect, type AnimationFactory, type SoundFactory } from '../src';
+import { defineEffect, type AnimationFactory, type SoundFactory } from '../../../src';
 
 type VortexPhase = 'collapse' | 'expand';
 

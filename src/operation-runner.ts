@@ -10,6 +10,7 @@ import type {
   EffectCallbacks,
   EffectContext,
   EffectDefinition,
+  EffectErrorContext,
   EffectOperation,
   EffectOperationKind,
   EffectOperationResult,
@@ -24,10 +25,24 @@ import type {
 const noop: () => void = () => undefined;
 
 function concealForRestore(element: HTMLElement) {
-  const animation = element.animate([{ opacity: 0 }, { opacity: 0 }], { duration: 1, fill: 'both' });
-  animation.pause();
-  animation.currentTime = 0;
-  return () => animation.cancel();
+  if (typeof element.animate === 'function') {
+    try {
+      const animation = element.animate([{ opacity: 0 }, { opacity: 0 }], { duration: 1, fill: 'both' });
+      animation.pause();
+      animation.currentTime = 0;
+      return () => animation.cancel();
+    } catch {
+      // Fall back to an inline override when WAAPI is present but unavailable for this element.
+    }
+  }
+
+  const opacity = element.style.getPropertyValue('opacity');
+  const priority = element.style.getPropertyPriority('opacity');
+  element.style.setProperty('opacity', '0', 'important');
+  return () => {
+    if (opacity === '') element.style.removeProperty('opacity');
+    else element.style.setProperty('opacity', opacity, priority);
+  };
 }
 
 interface NormalizedAnimation {
@@ -59,11 +74,10 @@ interface RunOptions {
   readonly kind: EffectOperationKind;
   readonly element: HTMLElement;
   readonly effect: EffectDefinition;
-  readonly removalId: RemovalId | null;
   readonly overrides: OperationOptions | RemoveOptions;
 }
 
-function reportCallbackError(error: unknown, context: EffectContext, callbacks: readonly EffectCallbacks[]) {
+function reportCallbackError(error: unknown, context: EffectErrorContext, callbacks: readonly EffectCallbacks[]) {
   for (const callback of callbacks) {
     try {
       callback.onError?.(error, context);
@@ -140,10 +154,18 @@ export class OperationRunner {
     private readonly sound: SoundPlayer,
   ) {}
 
+  rejectIfBusy(kind: EffectOperationKind, element: HTMLElement) {
+    if (!this.busy.has(element)) return null;
+    return this.rejectedOperation(kind);
+  }
+
   run(options: RunOptions): EffectOperation {
     this.assertAlive();
-    const { element, effect, kind, removalId, overrides } = options;
+    const { element, effect, kind, overrides } = options;
+    if (this.busy.has(element)) return this.rejectedOperation(kind);
+
     const retain = kind === 'remove' && (overrides as RemoveOptions).retain === true;
+    const removalId = retain ? this.retained.createId() : null;
     const callbacks = [this.options, overrides] as const;
     const sound = this.resolveSound(effect[kind].sound ?? null, overrides.sound);
     let resolveFinished: (result: EffectOperationResult) => void = () => undefined;
@@ -168,7 +190,11 @@ export class OperationRunner {
         if (running.settled) return;
         running.settled = true;
         running.cancelVisual = noop;
-        running.releasePreparation();
+        try {
+          running.releasePreparation();
+        } catch (error) {
+          reportCallbackError(error, { operation: kind, element, overlay: null, removalId }, callbacks);
+        }
         running.releasePreparation = noop;
         const activeElement = running.element;
         if (activeElement !== null) this.busy.delete(activeElement);
@@ -185,23 +211,28 @@ export class OperationRunner {
       cancel: () => {
         if (running.settled) return;
         running.controller.abort();
-        running.cancelVisual();
-        this.commit(running);
-        running.finish('cancelled');
+        this.cleanupStep(running.cancelVisual, { operation: kind, element, overlay: null, removalId }, callbacks);
+        try {
+          this.commit(running);
+        } finally {
+          running.finish('cancelled');
+        }
       },
     };
 
-    if (this.busy.has(element)) {
-      this.commit(running);
-      running.finish('skipped');
-      return operation;
-    }
     this.busy.add(element);
     this.active.add(running);
     this.sound.unlock(sound, (error) =>
       reportCallbackError(error, { operation: kind, element, overlay: null, removalId }, callbacks),
     );
-    void this.start(running, overrides, callbacks);
+    void this.start(running, overrides, callbacks).catch((error: unknown) => {
+      this.fail(running, error, {
+        operation: kind,
+        element,
+        overlay: null,
+        removalId,
+      });
+    });
     return operation;
   }
 
@@ -210,9 +241,26 @@ export class OperationRunner {
     this.destroyed = true;
     for (const operation of [...this.active]) {
       operation.controller.abort();
-      operation.cancelVisual();
-      this.commit(operation);
-      operation.finish('cancelled');
+      const element = operation.element;
+      if (element === null) {
+        operation.finish('cancelled');
+        continue;
+      }
+      this.cleanupStep(
+        operation.cancelVisual,
+        {
+          operation: operation.kind,
+          element,
+          overlay: null,
+          removalId: operation.removalId,
+        },
+        operation.callbacks,
+      );
+      try {
+        this.commit(operation);
+      } finally {
+        operation.finish('cancelled');
+      }
     }
   }
 
@@ -224,42 +272,49 @@ export class OperationRunner {
     const element = running.element;
     if (element === null) return;
     const phase = running.effect[running.kind];
-    const rect = element.getBoundingClientRect();
     const emptyContext: EffectContext = {
       operation: running.kind,
       element,
       overlay: null,
       removalId: running.removalId,
     };
-    runCallback('onTrigger', emptyContext, callbacks);
-
-    if (!element.isConnected || rect.width <= 0 || rect.height <= 0 || this.shouldReduceMotion()) {
-      this.commit(running);
-      running.finish('skipped');
-      return;
-    }
-
-    // An operation owns the target's visual state. Keep a registered element
-    // out of background preparation while restore() conceals it or remove()
-    // captures it, otherwise a transient (including empty) snapshot can enter
-    // the cache.
-    running.releasePreparation = this.preparation.suspend(element);
-    const previousPointerEvents = element.style.pointerEvents;
-    const restoreRootOpacity = running.kind === 'restore' ? getComputedStyle(element).opacity || '1' : undefined;
-    const reveal = running.kind === 'restore' ? concealForRestore(element) : noop;
-    element.style.pointerEvents = 'none';
-    running.cancelVisual = () => {
-      element.style.pointerEvents = previousPointerEvents;
-      reveal();
-    };
     let snapshot: HTMLCanvasElement | null = null;
-    let preparedSound: PreparedSound;
+    let previousPointerEvents = '';
+    let restoreRootOpacity: string | undefined;
+    let reveal = noop;
 
     try {
+      const rect = element.getBoundingClientRect();
+      runCallback('onTrigger', emptyContext, callbacks);
+      if (running.settled) return;
+      if (!element.isConnected || rect.width <= 0 || rect.height <= 0 || this.shouldReduceMotion()) {
+        this.commit(running);
+        running.finish('skipped');
+        return;
+      }
+
+      running.releasePreparation = this.preparation.suspend(element);
+      previousPointerEvents = element.style.pointerEvents;
+      running.cancelVisual = () => {
+        this.restoreElement(element, previousPointerEvents, reveal, emptyContext, callbacks);
+        disposeSnapshot(snapshot);
+      };
+      if (running.kind === 'restore') {
+        restoreRootOpacity = getComputedStyle(element).opacity || '1';
+        reveal = concealForRestore(element);
+        if (running.settled) {
+          this.restoreElement(element, previousPointerEvents, reveal, emptyContext, callbacks);
+          return;
+        }
+      }
+      element.style.pointerEvents = 'none';
+
       const audio = this.sound.prepare(running.sound).catch((error: unknown) => {
         if (!running.settled) reportCallbackError(error, emptyContext, callbacks);
         return null;
       });
+      if (running.settled) return;
+      let preparedSound: PreparedSound = null;
       if (phase.needsSnapshot ?? true) {
         [snapshot, preparedSound] = await Promise.all([
           this.preparation.take(
@@ -282,6 +337,7 @@ export class OperationRunner {
       }
       if (!element.isConnected) throw new Error('The target element was disconnected before the effect started.');
       const currentRect = element.getBoundingClientRect();
+      if (running.settled) return;
       if (currentRect.width <= 0 || currentRect.height <= 0) {
         throw new Error('The target element became unmeasurable before the effect started.');
       }
@@ -296,13 +352,7 @@ export class OperationRunner {
         reveal,
       );
     } catch (error) {
-      disposeSnapshot(snapshot);
-      if (running.settled) return;
-      reportCallbackError(error, emptyContext, callbacks);
-      element.style.pointerEvents = previousPointerEvents;
-      reveal();
-      this.commit(running);
-      running.finish('skipped');
+      this.fail(running, error, emptyContext);
     }
   }
 
@@ -344,6 +394,8 @@ export class OperationRunner {
       overlay.appendChild(visual);
       return visual;
     };
+    const random = this.createRandom();
+    if (running.settled) return;
     const animationContext: AnimationContext = {
       operation: running.kind,
       element,
@@ -355,7 +407,7 @@ export class OperationRunner {
       bounds,
       signal: running.controller.signal,
       reducedMotion: false,
-      random: this.createRandom(),
+      random,
       addCleanup: (cleanup) => cleanups.add(cleanup),
     };
 
@@ -363,86 +415,129 @@ export class OperationRunner {
     let layout: LayoutPlayback = { finished: Promise.resolve(), cancel: noop };
     let stopSound = noop;
     let stopScroll = noop;
-    let cleaned = false;
+    let snapshotHandled = false;
     const cleanup = (cancel: boolean, preserveSnapshot = false) => {
-      if (cleaned) return;
-      cleaned = true;
+      const currentAnimation = animation;
+      animation = null;
+      const currentLayout = layout;
+      layout = { finished: Promise.resolve(), cancel: noop };
       if (cancel) {
-        try {
-          animation?.cancel();
-          layout.cancel();
-        } catch (error) {
-          reportCallbackError(error, context, callbacks);
-        }
+        this.cleanupStep(() => currentAnimation?.cancel(), context, callbacks);
+        this.cleanupStep(() => currentLayout.cancel(), context, callbacks);
       }
-      try {
-        animation?.dispose();
-        for (const dispose of cleanups) dispose();
-      } catch (error) {
-        reportCallbackError(error, context, callbacks);
+      this.cleanupStep(() => currentAnimation?.dispose(), context, callbacks);
+      for (const dispose of [...cleanups]) {
+        cleanups.delete(dispose);
+        this.cleanupStep(dispose, context, callbacks);
       }
-      stopSound();
-      stopScroll();
-      overlay.remove();
-      if (!preserveSnapshot) disposeSnapshot(snapshot);
+      const releaseSound = stopSound;
+      stopSound = noop;
+      this.cleanupStep(releaseSound, context, callbacks);
+      const releaseScroll = stopScroll;
+      stopScroll = noop;
+      this.cleanupStep(releaseScroll, context, callbacks);
+      this.cleanupStep(() => overlay.remove(), context, callbacks);
+      if (!snapshotHandled) {
+        snapshotHandled = true;
+        if (!preserveSnapshot) this.cleanupStep(() => disposeSnapshot(snapshot), context, callbacks);
+      }
     };
     running.cancelVisual = () => {
       cleanup(true);
-      if (running.kind === 'restore') {
-        reveal();
-        element.style.pointerEvents = previousPointerEvents;
-      }
+      if (running.kind === 'restore') this.restoreElement(element, previousPointerEvents, reveal, context, callbacks);
     };
 
+    let resolveAbort: () => void = noop;
+    let listeningForAbort = false;
     try {
       const layoutOptions = resolveLayout(
         running.kind === 'remove' ? ((overrides as RemoveOptions).layout ?? this.options.layout) : false,
       );
       const layoutSnapshot = this.layout.capture(element, layoutOptions);
+      if (running.settled) return;
       animation = normalizeAnimation(running.effect[running.kind].animate(animationContext), overlay);
       if (animation === null) throw new Error('The selected effect did not create an animation.');
-      this.resolveOverlayRoot().appendChild(overlay);
+      if (running.settled) return;
+      const overlayRoot = this.resolveOverlayRoot();
+      if (running.settled) return;
+      overlayRoot.appendChild(overlay);
       stopScroll = this.trackScroll(element, overlay);
       if (running.kind === 'remove') element.style.pointerEvents = previousPointerEvents;
       this.commit(running);
+      if (running.settled) return;
       layout = this.layout.play(layoutSnapshot, layoutOptions, animation.layoutDelay);
+      if (running.settled) return;
       runCallback('onStart', context, callbacks);
+      if (running.settled) return;
       stopSound = this.sound.play(
         preparedSound,
         animation.duration / 1000,
         { operation: running.kind, element, signal: running.controller.signal },
         (error) => reportCallbackError(error, context, callbacks),
       );
+      if (running.settled) return;
+      const aborted = new Promise<void>((resolve) => {
+        resolveAbort = resolve;
+      });
+      running.controller.signal.addEventListener('abort', resolveAbort, { once: true });
+      listeningForAbort = true;
+      await Promise.race([Promise.all([animation.finished, layout.finished]), aborted]);
+      if (running.settled) return;
+
+      const preserveSnapshot =
+        (running.kind === 'restore' && this.preparation.cache(element, snapshot)) ||
+        (running.kind === 'remove' &&
+          running.removalId !== null &&
+          this.retained.has(running.removalId, element) &&
+          this.preparation.cacheRetained(element, snapshot, bounds));
+      if (running.settled) return;
+      cleanup(false, preserveSnapshot);
+      if (running.kind === 'restore') this.restoreElement(element, previousPointerEvents, reveal, context, callbacks);
+      runCallback('onComplete', context, callbacks);
+      running.finish('completed');
     } catch (error) {
       cleanup(true);
       throw error;
+    } finally {
+      if (listeningForAbort) running.controller.signal.removeEventListener('abort', resolveAbort);
+      if (running.settled) cleanup(true);
     }
+  }
 
-    let resolveAbort: () => void = noop;
-    const aborted = new Promise<void>((resolve) => {
-      resolveAbort = resolve;
-    });
-    running.controller.signal.addEventListener('abort', resolveAbort, { once: true });
-    await Promise.race([Promise.all([animation.finished, layout.finished]), aborted]);
-    running.controller.signal.removeEventListener('abort', resolveAbort);
+  private fail(running: RunningOperation, error: unknown, context: EffectErrorContext) {
     if (running.settled) return;
-    // Snapshots are transferred into the same bounded LRU instead of being
-    // duplicated. A retained removal can therefore restore the exact same,
-    // still-valid source without a second SnapDOM capture; a restored element
-    // likewise stays ready for its next removal.
-    const preserveSnapshot =
-      (running.kind === 'restore' && this.preparation.cache(element, snapshot)) ||
-      (running.kind === 'remove' &&
-        running.removalId !== null &&
-        this.retained.has(running.removalId, element) &&
-        this.preparation.cacheRetained(element, snapshot, bounds));
-    cleanup(false, preserveSnapshot);
-    if (running.kind === 'restore') {
-      reveal();
-      element.style.pointerEvents = previousPointerEvents;
+    reportCallbackError(error, context, running.callbacks);
+    this.cleanupStep(running.cancelVisual, context, running.callbacks);
+    try {
+      this.commit(running);
+    } finally {
+      running.finish('skipped');
     }
-    runCallback('onComplete', context, callbacks);
-    running.finish('completed');
+  }
+
+  private restoreElement(
+    element: HTMLElement,
+    pointerEvents: string,
+    reveal: () => void,
+    context: EffectErrorContext,
+    callbacks: readonly EffectCallbacks[],
+  ) {
+    this.cleanupStep(
+      () => {
+        element.style.pointerEvents = pointerEvents;
+      },
+      context,
+      callbacks,
+    );
+    this.cleanupStep(reveal, context, callbacks);
+  }
+
+  private cleanupStep(cleanup: () => void, context: EffectErrorContext, callbacks: readonly EffectCallbacks[]) {
+    try {
+      cleanup();
+    } catch (error) {
+      reportCallbackError(error, context, callbacks);
+    }
   }
 
   private commit(running: RunningOperation) {
@@ -455,13 +550,16 @@ export class OperationRunner {
         if (running.detach === undefined) element.remove();
         else running.detach(element);
       } catch (error) {
-        reportCallbackError(
-          error,
-          { operation: 'remove', element, overlay: null, removalId: running.removalId },
-          running.callbacks,
-        );
-        element.remove();
+        const context: EffectErrorContext = {
+          operation: 'remove',
+          element,
+          overlay: null,
+          removalId: running.removalId,
+        };
+        reportCallbackError(error, context, running.callbacks);
+        this.cleanupStep(() => element.remove(), context, running.callbacks);
       }
+      if (running.settled) return;
       this.retained.associate(element, running.effect);
       if (running.retain && running.removalId !== null) {
         this.retained.retain(running.removalId, element, running.effect);
@@ -545,5 +643,14 @@ export class OperationRunner {
 
   private assertAlive() {
     if (this.destroyed) throw new Error('This Disintegrator instance has been destroyed.');
+  }
+
+  private rejectedOperation(kind: EffectOperationKind): EffectOperation {
+    return {
+      operation: kind,
+      removalId: null,
+      finished: Promise.resolve({ operation: kind, status: 'rejected', removalId: null }),
+      cancel: noop,
+    };
   }
 }

@@ -1,11 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# The documentation site is an Astro SSR app (@astrojs/node, standalone mode).
-# Its runtime dependencies come from Astro itself, which lives in devDependencies
-# of the library package, so the runtime stage carries the installed node_modules
-# rather than a production-only install.
-
-FROM node:22-slim AS build
+FROM node:24-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS build
 WORKDIR /app
 RUN corepack enable
 
@@ -15,15 +10,17 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm run build:demo
 
-FROM node:22-slim AS runtime
+FROM node:24-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3501
 
-COPY --from=build /app/demo-dist ./demo-dist
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./package.json
+COPY --from=build --chown=node:node /app/demo-dist ./demo-dist
+COPY --from=build --chown=node:node /app/LICENSE /app/SOUND_LICENSE.md /app/THIRD_PARTY_NOTICES.md ./
 
 EXPOSE 3501
+USER node
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3501/').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
 CMD ["node", "./demo-dist/server/entry.mjs"]

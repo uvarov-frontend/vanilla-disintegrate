@@ -16,7 +16,7 @@ export default defineConfig({
     target: 'es2020',
     outDir: 'dist',
     emptyOutDir: false,
-    sourcemap: true,
+    sourcemap: false,
     minify: 'esbuild',
     lib: {
       entry: resolve(import.meta.dirname, 'src/snapdom.ts'),
@@ -26,6 +26,7 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
+        banner: '/*! Includes SnapDOM — MIT licensed; see THIRD_PARTY_NOTICES.md. */',
         assetFileNames: (asset) => {
           const soundName = asset.names.find((name) => name.endsWith('.mp3'));
           return soundName === undefined ? 'assets/[name]-[hash][extname]' : `sounds/${soundName}`;

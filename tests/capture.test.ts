@@ -13,7 +13,7 @@ vi.mock('@zumer/snapdom', () => ({ snapdom: { toCanvas } }));
 
 import { createSnapdomCapture } from '../src/capture';
 import { Disintegrator as SnapdomDisintegrator } from '../src/snapdom';
-import { Disintegrator as CoreDisintegrator } from '../src/index';
+import { Disintegrator as BuiltInDisintegrator } from '../src/index';
 
 beforeEach(() => {
   toCanvas.mockClear();
@@ -117,10 +117,10 @@ describe('entry points', () => {
     effect.destroy();
   });
 
-  it('leaves the core entry without a capture adapter', async () => {
+  it('leaves the default built-in entry without a capture adapter', async () => {
     const element = target();
     const onError = vi.fn();
-    const effect = new CoreDisintegrator({ effect: 'dust', layout: false, onError });
+    const effect = new BuiltInDisintegrator({ effect: 'dust', layout: false, onError });
 
     const result = await effect.remove(element).finished;
 

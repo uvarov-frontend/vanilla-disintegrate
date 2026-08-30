@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist', 'demo-dist', '.astro', 'coverage'],
+    ignores: ['dist', 'demo-dist', '.astro', 'coverage', 'playwright-report', 'test-results'],
   },
   eslint.configs.recommended,
   {
@@ -27,6 +27,14 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: true }],
       '@typescript-eslint/no-misused-promises': ['error', { checksVoidReturn: false }],
+    },
+  },
+  {
+    files: ['tests/browser/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/unbound-method': 'off',
     },
   },
 );
