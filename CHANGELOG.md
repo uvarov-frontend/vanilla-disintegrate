@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Dedicated `/core` and `/particles` entry points so custom effects do not pull WebGL, built-in sounds, or SnapDOM into their module graph.
 - Shared, reference-counted audio preparation with deterministic cleanup and bounded decoded-buffer caching.
-- Browser coverage in Chromium, Firefox, and WebKit, unit coverage thresholds, and reproducible-build verification.
+- Browser coverage across desktop and mobile Chromium, Firefox, and WebKit profiles, unit coverage thresholds, and reproducible-build verification.
 - Direct layout-animation coverage for grid cleanup, delayed cancellation, and overlapping removals.
 - Explicit third-party notices, a security policy, privacy pages, and user controls for documentation analytics.
 
@@ -20,6 +20,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - Enforced decoded-audio LRU budgets per instance while retaining cross-instance buffer deduplication.
 - Reduced package weight while preserving usable source maps, the CDN build, eager audio preparation, and TypeScript sources.
 - Hardened release and deployment workflows with immutable action references, artifact verification, staged health checks, and rollback.
+
+### Fixed
+
+- Stabilized transparent WebGL particle canvases on mobile GPU compositors without changing particle motion or timing.
 
 ## [1.0.0] - 2026-08-29
 

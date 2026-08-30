@@ -436,9 +436,9 @@ function createParticleRenderer(
     alpha: true,
     antialias: false,
     depth: false,
-    desynchronized: true,
+    desynchronized: false,
     failIfMajorPerformanceCaveat: false,
-    powerPreference: 'high-performance',
+    powerPreference: 'default',
     premultipliedAlpha: true,
     preserveDrawingBuffer: false,
     stencil: false,
@@ -572,8 +572,8 @@ function createParticleRenderer(
     let disposed = false;
     let frame = 0;
     const handleContextLost = () => {
-      // No restore is requested: the WAAPI clock still settles the operation.
       cancelAnimationFrame(frame);
+      canvas.style.visibility = 'hidden';
     };
     canvas.addEventListener('webglcontextlost', handleContextLost);
     render(0);

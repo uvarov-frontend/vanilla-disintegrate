@@ -98,6 +98,61 @@ test('runs and releases a real WebGL2 particle renderer', async ({ page, browser
   expect(result.released).toBe(result.created);
 });
 
+test('uses a synchronized WebGL surface and hides it after context loss', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium');
+  const result = await page.evaluate(async () => {
+    const { createParticleAnimation } = await import('../../src/particles');
+    const snapshot = document.createElement('canvas');
+    snapshot.width = 16;
+    snapshot.height = 16;
+    const source = snapshot.getContext('2d')!;
+    source.fillStyle = '#ff756b';
+    source.fillRect(0, 0, snapshot.width, snapshot.height);
+
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    let requestedAttributes: WebGLContextAttributes | undefined;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, contextId: string, options?: unknown) {
+      if (contextId === 'webgl2') requestedAttributes = { ...(options as WebGLContextAttributes) };
+      return originalGetContext.call(this, contextId, options as never);
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    const playback = createParticleAnimation({ duration: 1000, stagger: 0 })({
+      operation: 'remove',
+      element: document.createElement('div'),
+      layer: document.createElement('div'),
+      visual: null,
+      snapshot,
+      bounds: new DOMRect(0, 0, 16, 16),
+      signal: new AbortController().signal,
+      reducedMotion: false,
+      random: () => 0.5,
+      addCleanup: () => undefined,
+    }) as import('../../src/particle-renderer').ParticleRenderer | null;
+
+    try {
+      if (playback === null) return { available: false };
+      document.body.append(playback.element);
+      playback.element.dispatchEvent(new Event('webglcontextlost'));
+      return {
+        available: true,
+        desynchronized: requestedAttributes?.desynchronized,
+        powerPreference: requestedAttributes?.powerPreference,
+        visibility: playback.element.style.visibility,
+      };
+    } finally {
+      playback?.cancel();
+      HTMLCanvasElement.prototype.getContext = originalGetContext;
+    }
+  });
+
+  expect(result).toEqual({
+    available: true,
+    desynchronized: false,
+    powerPreference: 'default',
+    visibility: 'hidden',
+  });
+});
+
 test('does not allocate WebGL before snapshot pixels are readable', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const { createParticleAnimation } = await import('../../src/particles');

@@ -4,15 +4,15 @@
     "gzipBytes": 12951
   },
   "esm": {
-    "minifiedBytes": 67893,
-    "gzipBytes": 18337
+    "minifiedBytes": 67915,
+    "gzipBytes": 18351
   },
   "esmWithSnapdom": {
-    "minifiedBytes": 231624,
-    "gzipBytes": 72389
+    "minifiedBytes": 231646,
+    "gzipBytes": 72404
   },
   "iife": {
-    "minifiedBytes": 213089,
-    "gzipBytes": 67755
+    "minifiedBytes": 213108,
+    "gzipBytes": 67765
   }
 }
