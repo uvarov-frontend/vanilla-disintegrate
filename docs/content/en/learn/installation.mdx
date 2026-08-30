@@ -143,10 +143,12 @@ effects.destroy();
 
 ## Browser support
 
-The core needs ES2020 output, Canvas, Web Animations, `AbortController`, and `requestAnimationFrame`. The four built-in effects draw their particles with **WebGL2**, which sets the baseline: Chrome 80+, Firefox 74+, Edge 80+, Opera 67+, and Safari 15+.
+The runtime is emitted as ES2020 and relies on Canvas, Web Animations (`Animation.finished` and `Element.getAnimations()`), `AbortController`, and `requestAnimationFrame`. The four built-in effects draw their particles with **WebGL2**. The combined API baseline is Chrome 84+, Firefox 75+, Edge 84+, Opera 70+, and Safari 15+. The same baseline applies to Chrome for Android 84+ and iOS Safari 15+. No polyfills are included.
 
 Where WebGL2 is missing or a context cannot be created, the built-in effects degrade instead of failing: `remove()` still detaches the element, `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives the reason. Custom effects built on WAAPI, CSS, or Canvas 2D keep animating on older engines.
 
-Each running built-in effect holds one WebGL2 context and releases it the moment the operation ends, so removing a long list stays well inside the per-page context limit browsers enforce.
+These versions are API compatibility baselines, not a guarantee that every GPU, driver, or browser setting allows WebGL2 context creation.
+
+Each concurrently running built-in effect leases one WebGL2 context. When an operation ends, its textures are deleted and the context returns to a document-scoped pool. The pool retains at most two idle contexts for up to 30 seconds, destroys excess contexts immediately, and releases everything on `pagehide`.
 
 Create `Disintegrator` only in the browser, not during server rendering. Cross-origin images, fonts, and stylesheets must allow CORS or use the capture adapter's proxy option; otherwise they may be absent from the canvas snapshot.

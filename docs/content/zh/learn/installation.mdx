@@ -143,10 +143,12 @@ effects.destroy();
 
 ## 浏览器支持
 
-核心需要 ES2020 产物、Canvas、Web Animations、`AbortController` 与 `requestAnimationFrame`。四种内置效果使用 **WebGL2** 绘制粒子，因此基线为：Chrome 80+、Firefox 74+、Edge 80+、Opera 67+ 与 Safari 15+。
+运行时以 ES2020 格式输出，并依赖 Canvas、Web Animations（`Animation.finished` 与 `Element.getAnimations()`）、`AbortController` 和 `requestAnimationFrame`。四种内置效果使用 **WebGL2** 绘制粒子。综合 API 最低基线为 Chrome 84+、Firefox 75+、Edge 84+、Opera 70+ 与 Safari 15+。Chrome for Android 84+ 和 iOS Safari 15+ 适用同一基线。不包含 polyfill。
 
 在缺少 WebGL2 或无法创建上下文时，内置效果会降级而不是报错：`remove()` 仍会移除元素，`restore()` 仍会显示元素，操作以 `skipped` 状态结束，原因通过 `onError` 传出。基于 WAAPI、CSS 或 Canvas 2D 的自定义效果在旧引擎上照常播放。
 
-每个运行中的内置效果只占用一个 WebGL2 上下文，并在操作结束时立即释放，因此删除长列表也不会触及浏览器的每页上下文上限。
+这些版本是 API 兼容性的最低基线，并不保证每个 GPU、驱动程序或浏览器设置都允许创建 WebGL2 上下文。
+
+每个并发运行的内置效果会租用一个 WebGL2 上下文。操作结束时，其纹理会被删除，上下文则返回文档级资源池。资源池最多保留两个空闲上下文 30 秒，多余上下文会立即销毁，并在 `pagehide` 时释放全部资源。
 
 只在浏览器中创建 `Disintegrator`，不要在服务端渲染期间创建。跨域图片、字体与样式表必须允许 CORS，或通过捕获适配器的代理选项加载，否则可能不会出现在 Canvas 快照中。
