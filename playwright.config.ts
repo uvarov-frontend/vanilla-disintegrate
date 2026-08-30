@@ -25,6 +25,7 @@ export default defineConfig({
     },
     {
       command: 'pnpm exec astro dev',
+      env: { ASTRO_DEV_BACKGROUND: '1' },
       reuseExistingServer: !process.env.CI,
       url: 'http://localhost:4321/',
     },

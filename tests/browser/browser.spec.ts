@@ -42,7 +42,7 @@ test('runs the snapshotless remove and restore lifecycle', async ({ page }) => {
   expect(result).toEqual({ connected: true, overlayCount: 0, removed: 'completed', restored: 'completed' });
 });
 
-test('runs and releases a real WebGL2 particle renderer', async ({ page, browserName }) => {
+test('runs, reuses and releases a real WebGL2 particle renderer', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   const result = await page.evaluate(async () => {
     const { Disintegrator, defineEffect } = await import('../../src/core');
@@ -69,9 +69,11 @@ test('runs and releases a real WebGL2 particle renderer', async ({ page, browser
       return gl;
     } as typeof HTMLCanvasElement.prototype.getContext;
 
-    const target = document.createElement('div');
-    Object.assign(target.style, { background: '#8b5cf6', height: '48px', width: '64px' });
-    document.body.append(target);
+    const targets = [document.createElement('div'), document.createElement('div')];
+    for (const target of targets) {
+      Object.assign(target.style, { background: '#8b5cf6', height: '48px', width: '64px' });
+      document.body.append(target);
+    }
     const capture = () => {
       const snapshot = document.createElement('canvas');
       snapshot.width = 64;
@@ -86,16 +88,89 @@ test('runs and releases a real WebGL2 particle renderer', async ({ page, browser
       restore: { animate: createParticleRestoreAnimation({ duration: 40, stagger: 0 }), sound: null },
     });
     const disintegrator = new Disintegrator({ capture, effect: particle, layout: false, preparation: false });
-    const operation = await disintegrator.remove(target).finished;
+    const statuses = [];
+    const activeCanvases = [];
+    for (const target of targets) {
+      const operation = disintegrator.remove(target);
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      activeCanvases.push(document.querySelectorAll('[aria-hidden="true"] canvas').length);
+      statuses.push((await operation.finished).status);
+    }
     disintegrator.destroy();
+    window.dispatchEvent(new PageTransitionEvent('pagehide'));
     HTMLCanvasElement.prototype.getContext = originalGetContext;
 
-    return { created, released, status: operation.status };
+    return { activeCanvases, created, released, statuses };
   });
 
-  expect(result.status).toBe('completed');
-  expect(result.created).toBeGreaterThan(0);
+  expect(result.activeCanvases).toEqual([1, 1]);
+  expect(result.statuses).toEqual(['completed', 'completed']);
+  expect(result.created).toBe(1);
   expect(result.released).toBe(result.created);
+});
+
+test('retains at most two idle WebGL2 contexts', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium');
+  const result = await page.evaluate(async () => {
+    const { createParticleAnimation } = await import('../../src/particles');
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    let created = 0;
+    let released = 0;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, contextId: string, options?: unknown) {
+      const context = originalGetContext.call(this, contextId, options as never);
+      if (contextId !== 'webgl2' || context === null) return context;
+      created += 1;
+      const gl = context as WebGL2RenderingContext;
+      const getExtension = gl.getExtension.bind(gl);
+      gl.getExtension = ((name: string) => {
+        const extension = getExtension(name);
+        if (name !== 'WEBGL_lose_context' || extension === null) return extension;
+        const loseContext = (extension as WEBGL_lose_context).loseContext.bind(extension);
+        (extension as WEBGL_lose_context).loseContext = () => {
+          released += 1;
+          loseContext();
+        };
+        return extension;
+      }) as typeof gl.getExtension;
+      return context;
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    const factory = createParticleAnimation({ duration: 20, stagger: 0 });
+    const playbacks = Array.from({ length: 3 }, () => {
+      const snapshot = document.createElement('canvas');
+      snapshot.width = 16;
+      snapshot.height = 16;
+      const source = snapshot.getContext('2d')!;
+      source.fillStyle = '#8b5cf6';
+      source.fillRect(0, 0, snapshot.width, snapshot.height);
+      const playback = factory({
+        operation: 'remove',
+        element: document.createElement('div'),
+        layer: document.createElement('div'),
+        visual: null,
+        snapshot,
+        bounds: new DOMRect(0, 0, 16, 16),
+        signal: new AbortController().signal,
+        reducedMotion: false,
+        random: () => 0.5,
+        addCleanup: () => undefined,
+      }) as import('../../src/particle-renderer').ParticleRenderer;
+      document.body.append(playback.element);
+      return playback;
+    });
+
+    await Promise.all(playbacks.map((playback) => playback.finished));
+    for (const playback of playbacks) {
+      playback.dispose();
+      playback.element.remove();
+    }
+    const releasedAfterDispose = released;
+    window.dispatchEvent(new PageTransitionEvent('pagehide'));
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+    return { created, releasedAfterDispose, releasedAfterPagehide: released };
+  });
+
+  expect(result).toEqual({ created: 3, releasedAfterDispose: 1, releasedAfterPagehide: 3 });
 });
 
 test('uses a synchronized WebGL surface and hides it after context loss', async ({ page, browserName }) => {

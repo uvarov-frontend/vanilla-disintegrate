@@ -3,8 +3,56 @@ import { resolveParticles } from './defaults';
 import type { AnimationFactory, AnimationPlayback, ParticleOptions } from './types';
 
 interface ParticlePrograms {
+  readonly key: 'remove' | 'restore';
   readonly baseFragment: string;
   readonly particleVertex: string;
+}
+
+interface BaseUniforms {
+  readonly blockSize: WebGLUniformLocation | null;
+  readonly canvasSize: WebGLUniformLocation | null;
+  readonly progress: WebGLUniformLocation | null;
+  readonly source: WebGLUniformLocation | null;
+  readonly sourceOffset: WebGLUniformLocation | null;
+  readonly sourceSize: WebGLUniformLocation | null;
+  readonly thresholds: WebGLUniformLocation | null;
+  readonly transition: WebGLUniformLocation | null;
+}
+
+interface ParticleUniforms {
+  readonly blockSize: WebGLUniformLocation | null;
+  readonly canvasSize: WebGLUniformLocation | null;
+  readonly curveMix: WebGLUniformLocation | null;
+  readonly endScale: WebGLUniformLocation | null;
+  readonly fadeStart: WebGLUniformLocation | null;
+  readonly motionPower: WebGLUniformLocation | null;
+  readonly progress: WebGLUniformLocation | null;
+  readonly source: WebGLUniformLocation | null;
+  readonly sourceOffset: WebGLUniformLocation | null;
+  readonly textureSize: WebGLUniformLocation | null;
+  readonly transition: WebGLUniformLocation | null;
+  readonly waveTurns: WebGLUniformLocation | null;
+}
+
+interface CompiledParticlePrograms {
+  readonly base: WebGLProgram;
+  readonly baseUniforms: BaseUniforms;
+  readonly baseVao: WebGLVertexArrayObject;
+  readonly particle: WebGLProgram;
+  readonly particleUniforms: ParticleUniforms;
+  readonly particleVao: WebGLVertexArrayObject;
+}
+
+interface RendererContext {
+  readonly canvas: HTMLCanvasElement;
+  readonly gl: WebGL2RenderingContext;
+  readonly handleContextLost: () => void;
+  readonly particleBuffer: WebGLBuffer;
+  readonly programs: Map<ParticlePrograms['key'], CompiledParticlePrograms>;
+  readonly quadBuffer: WebGLBuffer;
+  cancelWarmup: (() => void) | null;
+  destroyed: boolean;
+  idleTimer: number | null;
 }
 
 export interface ParticleRenderer extends AnimationPlayback {
@@ -19,10 +67,12 @@ export interface ParticleRenderer extends AnimationPlayback {
 }
 
 interface ParticleField {
-  blockSize: number;
-  data: Float32Array;
-  thresholdMap: Uint8Array;
-  layoutReleaseProgress: number;
+  readonly blockSize: number;
+  readonly data: Float32Array;
+  readonly thresholdHeight: number;
+  readonly thresholdMap: Uint8Array;
+  readonly thresholdWidth: number;
+  readonly layoutReleaseProgress: number;
 }
 
 interface RenderBounds {
@@ -38,10 +88,24 @@ interface RenderBounds {
 
 const PARTICLE_STRIDE = 7;
 const PARTICLE_BUDGET = 180_000;
+const MAX_IDLE_CONTEXTS = 2;
+const CONTEXT_IDLE_TTL = 30_000;
 const TRANSITION_WIDTH = 0.018;
 const LAYOUT_RELEASE_FRACTION = 0.6;
 const MIN_THRESHOLD = 0.025;
 const MAX_THRESHOLD = 0.68;
+const QUAD_VERTICES = new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]);
+const WEBGL_CONTEXT_ATTRIBUTES: WebGLContextAttributes = {
+  alpha: true,
+  antialias: false,
+  depth: false,
+  desynchronized: false,
+  failIfMajorPerformanceCaveat: false,
+  powerPreference: 'default',
+  premultipliedAlpha: true,
+  preserveDrawingBuffer: false,
+  stencil: false,
+};
 
 const BASE_VERTEX_SHADER = `#version 300 es
 in vec2 a_position;
@@ -62,6 +126,8 @@ const REMOVE_BASE_FRAGMENT_SHADER = `#version 300 es
 precision mediump float;
 uniform sampler2D u_source;
 uniform sampler2D u_thresholds;
+uniform highp vec2 u_source_size;
+uniform highp float u_block_size;
 uniform float u_progress;
 uniform float u_transition;
 in vec2 v_uv;
@@ -69,7 +135,10 @@ out vec4 out_color;
 
 void main() {
   vec4 color = texture(u_source, v_uv);
-  float threshold = texture(u_thresholds, v_uv).r;
+  ivec2 threshold_size = textureSize(u_thresholds, 0);
+  vec2 source_pixel = min(floor(v_uv * u_source_size), u_source_size - vec2(1.0));
+  ivec2 threshold_pixel = min(ivec2(source_pixel / u_block_size), threshold_size - ivec2(1));
+  float threshold = texelFetch(u_thresholds, threshold_pixel, 0).r;
   float intact = smoothstep(u_progress - u_transition, u_progress + u_transition, threshold);
   out_color = color * intact;
 }
@@ -121,6 +190,8 @@ const RESTORE_BASE_FRAGMENT_SHADER = `#version 300 es
 precision mediump float;
 uniform sampler2D u_source;
 uniform sampler2D u_thresholds;
+uniform highp vec2 u_source_size;
+uniform highp float u_block_size;
 uniform float u_progress;
 uniform float u_transition;
 in vec2 v_uv;
@@ -128,7 +199,10 @@ out vec4 out_color;
 
 void main() {
   vec4 color = texture(u_source, v_uv);
-  float threshold = texture(u_thresholds, v_uv).r;
+  ivec2 threshold_size = textureSize(u_thresholds, 0);
+  vec2 source_pixel = min(floor(v_uv * u_source_size), u_source_size - vec2(1.0));
+  ivec2 threshold_pixel = min(ivec2(source_pixel / u_block_size), threshold_size - ivec2(1));
+  float threshold = texelFetch(u_thresholds, threshold_pixel, 0).r;
   float arrival = 1.0 - threshold;
   float assembled = smoothstep(arrival - u_transition, arrival + u_transition, u_progress);
   out_color = color * assembled;
@@ -194,11 +268,13 @@ void main() {
 `;
 
 const REMOVE_PROGRAMS: ParticlePrograms = {
+  key: 'remove',
   baseFragment: REMOVE_BASE_FRAGMENT_SHADER,
   particleVertex: REMOVE_PARTICLE_VERTEX_SHADER,
 };
 
 const RESTORE_PROGRAMS: ParticlePrograms = {
+  key: 'restore',
   baseFragment: RESTORE_BASE_FRAGMENT_SHADER,
   particleVertex: RESTORE_PARTICLE_VERTEX_SHADER,
 };
@@ -235,21 +311,28 @@ function createShader(gl: WebGL2RenderingContext, type: number, source: string) 
 }
 
 function createProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string) {
-  const vertex = createShader(gl, gl.VERTEX_SHADER, vertexSource);
-  const fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
-  const program = gl.createProgram();
-  if (program === null) throw new Error('Unable to create a WebGL program.');
-  gl.attachShader(program, vertex);
-  gl.attachShader(program, fragment);
-  gl.linkProgram(program);
-  gl.deleteShader(vertex);
-  gl.deleteShader(fragment);
-  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    const message = gl.getProgramInfoLog(program) ?? 'Unknown WebGL link error.';
-    gl.deleteProgram(program);
-    throw new Error(message);
+  let vertex: WebGLShader | null = null;
+  let fragment: WebGLShader | null = null;
+  let program: WebGLProgram | null = null;
+  try {
+    vertex = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+    fragment = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+    program = gl.createProgram();
+    if (program === null) throw new Error('Unable to create a WebGL program.');
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      throw new Error(gl.getProgramInfoLog(program) ?? 'Unknown WebGL link error.');
+    }
+    return program;
+  } catch (error) {
+    if (program !== null) gl.deleteProgram(program);
+    throw error;
+  } finally {
+    if (vertex !== null) gl.deleteShader(vertex);
+    if (fragment !== null) gl.deleteShader(fragment);
   }
-  return program;
 }
 
 function createTexture(gl: WebGL2RenderingContext, source: HTMLCanvasElement) {
@@ -278,17 +361,320 @@ function createThresholdTexture(gl: WebGL2RenderingContext, width: number, heigh
   return texture;
 }
 
-/**
- * Browsers cap the number of live WebGL contexts and silently drop the oldest one
- * once that cap is reached, so every exit path releases its context immediately
- * instead of waiting for garbage collection.
- */
+/** Permanently releases a context instead of waiting for browser garbage collection. */
 function releaseContext(gl: WebGL2RenderingContext) {
   try {
     gl.getExtension('WEBGL_lose_context')?.loseContext();
   } catch {
     // Context release is best-effort and must never mask the original failure.
   }
+}
+
+const contextPools = new WeakMap<Document, RendererContextPool>();
+
+function attributeLocation(gl: WebGL2RenderingContext, program: WebGLProgram, name: string) {
+  const location = gl.getAttribLocation(program, name);
+  if (location < 0) throw new Error(`Unable to resolve WebGL attribute: ${name}.`);
+  return location;
+}
+
+function deleteCompiledPrograms(gl: WebGL2RenderingContext, programs: CompiledParticlePrograms) {
+  gl.deleteVertexArray(programs.baseVao);
+  gl.deleteVertexArray(programs.particleVao);
+  gl.deleteProgram(programs.base);
+  gl.deleteProgram(programs.particle);
+}
+
+function compileParticlePrograms(context: RendererContext, sources: ParticlePrograms) {
+  const cached = context.programs.get(sources.key);
+  if (cached !== undefined) return cached;
+
+  const { gl } = context;
+  let base: WebGLProgram | null = null;
+  let particle: WebGLProgram | null = null;
+  let baseVao: WebGLVertexArrayObject | null = null;
+  let particleVao: WebGLVertexArrayObject | null = null;
+  try {
+    base = createProgram(gl, BASE_VERTEX_SHADER, sources.baseFragment);
+    particle = createProgram(gl, sources.particleVertex, PARTICLE_FRAGMENT_SHADER);
+    baseVao = gl.createVertexArray();
+    particleVao = gl.createVertexArray();
+    if (baseVao === null || particleVao === null) throw new Error('Unable to create WebGL vertex arrays.');
+
+    gl.bindVertexArray(baseVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, context.quadBuffer);
+    const basePosition = attributeLocation(gl, base, 'a_position');
+    gl.enableVertexAttribArray(basePosition);
+    gl.vertexAttribPointer(basePosition, 2, gl.FLOAT, false, 0, 0);
+
+    gl.bindVertexArray(particleVao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, context.particleBuffer);
+    const stride = PARTICLE_STRIDE * Float32Array.BYTES_PER_ELEMENT;
+    const attributes = [
+      [attributeLocation(gl, particle, 'a_source'), 2, 0],
+      [attributeLocation(gl, particle, 'a_threshold'), 1, 2],
+      [attributeLocation(gl, particle, 'a_velocity'), 2, 3],
+      [attributeLocation(gl, particle, 'a_swirl'), 1, 5],
+      [attributeLocation(gl, particle, 'a_phase'), 1, 6],
+    ] as const;
+    for (const [location, size, offset] of attributes) {
+      gl.enableVertexAttribArray(location);
+      gl.vertexAttribPointer(location, size, gl.FLOAT, false, stride, offset * Float32Array.BYTES_PER_ELEMENT);
+    }
+    gl.bindVertexArray(null);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    const compiled: CompiledParticlePrograms = {
+      base,
+      baseVao,
+      baseUniforms: {
+        blockSize: gl.getUniformLocation(base, 'u_block_size'),
+        canvasSize: gl.getUniformLocation(base, 'u_canvas_size'),
+        progress: gl.getUniformLocation(base, 'u_progress'),
+        source: gl.getUniformLocation(base, 'u_source'),
+        sourceOffset: gl.getUniformLocation(base, 'u_source_offset'),
+        sourceSize: gl.getUniformLocation(base, 'u_source_size'),
+        thresholds: gl.getUniformLocation(base, 'u_thresholds'),
+        transition: gl.getUniformLocation(base, 'u_transition'),
+      },
+      particle,
+      particleVao,
+      particleUniforms: {
+        blockSize: gl.getUniformLocation(particle, 'u_block_size'),
+        canvasSize: gl.getUniformLocation(particle, 'u_canvas_size'),
+        curveMix: gl.getUniformLocation(particle, 'u_curve_mix'),
+        endScale: gl.getUniformLocation(particle, 'u_end_scale'),
+        fadeStart: gl.getUniformLocation(particle, 'u_fade_start'),
+        motionPower: gl.getUniformLocation(particle, 'u_motion_power'),
+        progress: gl.getUniformLocation(particle, 'u_progress'),
+        source: gl.getUniformLocation(particle, 'u_source'),
+        sourceOffset: gl.getUniformLocation(particle, 'u_source_offset'),
+        textureSize: gl.getUniformLocation(particle, 'u_texture_size'),
+        transition: gl.getUniformLocation(particle, 'u_transition'),
+        waveTurns: gl.getUniformLocation(particle, 'u_wave_turns'),
+      },
+    };
+    context.programs.set(sources.key, compiled);
+    return compiled;
+  } catch (error) {
+    if (baseVao !== null) gl.deleteVertexArray(baseVao);
+    if (particleVao !== null) gl.deleteVertexArray(particleVao);
+    if (base !== null) gl.deleteProgram(base);
+    if (particle !== null) gl.deleteProgram(particle);
+    throw error;
+  } finally {
+    gl.bindVertexArray(null);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  }
+}
+
+function createRendererContext(ownerDocument: Document): RendererContext | null {
+  const canvas = ownerDocument.createElement('canvas');
+  const gl = canvas.getContext('webgl2', WEBGL_CONTEXT_ATTRIBUTES);
+  if (gl === null) return null;
+
+  const quadBuffer = gl.createBuffer();
+  const particleBuffer = gl.createBuffer();
+  if (quadBuffer === null || particleBuffer === null) {
+    if (quadBuffer !== null) gl.deleteBuffer(quadBuffer);
+    if (particleBuffer !== null) gl.deleteBuffer(particleBuffer);
+    releaseContext(gl);
+    throw new Error('Unable to create WebGL particle buffers.');
+  }
+  try {
+    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, QUAD_VERTICES, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  } catch (error) {
+    gl.deleteBuffer(quadBuffer);
+    gl.deleteBuffer(particleBuffer);
+    releaseContext(gl);
+    throw error;
+  }
+
+  const context: RendererContext = {
+    canvas,
+    gl,
+    quadBuffer,
+    particleBuffer,
+    programs: new Map(),
+    destroyed: false,
+    idleTimer: null,
+    cancelWarmup: null,
+    handleContextLost: () => {
+      canvas.style.visibility = 'hidden';
+    },
+  };
+  canvas.addEventListener('webglcontextlost', context.handleContextLost);
+  return context;
+}
+
+function destroyRendererContext(context: RendererContext) {
+  if (context.destroyed) return;
+  context.destroyed = true;
+  if (context.idleTimer !== null) context.canvas.ownerDocument.defaultView?.clearTimeout(context.idleTimer);
+  context.idleTimer = null;
+  context.cancelWarmup?.();
+  context.cancelWarmup = null;
+  context.canvas.removeEventListener('webglcontextlost', context.handleContextLost);
+  const { gl } = context;
+  if (!gl.isContextLost()) {
+    for (const programs of context.programs.values()) deleteCompiledPrograms(gl, programs);
+    gl.deleteBuffer(context.quadBuffer);
+    gl.deleteBuffer(context.particleBuffer);
+  }
+  context.programs.clear();
+  releaseContext(gl);
+}
+
+function resetRendererContext(context: RendererContext) {
+  const { canvas, gl } = context;
+  for (const animation of canvas.getAnimations()) animation.cancel();
+  canvas.remove();
+  gl.bindVertexArray(null);
+  gl.bindBuffer(gl.ARRAY_BUFFER, context.particleBuffer);
+  gl.bufferData(gl.ARRAY_BUFFER, 0, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  gl.useProgram(null);
+  canvas.width = 1;
+  canvas.height = 1;
+  canvas.removeAttribute('style');
+}
+
+function scheduleIdle(ownerWindow: Window, callback: () => void) {
+  if (typeof ownerWindow.requestIdleCallback === 'function') {
+    const id = ownerWindow.requestIdleCallback(callback, { timeout: 1000 });
+    return () => ownerWindow.cancelIdleCallback(id);
+  }
+  const id = ownerWindow.setTimeout(callback, 100);
+  return () => ownerWindow.clearTimeout(id);
+}
+
+class RendererContextPool {
+  private readonly contexts = new Set<RendererContext>();
+  private readonly idle: RendererContext[] = [];
+  private readonly ownerWindow: Window;
+  private cancelPrewarm: (() => void) | null = null;
+
+  constructor(private readonly ownerDocument: Document) {
+    const ownerWindow = ownerDocument.defaultView;
+    if (ownerWindow === null) throw new Error('A WebGL renderer requires an active Window.');
+    this.ownerWindow = ownerWindow;
+    ownerWindow.addEventListener('pagehide', this.destroyAll);
+  }
+
+  acquire() {
+    this.cancelPrewarm?.();
+    this.cancelPrewarm = null;
+    while (this.idle.length > 0) {
+      const context = this.idle.pop();
+      if (context === undefined) break;
+      this.cancelIdleWork(context);
+      if (!context.destroyed && !context.gl.isContextLost()) {
+        context.canvas.style.visibility = '';
+        return context;
+      }
+      this.destroy(context);
+    }
+
+    const context = createRendererContext(this.ownerDocument);
+    if (context !== null) this.contexts.add(context);
+    return context;
+  }
+
+  prewarm() {
+    if (this.cancelPrewarm !== null || this.contexts.size > 0) return;
+    this.cancelPrewarm = scheduleIdle(this.ownerWindow, () => {
+      this.cancelPrewarm = null;
+      const context = createRendererContext(this.ownerDocument);
+      if (context === null) return;
+      this.contexts.add(context);
+      try {
+        compileParticlePrograms(context, REMOVE_PROGRAMS);
+        compileParticlePrograms(context, RESTORE_PROGRAMS);
+        this.release(context);
+      } catch {
+        this.destroy(context);
+      }
+    });
+  }
+
+  release(context: RendererContext) {
+    if (!this.contexts.has(context)) return;
+    if (context.destroyed || context.gl.isContextLost()) {
+      this.destroy(context);
+      return;
+    }
+    try {
+      resetRendererContext(context);
+    } catch {
+      this.destroy(context);
+      return;
+    }
+    if (this.idle.length >= MAX_IDLE_CONTEXTS) {
+      this.destroy(context);
+      return;
+    }
+
+    this.idle.push(context);
+    context.idleTimer = this.ownerWindow.setTimeout(() => this.destroy(context), CONTEXT_IDLE_TTL);
+    context.cancelWarmup = scheduleIdle(this.ownerWindow, () => {
+      context.cancelWarmup = null;
+      if (!this.idle.includes(context) || context.destroyed || context.gl.isContextLost()) return;
+      try {
+        compileParticlePrograms(context, REMOVE_PROGRAMS);
+        compileParticlePrograms(context, RESTORE_PROGRAMS);
+      } catch {
+        this.destroy(context);
+      }
+    });
+  }
+
+  discard(context: RendererContext) {
+    this.destroy(context);
+  }
+
+  private cancelIdleWork(context: RendererContext) {
+    if (context.idleTimer !== null) this.ownerWindow.clearTimeout(context.idleTimer);
+    context.idleTimer = null;
+    context.cancelWarmup?.();
+    context.cancelWarmup = null;
+  }
+
+  private destroy(context: RendererContext) {
+    this.cancelIdleWork(context);
+    const idleIndex = this.idle.indexOf(context);
+    if (idleIndex !== -1) this.idle.splice(idleIndex, 1);
+    if (!this.contexts.delete(context)) return;
+    destroyRendererContext(context);
+  }
+
+  private readonly destroyAll = () => {
+    this.cancelPrewarm?.();
+    this.cancelPrewarm = null;
+    for (const context of [...this.contexts]) this.destroy(context);
+    this.ownerWindow.removeEventListener('pagehide', this.destroyAll);
+    contextPools.delete(this.ownerDocument);
+  };
+}
+
+function rendererContextPool(ownerDocument: Document) {
+  let pool = contextPools.get(ownerDocument);
+  if (pool === undefined) {
+    pool = new RendererContextPool(ownerDocument);
+    contextPools.set(ownerDocument, pool);
+  }
+  return pool;
+}
+
+function acquireRendererContext(ownerDocument: Document) {
+  const pool = rendererContextPool(ownerDocument);
+  return { context: pool.acquire(), pool };
+}
+
+function prewarmRendererContext() {
+  if (typeof document === 'undefined' || document.defaultView === null) return;
+  rendererContextPool(document).prewarm();
 }
 
 function createBounds(
@@ -343,35 +729,53 @@ export function createParticleField(
   random: () => number,
 ): ParticleField {
   const blockSize = Math.max(1, Math.ceil(Math.sqrt((width * height) / PARTICLE_BUDGET)));
-  const thresholdMap = new Uint8Array(width * height);
-  const visibleThresholds = new Uint32Array(256);
-  const values: number[] = [];
+  const thresholdWidth = Math.ceil(width / blockSize);
+  const thresholdHeight = Math.ceil(height / blockSize);
+  const blockCount = thresholdWidth * thresholdHeight;
+  const visibleBlocks = new Uint8Array(blockCount);
+  let particleCount = 0;
 
-  for (let y = 0; y < height; y += blockSize) {
-    for (let x = 0; x < width; x += blockSize) {
+  for (let blockY = 0; blockY < thresholdHeight; blockY += 1) {
+    const y = blockY * blockSize;
+    const blockHeight = Math.min(blockSize, height - y);
+    for (let blockX = 0; blockX < thresholdWidth; blockX += 1) {
+      const x = blockX * blockSize;
       const blockWidth = Math.min(blockSize, width - x);
-      const blockHeight = Math.min(blockSize, height - y);
       let visible = false;
-      for (let blockY = 0; blockY < blockHeight && !visible; blockY += 1) {
-        for (let blockX = 0; blockX < blockWidth; blockX += 1) {
-          if ((pixels[((y + blockY) * width + x + blockX) * 4 + 3] ?? 0) > 0) {
+      for (let localY = 0; localY < blockHeight && !visible; localY += 1) {
+        for (let localX = 0; localX < blockWidth; localX += 1) {
+          if ((pixels[((y + localY) * width + x + localX) * 4 + 3] ?? 0) > 0) {
             visible = true;
             break;
           }
         }
       }
+      if (!visible) continue;
+      visibleBlocks[blockY * thresholdWidth + blockX] = 1;
+      particleCount += 1;
+    }
+  }
 
+  const data = new Float32Array(particleCount * PARTICLE_STRIDE);
+  const thresholdMap = new Uint8Array(blockCount);
+  const visibleThresholds = new Uint32Array(256);
+  let dataOffset = 0;
+
+  for (let blockY = 0; blockY < thresholdHeight; blockY += 1) {
+    const y = blockY * blockSize;
+    for (let blockX = 0; blockX < thresholdWidth; blockX += 1) {
+      const x = blockX * blockSize;
+      const blockWidth = Math.min(blockSize, width - x);
+      const blockHeight = Math.min(blockSize, height - y);
       const noise = random();
       const column = (x + blockWidth * 0.5) / width;
       const row = (y + blockHeight * 0.5) / height;
       const rawThreshold = resolveThreshold(particles, column, row, noise);
       const threshold = MIN_THRESHOLD + clamp(rawThreshold, 0, 1) * (MAX_THRESHOLD - MIN_THRESHOLD);
       const encodedThreshold = Math.round(threshold * 255);
-      for (let blockY = 0; blockY < blockHeight; blockY += 1) {
-        const rowStart = (y + blockY) * width + x;
-        thresholdMap.fill(encodedThreshold, rowStart, rowStart + blockWidth);
-      }
-      if (!visible) continue;
+      const blockIndex = blockY * thresholdWidth + blockX;
+      thresholdMap[blockIndex] = encodedThreshold;
+      if (visibleBlocks[blockIndex] === 0) continue;
       visibleThresholds[encodedThreshold] = (visibleThresholds[encodedThreshold] ?? 0) + 1;
 
       const directedTravel =
@@ -386,11 +790,17 @@ export function createParticleField(
       const velocityX = (directedTravel + particles.horizontalDrift * (random() - 0.5)) * scaleX + vaporCenterPull;
       const velocityY = (particles.motion === 'scatter' ? random() - 0.74 : -1) * riseAmount * scaleY;
       const swirl = particles.swirl * (0.45 + random() * 0.55) * scaleY;
-      values.push(x, y, threshold, velocityX, velocityY, swirl, random() * Math.PI * 2);
+      data[dataOffset] = x;
+      data[dataOffset + 1] = y;
+      data[dataOffset + 2] = threshold;
+      data[dataOffset + 3] = velocityX;
+      data[dataOffset + 4] = velocityY;
+      data[dataOffset + 5] = swirl;
+      data[dataOffset + 6] = random() * Math.PI * 2;
+      dataOffset += PARTICLE_STRIDE;
     }
   }
 
-  const particleCount = values.length / PARTICLE_STRIDE;
   const releaseCount = Math.ceil(particleCount * LAYOUT_RELEASE_FRACTION);
   let accumulated = 0;
   let releaseThreshold = 0;
@@ -401,8 +811,10 @@ export function createParticleField(
 
   return {
     blockSize,
-    data: new Float32Array(values),
+    data,
+    thresholdHeight,
     thresholdMap,
+    thresholdWidth,
     layoutReleaseProgress: particleCount === 0 ? 0 : Math.min(255, releaseThreshold) / 255,
   };
 }
@@ -431,19 +843,10 @@ function createParticleRenderer(
   );
   if (field.data.length === 0) return null;
 
-  const canvas = document.createElement('canvas');
-  const gl = canvas.getContext('webgl2', {
-    alpha: true,
-    antialias: false,
-    depth: false,
-    desynchronized: false,
-    failIfMajorPerformanceCaveat: false,
-    powerPreference: 'default',
-    premultipliedAlpha: true,
-    preserveDrawingBuffer: false,
-    stencil: false,
-  });
-  if (gl === null) return null;
+  const acquired = acquireRendererContext(snapshot.ownerDocument);
+  const rendererContext = acquired.context;
+  if (rendererContext === null) return null;
+  const { canvas, gl } = rendererContext;
 
   try {
     const canvasWidth = Math.max(1, Math.ceil(bounds.cssWidth * bounds.scaleX));
@@ -456,7 +859,7 @@ function createParticleRenderer(
       canvasWidth > (maxViewport[0] ?? maxTextureSize) ||
       canvasHeight > (maxViewport[1] ?? maxTextureSize)
     ) {
-      releaseContext(gl);
+      acquired.pool.release(rendererContext);
       return null;
     }
     canvas.width = canvasWidth;
@@ -470,57 +873,29 @@ function createParticleRenderer(
       width: `${bounds.cssWidth}px`,
     });
 
-    const baseProgram = createProgram(gl, BASE_VERTEX_SHADER, programs.baseFragment);
-    const particleProgram = createProgram(gl, programs.particleVertex, PARTICLE_FRAGMENT_SHADER);
-    const quadBuffer = gl.createBuffer();
-    const particleBuffer = gl.createBuffer();
-    if (quadBuffer === null || particleBuffer === null) throw new Error('Unable to create WebGL particle buffers.');
+    const compiled = compileParticlePrograms(rendererContext, programs);
+    const { base, baseUniforms, baseVao, particle, particleUniforms, particleVao } = compiled;
     const sourceTexture = createTexture(gl, snapshot);
-    const thresholdTexture = createThresholdTexture(gl, snapshot.width, snapshot.height, field.thresholdMap);
+    const thresholdTexture = createThresholdTexture(
+      gl,
+      field.thresholdWidth,
+      field.thresholdHeight,
+      field.thresholdMap,
+    );
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]), gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
+    gl.bindBuffer(gl.ARRAY_BUFFER, rendererContext.particleBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, field.data, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(0, 0, 0, 0);
 
     const canvasSize = [canvas.width, canvas.height] as const;
     const sourceOffset = [bounds.sourceX, bounds.sourceY] as const;
     const sourceSize = [snapshot.width, snapshot.height] as const;
     const motion = resolveMotion(particles.motion);
-    const basePosition = gl.getAttribLocation(baseProgram, 'a_position');
-    const baseUniforms = {
-      canvasSize: gl.getUniformLocation(baseProgram, 'u_canvas_size'),
-      progress: gl.getUniformLocation(baseProgram, 'u_progress'),
-      source: gl.getUniformLocation(baseProgram, 'u_source'),
-      sourceOffset: gl.getUniformLocation(baseProgram, 'u_source_offset'),
-      sourceSize: gl.getUniformLocation(baseProgram, 'u_source_size'),
-      thresholds: gl.getUniformLocation(baseProgram, 'u_thresholds'),
-      transition: gl.getUniformLocation(baseProgram, 'u_transition'),
-    };
-    const particleAttributes = [
-      [gl.getAttribLocation(particleProgram, 'a_source'), 2, 0],
-      [gl.getAttribLocation(particleProgram, 'a_threshold'), 1, 2],
-      [gl.getAttribLocation(particleProgram, 'a_velocity'), 2, 3],
-      [gl.getAttribLocation(particleProgram, 'a_swirl'), 1, 5],
-      [gl.getAttribLocation(particleProgram, 'a_phase'), 1, 6],
-    ] as const;
-    const particleUniforms = {
-      blockSize: gl.getUniformLocation(particleProgram, 'u_block_size'),
-      canvasSize: gl.getUniformLocation(particleProgram, 'u_canvas_size'),
-      curveMix: gl.getUniformLocation(particleProgram, 'u_curve_mix'),
-      endScale: gl.getUniformLocation(particleProgram, 'u_end_scale'),
-      fadeStart: gl.getUniformLocation(particleProgram, 'u_fade_start'),
-      motionPower: gl.getUniformLocation(particleProgram, 'u_motion_power'),
-      progress: gl.getUniformLocation(particleProgram, 'u_progress'),
-      source: gl.getUniformLocation(particleProgram, 'u_source'),
-      sourceOffset: gl.getUniformLocation(particleProgram, 'u_source_offset'),
-      textureSize: gl.getUniformLocation(particleProgram, 'u_texture_size'),
-      transition: gl.getUniformLocation(particleProgram, 'u_transition'),
-      waveTurns: gl.getUniformLocation(particleProgram, 'u_wave_turns'),
-    };
 
     const bindTexture = (uniform: WebGLUniformLocation | null, texture: WebGLTexture, unit: number) => {
       gl.activeTexture(gl.TEXTURE0 + unit);
@@ -528,54 +903,46 @@ function createParticleRenderer(
       gl.uniform1i(uniform, unit);
     };
 
+    gl.useProgram(base);
+    gl.uniform2f(baseUniforms.canvasSize, ...canvasSize);
+    gl.uniform2f(baseUniforms.sourceOffset, ...sourceOffset);
+    gl.uniform2f(baseUniforms.sourceSize, ...sourceSize);
+    gl.uniform1f(baseUniforms.blockSize, field.blockSize);
+    gl.uniform1f(baseUniforms.transition, TRANSITION_WIDTH);
+    bindTexture(baseUniforms.source, sourceTexture, 0);
+    bindTexture(baseUniforms.thresholds, thresholdTexture, 1);
+
+    gl.useProgram(particle);
+    gl.uniform2f(particleUniforms.canvasSize, ...canvasSize);
+    gl.uniform2f(particleUniforms.sourceOffset, ...sourceOffset);
+    gl.uniform2f(particleUniforms.textureSize, ...sourceSize);
+    gl.uniform1f(particleUniforms.blockSize, field.blockSize);
+    gl.uniform1f(particleUniforms.endScale, particles.endScale);
+    gl.uniform1f(particleUniforms.curveMix, motion.curveMix);
+    gl.uniform1f(particleUniforms.motionPower, motion.motionPower);
+    gl.uniform1f(particleUniforms.fadeStart, motion.fadeStart);
+    gl.uniform1f(particleUniforms.waveTurns, motion.waveTurns);
+    gl.uniform1f(particleUniforms.transition, TRANSITION_WIDTH);
+    bindTexture(particleUniforms.source, sourceTexture, 0);
+
     const render = (progress: number) => {
       if (gl.isContextLost()) return;
-      gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
-      gl.useProgram(baseProgram);
-      gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
-      gl.enableVertexAttribArray(basePosition);
-      gl.vertexAttribPointer(basePosition, 2, gl.FLOAT, false, 0, 0);
-      gl.uniform2f(baseUniforms.canvasSize, ...canvasSize);
-      gl.uniform2f(baseUniforms.sourceOffset, ...sourceOffset);
-      gl.uniform2f(baseUniforms.sourceSize, ...sourceSize);
+      gl.useProgram(base);
+      gl.bindVertexArray(baseVao);
       gl.uniform1f(baseUniforms.progress, progress);
-      gl.uniform1f(baseUniforms.transition, TRANSITION_WIDTH);
-      bindTexture(baseUniforms.source, sourceTexture, 0);
-      bindTexture(baseUniforms.thresholds, thresholdTexture, 1);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
-      gl.useProgram(particleProgram);
-      gl.bindBuffer(gl.ARRAY_BUFFER, particleBuffer);
-      const stride = PARTICLE_STRIDE * Float32Array.BYTES_PER_ELEMENT;
-      for (const [location, size, offset] of particleAttributes) {
-        gl.enableVertexAttribArray(location);
-        gl.vertexAttribPointer(location, size, gl.FLOAT, false, stride, offset * Float32Array.BYTES_PER_ELEMENT);
-      }
-      gl.uniform2f(particleUniforms.canvasSize, ...canvasSize);
-      gl.uniform2f(particleUniforms.sourceOffset, ...sourceOffset);
-      gl.uniform2f(particleUniforms.textureSize, ...sourceSize);
-      gl.uniform1f(particleUniforms.blockSize, field.blockSize);
-      gl.uniform1f(particleUniforms.endScale, particles.endScale);
-      gl.uniform1f(particleUniforms.curveMix, motion.curveMix);
-      gl.uniform1f(particleUniforms.motionPower, motion.motionPower);
-      gl.uniform1f(particleUniforms.fadeStart, motion.fadeStart);
-      gl.uniform1f(particleUniforms.waveTurns, motion.waveTurns);
+      gl.useProgram(particle);
+      gl.bindVertexArray(particleVao);
       gl.uniform1f(particleUniforms.progress, progress);
-      gl.uniform1f(particleUniforms.transition, TRANSITION_WIDTH);
-      bindTexture(particleUniforms.source, sourceTexture, 0);
       gl.drawArrays(gl.POINTS, 0, field.data.length / PARTICLE_STRIDE);
+      gl.bindVertexArray(null);
     };
 
     let disposed = false;
     let frame = 0;
-    const handleContextLost = () => {
-      cancelAnimationFrame(frame);
-      canvas.style.visibility = 'hidden';
-    };
-    canvas.addEventListener('webglcontextlost', handleContextLost);
     render(0);
     const duration = particles.duration + particles.stagger;
     const animation = canvas.animate([{ opacity: 1 }, { opacity: 1 }], {
@@ -588,15 +955,14 @@ function createParticleRenderer(
       if (disposed) return;
       disposed = true;
       cancelAnimationFrame(frame);
-      canvas.removeEventListener('webglcontextlost', handleContextLost);
-      if (gl.isContextLost()) return;
-      gl.deleteBuffer(quadBuffer);
-      gl.deleteBuffer(particleBuffer);
+      animation.cancel();
+      if (gl.isContextLost()) {
+        acquired.pool.discard(rendererContext);
+        return;
+      }
       gl.deleteTexture(sourceTexture);
       gl.deleteTexture(thresholdTexture);
-      gl.deleteProgram(baseProgram);
-      gl.deleteProgram(particleProgram);
-      releaseContext(gl);
+      acquired.pool.release(rendererContext);
     };
     const tick = () => {
       if (disposed || gl.isContextLost()) return;
@@ -621,20 +987,18 @@ function createParticleRenderer(
       duration,
       finished,
       layoutDelay: duration * field.layoutReleaseProgress,
-      cancel: () => {
-        animation.cancel();
-        dispose();
-      },
+      cancel: dispose,
       dispose,
     };
   } catch (error) {
-    releaseContext(gl);
+    acquired.pool.discard(rendererContext);
     throw error;
   }
 }
 
 function createParticlePhase(options: ParticleOptions, programs: ParticlePrograms): AnimationFactory {
   const particles = resolveParticles(options);
+  prewarmRendererContext();
   return ({ snapshot, bounds, random }) => {
     if (snapshot === null) return null;
     return createParticleRenderer(snapshot, bounds, particles, programs, random);
