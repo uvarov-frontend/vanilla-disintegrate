@@ -24,3 +24,7 @@ updates:
     directory: /deploy
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
