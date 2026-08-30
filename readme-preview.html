@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1500, initial-scale=1" />
+    <title>Vanilla Disintegrate README preview</title>
+    <style>
+      @font-face {
+        font-family: 'Lato Preview';
+        src: url('./docs/src/assets/fonts/Lato/Lato-Regular.woff2') format('woff2');
+        font-weight: 400;
+        font-display: block;
+      }
+
+      @font-face {
+        font-family: 'Lato Preview';
+        src: url('./docs/src/assets/fonts/Lato/Lato-Semibold.woff2') format('woff2');
+        font-weight: 600;
+        font-display: block;
+      }
+
+      @font-face {
+        font-family: 'Lato Preview';
+        src: url('./docs/src/assets/fonts/Lato/Lato-Heavy.woff2') format('woff2');
+        font-weight: 800;
+        font-display: block;
+      }
+
+      @font-face {
+        font-family: 'JetBrains Mono Preview';
+        src: url('./docs/src/assets/fonts/JetBrainsMono/JetBrainsMono-Regular.woff2') format('woff2');
+        font-weight: 400;
+        font-display: block;
+      }
+
+      :root {
+        color-scheme: dark;
+        font-family: 'Lato Preview', sans-serif;
+        --background: #0b0b0f;
+        --surface: #111117;
+        --surface-raised: #17171f;
+        --border: #2a2934;
+        --border-light: #3a3746;
+        --text: #f4f1f7;
+        --muted: #aaa5b3;
+        --faint: #77727f;
+        --accent: #ff756b;
+        --accent-bright: #ff9188;
+        --violet: #a992ff;
+        --mint: #69d4bf;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        min-width: 1500px;
+        height: 100%;
+        min-height: 500px;
+        margin: 0;
+        overflow: hidden;
+        background: #050507;
+      }
+
+      body {
+        display: grid;
+        place-items: center;
+      }
+
+      .preview {
+        position: relative;
+        width: 1500px;
+        height: 500px;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 49% 48%, rgb(255 117 107 / 10%), transparent 28%),
+          radial-gradient(circle at 77% 30%, rgb(169 146 255 / 9%), transparent 25%),
+          linear-gradient(145deg, #0d0d12, #09090d 68%);
+        isolation: isolate;
+      }
+
+      .preview::before {
+        position: absolute;
+        z-index: -1;
+        inset: 0;
+        background-image:
+          linear-gradient(rgb(255 255 255 / 1.4%) 1px, transparent 1px),
+          linear-gradient(90deg, rgb(255 255 255 / 1.4%) 1px, transparent 1px);
+        background-size: 38px 38px;
+        content: '';
+        mask-image: linear-gradient(to bottom, transparent, #000 45%, #000);
+      }
+
+      .brand {
+        position: absolute;
+        z-index: 4;
+        top: 25px;
+        left: 50%;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transform: translateX(-50%);
+      }
+
+      .brand-mark {
+        width: 34px;
+        height: 34px;
+        filter: drop-shadow(0 8px 18px rgb(255 117 107 / 18%));
+      }
+
+      .brand-mark svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .brand-name {
+        color: var(--text);
+        font-size: 21px;
+        font-weight: 800;
+        letter-spacing: -0.005em;
+        white-space: nowrap;
+      }
+
+      .brand-name span {
+        color: inherit;
+      }
+
+      .panel {
+        position: absolute;
+        top: 105px;
+        height: 335px;
+        overflow: hidden;
+        border: 1px solid var(--border-light);
+        border-radius: 16px;
+        background: rgb(17 17 23 / 94%);
+        box-shadow: 0 34px 80px rgb(0 0 0 / 38%);
+      }
+
+      .effects-panel {
+        left: 55px;
+        width: 315px;
+        padding: 23px;
+      }
+
+      .panel-kicker {
+        display: block;
+        color: var(--accent-bright);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      .panel-title {
+        display: block;
+        margin-top: 4px;
+        color: var(--text);
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+
+      .effect-list {
+        display: grid;
+        gap: 7px;
+        margin-top: 20px;
+      }
+
+      .effect {
+        display: grid;
+        grid-template-columns: 34px 1fr auto;
+        align-items: center;
+        min-height: 48px;
+        gap: 10px;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        color: var(--muted);
+        background: rgb(255 255 255 / 1.6%);
+      }
+
+      .effect.active {
+        border-color: rgb(255 117 107 / 62%);
+        color: var(--text);
+        background: rgb(255 117 107 / 10%);
+        box-shadow: inset 0 0 0 1px rgb(255 117 107 / 14%);
+      }
+
+      .effect-icon {
+        position: relative;
+        width: 31px;
+        height: 31px;
+        border: 1px solid rgb(255 145 136 / 24%);
+        border-radius: 8px;
+        background:
+          radial-gradient(circle at 28% 70%, #ff9188 0 1.4px, transparent 2.3px),
+          radial-gradient(circle at 57% 47%, #ffc2a6 0 1.6px, transparent 2.5px),
+          radial-gradient(circle at 74% 24%, #a992ff 0 1.4px, transparent 2.3px), rgb(255 117 107 / 7%);
+      }
+
+      .effect:nth-child(2) .effect-icon {
+        background:
+          radial-gradient(circle at 20% 73%, #ffb45f 0 1.3px, transparent 2.2px),
+          radial-gradient(circle at 73% 63%, #ff718d 0 1.5px, transparent 2.4px),
+          radial-gradient(circle at 69% 22%, #ffd277 0 1.2px, transparent 2.1px), rgb(255 154 95 / 7%);
+      }
+
+      .effect:nth-child(3) .effect-icon {
+        background:
+          radial-gradient(ellipse at 29% 72%, #70d9c5 0 1.3px, transparent 2.8px),
+          radial-gradient(ellipse at 61% 47%, #9fe6dc 0 1.4px, transparent 3px),
+          radial-gradient(ellipse at 72% 23%, #8ca7ff 0 1.3px, transparent 2.8px), rgb(91 216 196 / 7%);
+      }
+
+      .effect:nth-child(4) .effect-icon {
+        background:
+          radial-gradient(ellipse at 23% 43%, #83df78 0 1.2px, transparent 2.4px),
+          radial-gradient(ellipse at 56% 53%, #75d7bb 0 1.3px, transparent 2.5px),
+          radial-gradient(ellipse at 79% 37%, #a992ff 0 1.2px, transparent 2.4px), rgb(117 215 187 / 7%);
+      }
+
+      .effect strong {
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .effect code {
+        color: var(--faint);
+        font-family: 'JetBrains Mono Preview', monospace;
+        font-size: 10px;
+      }
+
+      .effect.active code {
+        color: #d9a7a2;
+      }
+
+      .stage-panel {
+        top: 92px;
+        left: 400px;
+        width: 700px;
+        height: 360px;
+        background: #0e0e14;
+      }
+
+      .stage-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 44px;
+        padding: 0 17px;
+        border-bottom: 1px solid var(--border);
+        background: #15151c;
+      }
+
+      .window-dots {
+        display: flex;
+        gap: 6px;
+      }
+
+      .window-dots i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      .window-dots i:nth-child(2) {
+        background: #e8b969;
+      }
+
+      .window-dots i:nth-child(3) {
+        background: #69c99a;
+      }
+
+      .stage-toolbar code {
+        color: #d9a7a2;
+        font-family: 'JetBrains Mono Preview', monospace;
+        font-size: 11px;
+      }
+
+      .phase {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .phase i {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent-bright);
+        box-shadow: 0 0 9px var(--accent);
+      }
+
+      .stage {
+        position: relative;
+        height: 268px;
+        overflow: hidden;
+        padding: 15px 0;
+        background:
+          linear-gradient(rgb(255 255 255 / 1.8%) 1px, transparent 1px),
+          linear-gradient(90deg, rgb(255 255 255 / 1.8%) 1px, transparent 1px), #0c0c11;
+        background-size: 34px 34px;
+      }
+
+      .stage-card-slot {
+        display: grid;
+        height: 100%;
+        place-items: center;
+      }
+
+      .battle-card {
+        width: 270px;
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid rgb(255 255 255 / 10%);
+        border-radius: 11px;
+        background: #1a1921;
+        box-shadow: 0 18px 45px rgb(0 0 0 / 30%);
+      }
+
+      .battle-card-cover {
+        position: relative;
+        height: 112px;
+        overflow: hidden;
+        background: var(--battle-gradient);
+      }
+
+      .battle-card-cover::before,
+      .battle-card-cover::after,
+      .battle-card-cover span {
+        position: absolute;
+        border: 1px solid rgb(255 255 255 / 35%);
+        border-radius: 50%;
+        content: '';
+      }
+
+      .battle-card-cover::before {
+        top: 22px;
+        left: 25px;
+        width: 68px;
+        height: 68px;
+      }
+
+      .battle-card-cover::after {
+        right: -24px;
+        bottom: -32px;
+        width: 100px;
+        height: 100px;
+      }
+
+      .battle-card-cover span:nth-child(1) {
+        top: 41px;
+        left: 44px;
+        width: 29px;
+        height: 29px;
+        background: rgb(255 255 255 / 8%);
+      }
+
+      .battle-card-cover span:nth-child(2) {
+        top: 23px;
+        right: 27px;
+        width: 4px;
+        height: 4px;
+        border: 0;
+        background: #fff;
+      }
+
+      .battle-card-cover button {
+        position: absolute;
+        z-index: 2;
+        right: 9px;
+        bottom: 9px;
+        padding: 6px 9px;
+        border: 1px solid rgb(255 255 255 / 24%);
+        border-radius: 6px;
+        color: #fff;
+        background: rgb(14 11 18 / 55%);
+        backdrop-filter: blur(8px);
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .battle-card-copy {
+        padding: 15px 16px 13px;
+      }
+
+      .battle-card-copy > span {
+        color: var(--accent-bright);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+      }
+
+      .battle-card-copy h3 {
+        margin: 4px 0 11px;
+        color: var(--text);
+        font-size: 15px;
+        line-height: 1.3;
+      }
+
+      .battle-card-copy > div {
+        display: flex;
+        justify-content: space-between;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+      }
+
+      .battle-card-copy small {
+        color: var(--faint);
+        font-size: 12px;
+      }
+
+      .stage-status {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 47px;
+        padding: 0 17px;
+        border-top: 1px solid var(--border);
+        background: #14141a;
+      }
+
+      .timeline-control {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+
+      .timeline-control button {
+        min-width: 52px;
+        padding: 5px 8px;
+        border: 1px solid rgb(255 255 255 / 8%);
+        border-radius: 6px;
+        color: var(--text);
+        background: rgb(255 255 255 / 2%);
+        font-size: 10px;
+        cursor: pointer;
+      }
+
+      .timeline-control input {
+        width: 145px;
+        accent-color: var(--accent-bright);
+      }
+
+      .timeline-control output {
+        min-width: 62px;
+        color: #d9a7a2;
+        font-family: 'JetBrains Mono Preview', monospace;
+        font-size: 10px;
+      }
+
+      .stage-status strong {
+        color: var(--text);
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .code-panel {
+        right: 55px;
+        width: 315px;
+        background: #121218;
+      }
+
+      .code-tabs {
+        display: flex;
+        align-items: center;
+        height: 48px;
+        border-bottom: 1px solid var(--border);
+        background: #17171e;
+      }
+
+      .code-tab {
+        display: flex;
+        align-items: center;
+        height: 100%;
+        padding: 0 17px;
+        border-right: 1px solid var(--border);
+        color: var(--text);
+        font-family: 'JetBrains Mono Preview', monospace;
+        font-size: 10px;
+      }
+
+      .code-tab::before {
+        width: 6px;
+        height: 6px;
+        margin-right: 8px;
+        border-radius: 50%;
+        background: var(--accent-bright);
+        box-shadow: 0 0 8px rgb(255 117 107 / 45%);
+        content: '';
+      }
+
+      pre {
+        margin: 0;
+        padding: 22px 19px;
+        color: #ddd8e3;
+        font-family: 'JetBrains Mono Preview', monospace;
+        font-size: 11.5px;
+        line-height: 1.68;
+        white-space: pre-wrap;
+      }
+
+      .syntax-keyword {
+        color: #ff9188;
+      }
+
+      .syntax-name {
+        color: #cab8ff;
+      }
+
+      .syntax-string {
+        color: #9bddce;
+      }
+
+      .syntax-property {
+        color: #f2c486;
+      }
+
+      .syntax-comment {
+        color: #6f6a77;
+      }
+
+      .code-footer {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 47px;
+        padding: 0 17px;
+        border-top: 1px solid var(--border);
+        color: var(--faint);
+        background: #15151c;
+        font-size: 10px;
+      }
+
+      .code-footer span:last-child {
+        color: #d9a7a2;
+        font-family: 'JetBrains Mono Preview', monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="preview">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 30 30">
+            <defs>
+              <linearGradient id="brand-gradient" x1="6" y1="6" x2="25" y2="24" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#ff9b83" />
+                <stop offset="0.52" stop-color="#ff756b" />
+                <stop offset="1" stop-color="#a992ff" />
+              </linearGradient>
+            </defs>
+            <rect
+              x="0.75"
+              y="0.75"
+              width="28.5"
+              height="28.5"
+              rx="8.25"
+              fill="#17161d"
+              stroke="#fff"
+              stroke-opacity=".11"
+              stroke-width="1.5"
+            />
+            <rect x="6" y="6" width="13" height="18" rx="3.5" fill="url(#brand-gradient)" />
+            <path d="M9 11h5M9 15h4" fill="none" stroke="#fff" stroke-opacity=".52" stroke-linecap="round" />
+            <g fill="#17161d">
+              <circle cx="18.5" cy="8.5" r="2" />
+              <circle cx="17.7" cy="13.3" r="1.55" />
+              <circle cx="18.8" cy="18" r="2.15" />
+              <circle cx="17.8" cy="22.4" r="1.65" />
+            </g>
+            <g fill="url(#brand-gradient)">
+              <circle cx="21" cy="7.8" r="1.25" />
+              <circle cx="24.2" cy="11.2" r="0.8" />
+              <circle cx="21.4" cy="14.4" r="1" />
+              <circle cx="25" cy="17.6" r="1.2" />
+              <circle cx="22.2" cy="22" r="0.75" />
+            </g>
+          </svg>
+        </span>
+        <div class="brand-name">Vanilla <span>Disintegrate</span></div>
+      </div>
+
+      <section class="panel effects-panel">
+        <span class="panel-kicker">Built-in presets</span>
+        <strong class="panel-title">Choose an effect</strong>
+        <div class="effect-list">
+          <div class="effect">
+            <i class="effect-icon"></i>
+            <strong>Dust</strong>
+            <code>dust</code>
+          </div>
+          <div class="effect active">
+            <i class="effect-icon"></i>
+            <strong>Scatter</strong>
+            <code>scatter</code>
+          </div>
+          <div class="effect">
+            <i class="effect-icon"></i>
+            <strong>Vapor</strong>
+            <code>vapor</code>
+          </div>
+          <div class="effect">
+            <i class="effect-icon"></i>
+            <strong>Wind</strong>
+            <code>wind</code>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel stage-panel">
+        <header class="stage-toolbar">
+          <div class="window-dots"><i></i><i></i><i></i></div>
+          <code>effect: 'scatter'</code>
+          <span class="phase"><i></i> remove phase</span>
+        </header>
+        <div class="stage">
+          <div class="stage-card-slot" data-card-slot>
+            <article class="battle-card" data-preview-card data-card-title="The last lighthouse">
+              <div class="battle-card-cover" style="--battle-gradient: linear-gradient(145deg, #ff876f, #a1488c)">
+                <span></span><span></span><button type="button" data-remove>Remove</button>
+              </div>
+              <div class="battle-card-copy">
+                <span>Field notes</span>
+                <h3>The last lighthouse</h3>
+                <div><small>08 min</small><small>DOM element</small></div>
+              </div>
+            </article>
+          </div>
+        </div>
+        <footer class="stage-status">
+          <div class="timeline-control">
+            <button type="button" data-replay>Replay</button>
+            <input type="range" min="5" max="90" value="35" aria-label="Animation frame" data-timeline />
+            <output data-frame>53%</output>
+          </div>
+          <strong data-preview-status>Loading real effect…</strong>
+        </footer>
+      </section>
+
+      <section class="panel code-panel">
+        <header class="code-tabs"><span class="code-tab">usage.ts</span></header>
+        <pre><span class="syntax-keyword">import</span> <span class="syntax-name">Disintegrator</span> <span class="syntax-keyword">from</span>
+  <span class="syntax-string">'vanilla-disintegrate/snapdom'</span>;
+
+<span class="syntax-keyword">const</span> fx = <span class="syntax-keyword">new</span> <span class="syntax-name">Disintegrator</span>({
+  <span class="syntax-property">effect</span>: <span class="syntax-string">'scatter'</span>,
+});
+
+<span class="syntax-comment">// Remove with particles</span>
+fx.remove(card, {
+  <span class="syntax-property">retain</span>: <span class="syntax-keyword">true</span>,
+});</pre>
+        <footer class="code-footer"><span>Framework agnostic</span><span>ESM</span></footer>
+      </section>
+    </main>
+
+    <script type="module">
+      import Disintegrator from './src/snapdom.ts';
+
+      const slot = document.querySelector('[data-card-slot]');
+      const timeline = document.querySelector('[data-timeline]');
+      const frame = document.querySelector('[data-frame]');
+      const status = document.querySelector('[data-preview-status]');
+      const replay = document.querySelector('[data-replay]');
+      let card = document.querySelector('[data-preview-card]');
+      let operation = null;
+      let playback = null;
+      let sequence = 0;
+
+      const effects = new Disintegrator({
+        effect: 'scatter',
+        preparation: false,
+        sound: false,
+        layout: false,
+        respectReducedMotion: false,
+        random: () => 0.481516,
+        onError: (error) => {
+          status.textContent = String(error);
+        },
+      });
+
+      const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
+      const findPlayback = async (currentSequence) => {
+        for (let attempt = 0; attempt < 240; attempt += 1) {
+          if (sequence !== currentSequence) return null;
+          const canvases = [...document.querySelectorAll('body > div[aria-hidden="true"] canvas')];
+          const animation = canvases.at(-1)?.getAnimations()[0];
+          if (animation) return animation;
+          await nextFrame();
+        }
+        throw new Error('The real particle renderer did not start.');
+      };
+
+      const restoreCard = () => {
+        if (!operation) return;
+        const removalId = operation.removalId;
+        operation.cancel();
+        if (removalId) card = effects.take(removalId) ?? card;
+        if (!card.isConnected) slot.append(card);
+        operation = null;
+        playback = null;
+      };
+
+      const seek = (percentage) => {
+        frame.value = `${percentage}%`;
+        if (!playback) return;
+        playback.pause();
+        playback.currentTime = (1170 * percentage) / 100;
+        status.textContent = `Real WebGL frame · ${Math.round((1170 * percentage) / 100)} ms`;
+      };
+
+      const renderRealFrame = async () => {
+        sequence += 1;
+        const currentSequence = sequence;
+        restoreCard();
+        status.textContent = 'Capturing the real DOM card…';
+        operation = effects.remove(card, {
+          effect: 'scatter',
+          layout: false,
+          retain: true,
+          sound: false,
+        });
+        playback = await findPlayback(currentSequence);
+        if (!playback) return;
+        seek(Number(timeline.value));
+        await nextFrame();
+        await nextFrame();
+      };
+
+      timeline.addEventListener('input', () => seek(Number(timeline.value)));
+      replay.addEventListener('click', () => void renderRealFrame());
+      card.querySelector('[data-remove]').addEventListener('click', () => void renderRealFrame());
+      window.addEventListener('beforeunload', () => effects.destroy(), { once: true });
+
+      await document.fonts.ready;
+      await nextFrame();
+      await renderRealFrame();
+    </script>
+  </body>
+</html>

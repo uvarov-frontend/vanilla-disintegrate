@@ -1,5 +1,7 @@
 # Vanilla Disintegrate — Thanos Snap Animation for DOM Elements
 
+[![A card dissolving into particles with the scatter effect](docs/public/readme-preview.html.png?v1)](https://disintegrate.uvarov.tech)
+
 [![version](https://img.shields.io/npm/v/vanilla-disintegrate.svg)](https://www.npmjs.com/package/vanilla-disintegrate)
 [![CI](https://github.com/uvarov-frontend/vanilla-disintegrate/actions/workflows/ci.yml/badge.svg)](https://github.com/uvarov-frontend/vanilla-disintegrate/actions/workflows/ci.yml)
 [![downloads](https://img.shields.io/npm/dm/vanilla-disintegrate.svg)](https://www.npmjs.com/package/vanilla-disintegrate)

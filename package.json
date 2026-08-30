@@ -65,6 +65,7 @@
     "lint:fix": "eslint . --fix",
     "pack:check": "npm pack --dry-run",
     "preview": "astro preview",
+    "preview:readme": "vite --open /readme-preview.html",
     "publint": "publint",
     "size": "node scripts/size.mjs",
     "smoke": "node scripts/smoke.mjs",
