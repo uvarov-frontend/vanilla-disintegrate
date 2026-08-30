@@ -31,7 +31,12 @@ const result = await operation.finished;
 
 ```ts
 container.append(element);
-await effects.restore(element, { effect: 'dust' }).finished;
+
+const operation = effects.restore(element, {
+  effect: 'dust',
+});
+
+await operation.finished;
 ```
 
 元素必须已连接并具有非零尺寸。库会同步隐藏它，测量**新的最终位置**，完成捕获与恢复动画后显示原节点。
@@ -52,6 +57,8 @@ effects.restore(message, { effect: 'vapor' });
 
 ## 操作对象
 
+两个方法都会同步返回操作对象：
+
 ```ts
 const operation = effects.remove(element);
 
@@ -65,12 +72,22 @@ result.status; // 'completed' | 'cancelled' | 'skipped' | 'rejected'
 
 操作结束后，对象不会保留 DOM 元素。
 
-如果同一元素已有正在执行的操作，第二次调用将以 `rejected` 状态结束：它不会修改 DOM，也不会分配保留 ID。
-
 ## 取消只影响视觉
 
 `cancel()` 停止动画与声音，但不会撤销内容决定：已删除元素仍保持删除，正在恢复的元素会变为可见。
 
+因此，取消按钮或动画中途卸载视图，都不会悄悄撤销应用已经完成的内容变更。
+
+如果同一元素已有正在执行的操作，第二次调用将以 `rejected` 状态结束：它不会修改 DOM，也不会分配保留 ID。
+
 ## 错误不会阻塞内容
 
-捕获、音频或自定义效果失败时，删除仍会分离节点，恢复仍会显示元素。错误通过 `onError` 传递给应用。
+捕获、音频或自定义效果失败时，删除仍会分离节点，恢复仍会显示元素。错误通过 `onError` 传递给应用；若没有可运行的视觉阶段，结果状态为 `skipped`。
+
+```ts
+const effects = new Disintegrator({
+  onError(error, context) {
+    console.error(context.operation, error);
+  },
+});
+```

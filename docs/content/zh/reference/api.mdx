@@ -64,7 +64,16 @@ const operation = effects.remove('.card', {
 
 ## restore(target, options?)
 
-在当前几何位置动画显示已连接、可测量的元素。分离节点或零尺寸会同步抛出错误。
+在当前几何位置动画显示已连接、可测量的元素。
+
+```ts
+const operation = effects.restore(element, {
+  effect: 'scatter',
+  sound: true,
+});
+```
+
+分离节点或零尺寸会同步抛出错误。
 
 ## 节点存储
 
@@ -73,6 +82,8 @@ const element = effects.take(removalId); // HTMLElement | null
 const discarded = effects.discard(removalId); // boolean
 const count = effects.discardAll(); // number
 ```
+
+`take()` 会消费存储中的条目。`discard()` 与 `discardAll()` 只释放引用，不会插入内容。
 
 ## 快照准备
 
@@ -99,7 +110,11 @@ effects.clearPreparedAudio();
 
 ## destroy()
 
-取消活动操作，停止观察器与后台任务，释放快照和解码音频的所有权，并清除保留节点。最后一个 `Disintegrator` 所有者销毁时，共享播放上下文才会关闭。重复调用是安全的；销毁后不能开始新操作。
+```ts
+effects.destroy();
+```
+
+取消活动操作，停止观察器与后台任务，释放快照和解码音频的所有权，并清除保留节点。最后一个 `Disintegrator` 所有者销毁时，共享播放上下文才会关闭。重复调用 `destroy()` 是安全的；销毁后不能开始新操作。
 
 ## EffectOperation
 

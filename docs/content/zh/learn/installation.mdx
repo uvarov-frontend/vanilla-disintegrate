@@ -68,6 +68,8 @@ if (card) {
 
 ## 删除并恢复同一个节点
 
+仅当之后可能还需要原节点时才设置 `retain: true`。节点重新插入的位置仍由应用决定。
+
 ```ts
 const removal = effects.remove(card, {
   effect: 'dust',
@@ -86,7 +88,7 @@ if (removal.removalId) {
 }
 ```
 
-应用负责决定节点插入位置。若 `restore()` 未指定新效果，将使用删除时记住的效果对。
+若 `restore()` 未指定新 `effect`，将使用删除时记住的效果对。
 
 ## 使用其他捕获库
 
@@ -134,6 +136,10 @@ IIFE 构建已包含 SnapDOM，并全局暴露 `VanillaDisintegrate`：
 ## 清理
 
 所属页面永久销毁时调用 `effects.destroy()`。它会停止操作和观察器，并释放快照与所有保留的 DOM 引用。
+
+```ts
+effects.destroy();
+```
 
 ## 浏览器支持
 

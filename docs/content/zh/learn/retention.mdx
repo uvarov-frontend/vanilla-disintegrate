@@ -50,6 +50,16 @@ effects.discardAll(); // 释放的条目数
 
 ## 控制内存
 
-由于没有 TTL，每个未使用的 ID 最终必须由 `take()` 消费、通过 `discard()` 释放，或由 `discardAll()` 批量清理。应用可以在撤销提示关闭、路由切换或历史提交时执行该策略。
+这里没有 TTL，也没有条目数量上限。库不会在背后删除内容，也不会替你自动清理。每个未使用的 `RemovalId` 最终都必须由 `take()` 消费、通过 `discard()` 释放，或由 `discardAll()` 批量清理。
 
-默认的 `effects.remove(element)` 等同于 `retain: false`，操作结束后库与操作对象都不会保留节点。
+撤销何时失效由应用决定，例如提示关闭、路由切换或历史记录提交时。
+
+## 永久删除
+
+不传 `retain` 时，对库而言这次删除已经是永久的：
+
+```ts
+effects.remove(element); // retain: false
+```
+
+操作完成后，操作对象与库的存储都不会继续保留该元素。

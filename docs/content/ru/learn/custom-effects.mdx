@@ -98,7 +98,22 @@ const effects = new Disintegrator({ effect: fade });
 
 ## Допустимые результаты
 
-Фабрика может вернуть Web Animation, Promise, `null` или контроллер с `finished`, `cancel()` и `dispose()`. Контроллер также может передать свой визуальный `element`, `duration` и `layoutDelay`.
+Фабрика анимации может вернуть:
+
+```ts
+type AnimationResult =
+  | Animation
+  | PromiseLike<unknown>
+  | {
+      element?: HTMLElement;
+      finished: PromiseLike<unknown>;
+      duration?: number;
+      layoutDelay?: number;
+      cancel?(): void;
+      dispose?(): void;
+    }
+  | null;
+```
 
 Так подойдёт и Web Animation, и промис, и цикл на Canvas или WebGL, и обёртка над чужим движком. `cancel()` останавливает проигрывание. `dispose()` освобождает то, что выделил ваш рендерер, и вызывается независимо от того, доиграла анимация, была отменена или упала.
 
@@ -106,7 +121,9 @@ const effects = new Disintegrator({ effect: fade });
 
 ```ts
 const effects = new Disintegrator({
-  effects: { vortex: particleVortex },
+  effects: {
+    vortex: particleVortex,
+  },
   effect: 'vortex',
 });
 

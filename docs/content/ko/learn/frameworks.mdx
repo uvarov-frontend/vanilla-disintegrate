@@ -42,6 +42,7 @@ export function DisintegratingCard() {
   useEffect(() => {
     const effects = new Disintegrator();
     effectsRef.current = effects;
+
     return () => {
       effects.destroy();
       effectsRef.current = null;
@@ -51,6 +52,7 @@ export function DisintegratingCard() {
   useLayoutEffect(() => {
     const effects = effectsRef.current;
     const element = cardRef.current;
+
     if (!visible || !pendingRestore.current || !effects || !element) return;
     pendingRestore.current = false;
     effects.restore(element, { effect: 'dust' });
@@ -60,6 +62,7 @@ export function DisintegratingCard() {
     const effects = effectsRef.current;
     const element = cardRef.current;
     if (!effects || !element) return;
+
     effects.remove(element, {
       effect: 'dust',
       detach: () => flushSync(() => setVisible(false)),
@@ -100,10 +103,14 @@ let effects: Disintegrator | null = null;
 onMounted(() => {
   effects = new Disintegrator();
 });
-onUnmounted(() => effects?.destroy());
+
+onUnmounted(() => {
+  effects?.destroy();
+});
 
 function removeCard() {
   if (!effects || !card.value) return;
+
   effects.remove(card.value, {
     effect: 'dust',
     detach: () => {
@@ -115,7 +122,10 @@ function removeCard() {
 async function restoreCard() {
   visible.value = true;
   await nextTick();
-  if (effects && card.value) effects.restore(card.value, { effect: 'dust' });
+
+  if (effects && card.value) {
+    effects.restore(card.value, { effect: 'dust' });
+  }
 }
 </script>
 
@@ -150,6 +160,7 @@ async function restoreCard() {
 
   function removeCard() {
     if (!effects || !card) return;
+
     effects.remove(card, {
       effect: 'dust',
       detach: () => {
@@ -161,7 +172,10 @@ async function restoreCard() {
   async function restoreCard() {
     visible = true;
     await tick();
-    if (effects && card) effects.restore(card, { effect: 'dust' });
+
+    if (effects && card) {
+      effects.restore(card, { effect: 'dust' });
+    }
   }
 </script>
 
@@ -179,7 +193,7 @@ async function restoreCard() {
 
 ## Solid
 
-Solid는 signal이 소유한 분기를 동기적으로 갱신합니다. 복원할 때 마이크로태스크를 사용하면 새 노드가 삽입된 뒤 실행됩니다.
+Solid는 signal이 소유한 분기를 동기적으로 갱신합니다. `setVisible(true)` 뒤의 마이크로태스크는 새 노드가 삽입된 후 복원이 실행되도록 합니다.
 
 ```tsx
 import { createSignal, onCleanup, onMount, Show } from 'solid-js';
@@ -193,18 +207,22 @@ export function DisintegratingCard() {
   onMount(() => {
     effects = new Disintegrator();
   });
+
   onCleanup(() => effects?.destroy());
 
-  const removeCard = () =>
-    effects?.remove(card, {
+  function removeCard() {
+    if (!effects || !card) return;
+
+    effects.remove(card, {
       effect: 'dust',
       detach: () => setVisible(false),
     });
+  }
 
-  const restoreCard = () => {
+  function restoreCard() {
     setVisible(true);
     queueMicrotask(() => effects?.restore(card, { effect: 'dust' }));
-  };
+  }
 
   return (
     <Show when={visible()} fallback={<button onClick={restoreCard}>복원</button>}>
@@ -253,18 +271,22 @@ import Disintegrator from 'vanilla-disintegrate/snapdom';
 export class DisintegratingCard {
   readonly visible = signal(true);
   readonly card = viewChild<ElementRef<HTMLElement>>('card');
+
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
   private effects: Disintegrator | null = null;
 
   constructor() {
-    afterNextRender(() => (this.effects = new Disintegrator()));
+    afterNextRender(() => {
+      this.effects = new Disintegrator();
+    });
     this.destroyRef.onDestroy(() => this.effects?.destroy());
   }
 
   removeCard() {
     const element = this.card()?.nativeElement;
     if (!this.effects || !element) return;
+
     this.effects.remove(element, {
       effect: 'dust',
       detach: () => {
@@ -277,8 +299,11 @@ export class DisintegratingCard {
   restoreCard() {
     this.visible.set(true);
     this.changeDetector.detectChanges();
+
     const element = this.card()?.nativeElement;
-    if (this.effects && element) this.effects.restore(element, { effect: 'dust' });
+    if (this.effects && element) {
+      this.effects.restore(element, { effect: 'dust' });
+    }
   }
 }
 ```

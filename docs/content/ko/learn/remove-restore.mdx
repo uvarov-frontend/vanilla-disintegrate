@@ -31,7 +31,12 @@ const result = await operation.finished;
 
 ```ts
 container.append(element);
-await effects.restore(element, { effect: 'dust' }).finished;
+
+const operation = effects.restore(element, {
+  effect: 'dust',
+});
+
+await operation.finished;
 ```
 
 요소는 문서에 연결되고 크기가 0보다 커야 합니다. 라이브러리는 동기적으로 숨긴 뒤 **새로운 최종 위치**를 측정하고, 캡처와 복원 효과가 끝나면 원본을 표시합니다.
@@ -52,6 +57,8 @@ effects.restore(message, { effect: 'vapor' });
 
 ## 작업 객체
 
+두 메서드는 모두 작업 객체를 동기적으로 반환합니다.
+
 ```ts
 const operation = effects.remove(element);
 
@@ -65,10 +72,22 @@ result.status; // 'completed' | 'cancelled' | 'skipped' | 'rejected'
 
 완료된 작업 객체는 DOM 요소를 보관하지 않습니다.
 
-같은 요소에서 작업이 이미 실행 중이면 두 번째 호출은 `rejected` 상태로 끝납니다. DOM을 변경하지 않으며 보관 ID도 할당하지 않습니다.
-
 ## 취소는 시각 효과만 중지
 
 `cancel()`은 애니메이션과 소리를 멈추지만 콘텐츠 결정을 되돌리지 않습니다. 삭제된 요소는 삭제된 채로 있고 복원 중인 요소는 표시됩니다.
 
-캡처, 오디오 또는 사용자 효과가 실패해도 DOM 작업은 완료되며 오류는 `onError`로 전달됩니다.
+따라서 취소 버튼이나 애니메이션 도중의 뷰 언마운트가 애플리케이션이 이미 반영한 변경을 몰래 되돌릴 수 없습니다.
+
+같은 요소에서 작업이 이미 실행 중이면 두 번째 호출은 `rejected` 상태로 끝납니다. DOM을 변경하지 않으며 보관 ID도 할당하지 않습니다.
+
+## 오류가 콘텐츠를 막지 않음
+
+캡처, 오디오 또는 사용자 효과가 실패해도 삭제는 노드를 분리하고 복원은 요소를 표시합니다. 오류는 `onError`로 전달되며 실행 가능한 시각 단계가 없으면 결과 상태는 `skipped`입니다.
+
+```ts
+const effects = new Disintegrator({
+  onError(error, context) {
+    console.error(context.operation, error);
+  },
+});
+```

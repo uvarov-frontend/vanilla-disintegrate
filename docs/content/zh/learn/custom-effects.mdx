@@ -98,16 +98,39 @@ const effects = new Disintegrator({ effect: fade });
 
 ## 返回值
 
-工厂可返回 Web Animation、Promise、`null`，或带 `finished`、`cancel()`、`dispose()` 的控制器。该协议可用于 CSS/WAAPI、Canvas、SVG、WebGL 与第三方引擎。`cancel()` 停止播放；`dispose()` 无条件释放渲染器资源，无论动画完成、取消还是失败都会执行。
+动画工厂可以返回：
+
+```ts
+type AnimationResult =
+  | Animation
+  | PromiseLike<unknown>
+  | {
+      element?: HTMLElement;
+      finished: PromiseLike<unknown>;
+      duration?: number;
+      layoutDelay?: number;
+      cancel?(): void;
+      dispose?(): void;
+    }
+  | null;
+```
+
+因此 Web Animation、Promise、Canvas 或 WebGL 循环以及第三方引擎包装器都适用。`cancel()` 停止播放；`dispose()` 无条件释放渲染器资源，无论动画完成、取消还是失败都会执行。
+
+## 注册命名效果
 
 ```ts
 const effects = new Disintegrator({
-  effects: { vortex: particleVortex },
+  effects: {
+    vortex: particleVortex,
+  },
   effect: 'vortex',
 });
+
+effects.remove(element);
 ```
 
-直接传入效果对象与注册名称使用相同协议。
+直接传入效果对象与注册名称使用相同协议，四种内置效果也是如此。
 
 ## 自定义声音
 
@@ -124,4 +147,4 @@ const effect = defineEffect({
 });
 ```
 
-声音支持 URL、`ArrayBuffer`、`AudioBuffer`、参数对象或播放器工厂。音频错误不会终止视觉或 DOM 操作。
+每个阶段都支持 URL、`ArrayBuffer`、`AudioBuffer`、参数对象或播放器工厂。音频错误会传给 `onError`，但动画和 DOM 变更会继续执行。

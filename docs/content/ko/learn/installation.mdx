@@ -68,6 +68,8 @@ if (card) {
 
 ## 같은 노드 삭제 후 복원
 
+원본 노드가 다시 필요할 수 있을 때만 `retain: true`를 설정하세요. 다시 삽입할 위치는 여전히 애플리케이션이 결정합니다.
+
 ```ts
 const removal = effects.remove(card, {
   effect: 'dust',
@@ -86,7 +88,7 @@ if (removal.removalId) {
 }
 ```
 
-노드를 어디에 삽입할지는 애플리케이션이 결정합니다. `restore()`에 다른 `effect`를 지정하지 않으면 삭제 시 기억한 효과 쌍을 사용합니다.
+`restore()`에 다른 `effect`를 지정하지 않으면 삭제 시 기억한 효과 쌍을 사용합니다.
 
 ## 다른 캡처 라이브러리
 
@@ -134,6 +136,10 @@ IIFE 빌드에는 SnapDOM이 포함되며 전역 `VanillaDisintegrate`를 노출
 ## 정리
 
 소유 화면이 영구히 폐기될 때 `effects.destroy()`를 호출하세요. 실행 중인 작업과 observer를 중지하고 스냅샷 및 보관된 DOM 참조를 해제합니다.
+
+```ts
+effects.destroy();
+```
 
 ## 브라우저 지원
 

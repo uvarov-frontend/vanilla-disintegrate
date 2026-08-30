@@ -105,16 +105,16 @@ type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
 ## 播放参数
 
 ```ts
-effects.remove(element, {
-  sound: {
-    src: new URL('/sounds/snap.ogg', location.href),
-    gain: 0.35,
-    delay: 40,
-    duration: 0.7,
-    fadeDuration: 0.12,
-    playbackRate: 1.05,
-  },
-});
+const sound = {
+  src: new URL('/sounds/snap.ogg', location.href),
+  gain: 0.35,
+  delay: 40,
+  duration: 0.7,
+  fadeDuration: 0.12,
+  playbackRate: 1.05,
+};
+
+effects.remove(element, { sound });
 ```
 
 ## 倒着播放
@@ -136,6 +136,24 @@ const restore = { src: '/sounds/snap.mp3', reverse: true };
 倒放副本只生成一次并留在内存里。如果传入 `AudioBuffer`，会先复制——你的缓冲区不会被改动。
 
 ## 自定义播放器
+
+```ts
+const sound = ({ operation, element, signal }) => {
+  const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
+
+  const stop = () => playback.stop();
+  signal.addEventListener('abort', stop, { once: true });
+
+  return {
+    finished: playback.finished,
+    stop,
+    dispose() {
+      signal.removeEventListener('abort', stop);
+      playback.dispose();
+    },
+  };
+};
+```
 
 播放器工厂会收到操作类型、目标元素与 `AbortSignal`。返回 `stop()` 处理取消，返回 `dispose()` 做无条件清理。
 

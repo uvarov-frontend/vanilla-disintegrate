@@ -63,8 +63,57 @@ const contentPaths = [
 ];
 const locales = ['en', 'ru', 'zh', 'ko'];
 
+function contentStructure(source) {
+  return {
+    codeBlocks: (source.match(/^```/gm) ?? []).length / 2,
+    demos: (source.match(/<(?:Demo|ParticleVortexSource)\b/g) ?? []).length,
+    sections: (source.match(/^## /gm) ?? []).length,
+    tableRows: (source.match(/^\|/gm) ?? []).length,
+  };
+}
+
+function inlineCodeIdentifiers(source) {
+  const prose = source.replace(/```[\s\S]*?```/g, '');
+  const identifiers = new Set();
+
+  for (const match of prose.matchAll(/(?<!`)`([^`\n]+)`(?!`)/g)) {
+    for (const identifier of match[1].match(/[A-Za-z_$][\w$]*/g) ?? []) {
+      identifiers.add(identifier);
+    }
+  }
+
+  return identifiers;
+}
+
 try {
   await waitForServer();
+
+  for (const contentPath of contentPaths) {
+    const canonical = await readFile(new URL(`../docs/content/en/${contentPath}.mdx`, import.meta.url), 'utf8');
+    const expected = contentStructure(canonical);
+    const expectedIdentifiers = inlineCodeIdentifiers(canonical);
+    for (const locale of locales.slice(1)) {
+      const translated = await readFile(
+        new URL(`../docs/content/${locale}/${contentPath}.mdx`, import.meta.url),
+        'utf8',
+      );
+      assert.deepEqual(
+        contentStructure(translated),
+        expected,
+        `${locale}/${contentPath}.mdx must preserve the English page structure`,
+      );
+
+      const translatedIdentifiers = inlineCodeIdentifiers(translated);
+      const missingIdentifiers = [...expectedIdentifiers].filter(
+        (identifier) => !translatedIdentifiers.has(identifier),
+      );
+      assert.deepEqual(
+        missingIdentifiers,
+        [],
+        `${locale}/${contentPath}.mdx must preserve English inline API identifiers`,
+      );
+    }
+  }
 
   for (const [path, locale, heading] of pages) {
     const response = await fetch(`${origin}${path}`);

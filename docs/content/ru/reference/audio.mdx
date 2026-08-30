@@ -106,16 +106,16 @@ type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
 ## Параметры проигрывания
 
 ```ts
-effects.remove(element, {
-  sound: {
-    src: new URL('/sounds/snap.ogg', location.href),
-    gain: 0.35,
-    delay: 40,
-    duration: 0.7,
-    fadeDuration: 0.12,
-    playbackRate: 1.05,
-  },
-});
+const sound = {
+  src: new URL('/sounds/snap.ogg', location.href),
+  gain: 0.35,
+  delay: 40,
+  duration: 0.7,
+  fadeDuration: 0.12,
+  playbackRate: 1.05,
+};
+
+effects.remove(element, { sound });
 ```
 
 ## Проигрывание задом наперёд
@@ -139,7 +139,7 @@ const restore = { src: '/sounds/snap.mp3', reverse: true };
 ## Пользовательский плеер
 
 ```ts
-const sound = ({ operation, signal }) => {
+const sound = ({ operation, element, signal }) => {
   const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
 
   const stop = () => playback.stop();
@@ -156,7 +156,7 @@ const sound = ({ operation, signal }) => {
 };
 ```
 
-Фабрика получает тип операции, элемент и `AbortSignal`. Ошибки autoplay, загрузки, декодирования и пользовательского плеера передаются в `onError`, но не прерывают анимацию и выбранное действие с DOM.
+Фабрика получает тип операции, целевой элемент и `AbortSignal`. Верните `stop()` для отмены и `dispose()` для безусловного освобождения ресурсов.
 
 ## Изоляция ошибок
 

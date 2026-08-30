@@ -105,16 +105,16 @@ type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
 ## 재생 옵션
 
 ```ts
-effects.remove(element, {
-  sound: {
-    src: new URL('/sounds/snap.ogg', location.href),
-    gain: 0.35,
-    delay: 40,
-    duration: 0.7,
-    fadeDuration: 0.12,
-    playbackRate: 1.05,
-  },
-});
+const sound = {
+  src: new URL('/sounds/snap.ogg', location.href),
+  gain: 0.35,
+  delay: 40,
+  duration: 0.7,
+  fadeDuration: 0.12,
+  playbackRate: 1.05,
+};
+
+effects.remove(element, { sound });
 ```
 
 ## 거꾸로 재생하기
@@ -136,6 +136,24 @@ const restore = { src: '/sounds/snap.mp3', reverse: true };
 뒤집은 사본은 한 번만 만들어 메모리에 둡니다. `AudioBuffer`를 넘기면 복사해서 쓰므로 원본 버퍼는 그대로입니다.
 
 ## 사용자 플레이어
+
+```ts
+const sound = ({ operation, element, signal }) => {
+  const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
+
+  const stop = () => playback.stop();
+  signal.addEventListener('abort', stop, { once: true });
+
+  return {
+    finished: playback.finished,
+    stop,
+    dispose() {
+      signal.removeEventListener('abort', stop);
+      playback.dispose();
+    },
+  };
+};
+```
 
 팩토리는 작업 종류, 대상 요소, `AbortSignal`을 받습니다. 취소를 위한 `stop()`과 항상 실행되는 정리를 위한 `dispose()`를 반환할 수 있습니다.
 

@@ -39,7 +39,9 @@ effects.restore(card, { effect: 'wind' });
 ## 默认效果
 
 ```ts
-const effects = new Disintegrator({ effect: 'vapor' });
+const effects = new Disintegrator({
+  effect: 'vapor',
+});
 
 effects.remove(firstElement); // vapor
 effects.remove(secondElement, { effect: 'scatter' });
@@ -55,8 +57,8 @@ const removal = effects.remove(card, {
 });
 
 await removal.finished;
-const retained = effects.take(removal.removalId!);
 
+const retained = effects.take(removal.removalId!);
 if (retained) {
   list.prepend(retained);
   await effects.restore(retained).finished; // wind 恢复
