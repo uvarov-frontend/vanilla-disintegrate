@@ -392,6 +392,24 @@ describe('SoundPlayer', () => {
     player.destroy();
   });
 
+  it('enforces each player budget independently while sharing the audio engine', async () => {
+    const { context } = mockAudio();
+    vi.spyOn(context, 'decodeAudioData').mockResolvedValue(sourceBuffer([1, 2, 3, 4]).buffer);
+    const small = new SoundPlayer(16);
+    const large = new SoundPlayer(64);
+
+    await large.prepare({ src: '/large.mp3' });
+    await small.prepare({ src: '/small-first.mp3' });
+    await small.prepare({ src: '/small-second.mp3' });
+    await small.prepare({ src: '/small-first.mp3' });
+
+    expect(fetch).toHaveBeenCalledTimes(4);
+    await large.prepare({ src: '/large.mp3' });
+    expect(fetch).toHaveBeenCalledTimes(4);
+    small.destroy();
+    large.destroy();
+  });
+
   it('aborts an unfinished fetch when prepared audio is cleared', async () => {
     mockAudio();
     let fetchSignal: AbortSignal | undefined;

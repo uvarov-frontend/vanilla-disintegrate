@@ -78,7 +78,7 @@ The handle does not retain the DOM element after the operation settles.
 
 That way a cancel button, or a view that unmounts mid-animation, cannot quietly undo a change your app already made.
 
-A second operation requested for the same element while the first is active resolves as `rejected`. It does not change the DOM or allocate a retention ID.
+A second operation requested for the same element while the first is active does not change the DOM or allocate a retention ID. Its `finished` promise waits for the current owner to settle and then resolves as `rejected`, so awaiting the handle cannot end the element's active lifecycle early.
 
 ## Errors do not block content
 

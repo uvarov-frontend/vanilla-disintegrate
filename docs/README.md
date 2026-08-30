@@ -1,6 +1,6 @@
 # Documentation workspace
 
-The documentation is an Astro SSR application and requires Node.js 20.19 or newer for local development. User-facing content lives in MDX and is grouped by locale:
+The documentation is an Astro SSR application and requires Node.js 22.12 or newer for local development. User-facing content lives in MDX and is grouped by locale:
 
 ```text
 docs/content/

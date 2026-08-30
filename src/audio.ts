@@ -15,7 +15,7 @@ type SourceKey = string | ArrayBuffer | AudioBuffer;
 
 interface AudioClient {
   readonly cacheByteBudget: number;
-  readonly entries: Set<CachedBuffer>;
+  readonly entries: Map<CachedBuffer, undefined>;
 }
 
 interface CachedBuffer {
@@ -79,9 +79,7 @@ class SharedAudioEngine {
   private contextError: unknown = null;
   private contextUnavailable = false;
   private readonly sources = new Map<SourceKey, SourceBuffers>();
-  private readonly lru = new Map<CachedBuffer, undefined>();
   private readonly clients = new Set<AudioClient>();
-  private cachedBytes = 0;
 
   constructor(private readonly ownerWindow: Window) {}
 
@@ -120,7 +118,8 @@ class SharedAudioEngine {
 
     const entry = this.entryFor(source, reverse, context);
     this.claim(client, entry);
-    this.touch(entry);
+    this.touch(client, entry);
+    this.enforceBudget(client);
     return entry.promise;
   }
 
@@ -167,9 +166,7 @@ class SharedAudioEngine {
           entry.buffer = buffer;
           entry.controller = null;
           entry.bytes = bufferBytes(buffer);
-          this.cachedBytes += entry.bytes;
-          this.touch(entry);
-          this.evict();
+          for (const client of [...entry.clients]) this.enforceBudget(client);
         }
         return buffer;
       })
@@ -194,24 +191,19 @@ class SharedAudioEngine {
   }
 
   clear(client: AudioClient) {
-    for (const entry of [...client.entries]) this.release(client, entry);
+    for (const entry of [...client.entries.keys()]) this.release(client, entry);
   }
 
   releaseClient(client: AudioClient) {
     this.clear(client);
     this.clients.delete(client);
-    if (this.clients.size > 0) {
-      this.evict();
-      return;
-    }
+    if (this.clients.size > 0) return;
 
     for (const pair of [...this.sources.values()]) {
       if (pair.forward !== undefined) this.deleteEntry(pair.forward);
       if (pair.reverse !== undefined) this.deleteEntry(pair.reverse);
     }
     this.sources.clear();
-    this.lru.clear();
-    this.cachedBytes = 0;
     const context = this.context;
     this.context = null;
     if (context !== null && context.state !== 'closed') void context.close().catch(noop);
@@ -232,7 +224,7 @@ class SharedAudioEngine {
   private claim(client: AudioClient, entry: CachedBuffer) {
     if (entry.invalidated || entry.clients.has(client)) return;
     entry.clients.add(client);
-    client.entries.add(entry);
+    client.entries.set(entry, undefined);
   }
 
   private release(client: AudioClient, entry: CachedBuffer) {
@@ -241,19 +233,26 @@ class SharedAudioEngine {
     if (entry.clients.size === 0 && entry.dependents.size === 0) this.deleteEntry(entry);
   }
 
-  private touch(entry: CachedBuffer) {
-    if (entry.invalidated || entry.buffer === null) return;
-    this.lru.delete(entry);
-    this.lru.set(entry, undefined);
+  private touch(client: AudioClient, entry: CachedBuffer) {
+    if (entry.invalidated || !entry.clients.has(client)) return;
+    client.entries.delete(entry);
+    client.entries.set(entry, undefined);
   }
 
-  private evict() {
-    let cacheByteBudget = 0;
-    for (const client of this.clients) cacheByteBudget = Math.max(cacheByteBudget, client.cacheByteBudget);
-    while (this.cachedBytes > cacheByteBudget) {
-      const oldest = this.lru.keys().next().value;
+  private enforceBudget(client: AudioClient) {
+    let cachedBytes = 0;
+    for (const entry of client.entries.keys()) cachedBytes += entry.bytes;
+
+    while (cachedBytes > client.cacheByteBudget) {
+      let oldest: CachedBuffer | undefined;
+      for (const entry of client.entries.keys()) {
+        if (entry.bytes === 0) continue;
+        oldest = entry;
+        break;
+      }
       if (oldest === undefined) return;
-      this.deleteEntry(oldest);
+      cachedBytes = Math.max(0, cachedBytes - oldest.bytes);
+      this.release(client, oldest);
     }
   }
 
@@ -262,8 +261,6 @@ class SharedAudioEngine {
     entry.invalidated = true;
     entry.controller?.abort();
     entry.controller = null;
-    this.lru.delete(entry);
-    this.cachedBytes = Math.max(0, this.cachedBytes - entry.bytes);
     for (const client of entry.clients) client.entries.delete(entry);
     entry.clients.clear();
     const dependency = entry.dependency;
@@ -302,7 +299,7 @@ export class SoundPlayer {
   private destroyed = false;
 
   constructor(cacheByteBudget = 8 * 1024 * 1024) {
-    this.client = { cacheByteBudget, entries: new Set() };
+    this.client = { cacheByteBudget, entries: new Map() };
   }
 
   /** Starts fetching and decoding without blocking the caller. */

@@ -109,7 +109,7 @@ const operation = effects.remove(card);
 await operation.finished;
 ```
 
-Only one operation can own an element at a time. A concurrent call for that element resolves with `status: 'rejected'`, does not touch the DOM, and does not allocate a retention ID.
+Only one operation can own an element at a time. A concurrent call does not touch the DOM or allocate a retention ID. Its `finished` promise waits for the current owner to release the element and then resolves with `status: 'rejected'`, so awaiting the handle remains a safe lifecycle barrier.
 
 ### Remove and Restore the Same Node
 

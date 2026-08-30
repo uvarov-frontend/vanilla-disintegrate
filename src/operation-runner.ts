@@ -65,6 +65,7 @@ interface RunningOperation {
   readonly controller: AbortController;
   committed: boolean;
   settled: boolean;
+  readonly finished: Promise<EffectOperationResult>;
   cancelVisual: () => void;
   releasePreparation: () => void;
   finish: (status: EffectOperationStatus) => void;
@@ -144,7 +145,7 @@ function normalizeAnimation(result: AnimationResult, layer: HTMLElement): Normal
 export class OperationRunner {
   private readonly layout = new LayoutAnimator();
   private readonly active = new Set<RunningOperation>();
-  private readonly busy = new WeakSet<HTMLElement>();
+  private readonly busy = new WeakMap<HTMLElement, RunningOperation>();
   private destroyed = false;
 
   constructor(
@@ -155,14 +156,15 @@ export class OperationRunner {
   ) {}
 
   rejectIfBusy(kind: EffectOperationKind, element: HTMLElement) {
-    if (!this.busy.has(element)) return null;
-    return this.rejectedOperation(kind);
+    const active = this.busy.get(element);
+    return active === undefined ? null : this.rejectedOperation(kind, active.finished);
   }
 
   run(options: RunOptions): EffectOperation {
     this.assertAlive();
     const { element, effect, kind, overrides } = options;
-    if (this.busy.has(element)) return this.rejectedOperation(kind);
+    const active = this.busy.get(element);
+    if (active !== undefined) return this.rejectedOperation(kind, active.finished);
 
     const retain = kind === 'remove' && (overrides as RemoveOptions).retain === true;
     const removalId = retain ? this.retained.createId() : null;
@@ -184,6 +186,7 @@ export class OperationRunner {
       controller: new AbortController(),
       committed: false,
       settled: false,
+      finished,
       cancelVisual: noop,
       releasePreparation: noop,
       finish: (status) => {
@@ -197,7 +200,7 @@ export class OperationRunner {
         }
         running.releasePreparation = noop;
         const activeElement = running.element;
-        if (activeElement !== null) this.busy.delete(activeElement);
+        if (activeElement !== null && this.busy.get(activeElement) === running) this.busy.delete(activeElement);
         running.element = null;
         this.active.delete(running);
         resolveFinished({ operation: kind, status, removalId });
@@ -220,7 +223,7 @@ export class OperationRunner {
       },
     };
 
-    this.busy.add(element);
+    this.busy.set(element, running);
     this.active.add(running);
     this.sound.unlock(sound, (error) =>
       reportCallbackError(error, { operation: kind, element, overlay: null, removalId }, callbacks),
@@ -645,11 +648,15 @@ export class OperationRunner {
     if (this.destroyed) throw new Error('This Disintegrator instance has been destroyed.');
   }
 
-  private rejectedOperation(kind: EffectOperationKind): EffectOperation {
+  private rejectedOperation(
+    kind: EffectOperationKind,
+    blockingOperation: Promise<EffectOperationResult>,
+  ): EffectOperation {
+    const result: EffectOperationResult = { operation: kind, status: 'rejected', removalId: null };
     return {
       operation: kind,
       removalId: null,
-      finished: Promise.resolve({ operation: kind, status: 'rejected', removalId: null }),
+      finished: blockingOperation.then(() => result),
       cancel: noop,
     };
   }

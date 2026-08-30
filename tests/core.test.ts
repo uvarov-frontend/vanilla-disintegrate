@@ -114,14 +114,20 @@ describe('remove and restore lifecycle', () => {
 
     const first = effect.remove(target, { retain: true });
     const second = effect.remove(target, { effect: 'not-registered', retain: true });
-    const rejected = await second.finished;
+    let rejectedSettled = false;
+    void second.finished.then(() => {
+      rejectedSettled = true;
+    });
 
-    expect(rejected.status).toBe('rejected');
+    await Promise.resolve();
+
+    expect(rejectedSettled).toBe(false);
     expect(second.removalId).toBeNull();
     expect(target.isConnected).toBe(true);
 
     captured.resolve(snapshot());
     expect((await first.finished).status).toBe('completed');
+    expect((await second.finished).status).toBe('rejected');
     expect(animate).toHaveBeenCalledOnce();
     expect(effect.take(first.removalId!)).toBe(target);
     effect.destroy();

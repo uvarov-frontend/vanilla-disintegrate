@@ -135,12 +135,12 @@ interface EffectOperation {
 
 There is no `element` on the handle. The operation drops its reference as soon as it settles, so a handle you kept around cannot hold a detached node in memory.
 
-| Status      | Meaning                                                                 |
-| ----------- | ----------------------------------------------------------------------- |
-| `completed` | The content action and visual phase both finished normally.             |
-| `cancelled` | The content action committed, but visual or audio playback was stopped. |
-| `skipped`   | The content action committed without a runnable visual phase.           |
-| `rejected`  | The operation never started and did not change the DOM.                 |
+| Status      | Content action                                | When `finished` resolves     |
+| ----------- | --------------------------------------------- | ---------------------------- |
+| `completed` | Committed; the visual phase finished normally | After visual cleanup         |
+| `cancelled` | Committed; visual or audio playback stopped   | After cancellation cleanup   |
+| `skipped`   | Committed without a runnable visual phase     | After fallback cleanup       |
+| `rejected`  | Not started; the DOM was not changed          | After the current owner ends |
 
 ## Callbacks and precedence
 

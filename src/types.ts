@@ -203,7 +203,7 @@ export interface AudioPreparationOptions {
   readonly strategy?: AudioPreparationStrategy;
   /** Effects to prepare instead of only the instance's default effect. */
   readonly effects?: EffectSelection | readonly EffectSelection[];
-  /** LRU capacity for library-owned decoded PCM data. Defaults to 8 MiB. */
+  /** Per-instance LRU capacity for owned decoded PCM data. Defaults to 8 MiB. */
   readonly cacheByteBudget?: number;
 }
 
@@ -343,7 +343,10 @@ export interface EffectOperation {
   readonly operation: EffectOperationKind;
   /** Retention id for an accepted removal with `retain: true`, otherwise `null`. */
   readonly removalId: RemovalId | null;
-  /** Resolves after visual cleanup and reports the final operation status. */
+  /**
+   * Resolves after visual cleanup and reports the final status. A rejected
+   * concurrent call waits for the operation currently owning the element.
+   */
   readonly finished: Promise<EffectOperationResult>;
   /** Stops only animation and audio; it does not undo the content operation. */
   cancel(): void;
