@@ -25,7 +25,9 @@ jobs:
       - name: Verify release tag
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: test "v$(node -p \"require('./package.json').version\")" = "$RELEASE_TAG"
+        run: |
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          test "v${PACKAGE_VERSION}" = "${RELEASE_TAG}"
       - run: pnpm install --frozen-lockfile
       - run: npm publish --access public
       - name: Create GitHub release
