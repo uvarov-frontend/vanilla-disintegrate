@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-08-30
+
 ### Added
 
 - Dedicated `/core` and `/particles` entry points so custom effects do not pull WebGL, built-in sounds, or SnapDOM into their module graph.
@@ -45,5 +47,6 @@ All notable changes to this project are documented here. The format follows [Kee
 - Reworked the public runtime around explicit DOM removal and restoration.
 - Removed obsolete `disintegrate()` and `/core` entry points.
 
-[Unreleased]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.1.3...HEAD
+[1.1.3]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.0.0...v1.1.3
 [1.0.0]: https://github.com/uvarov-frontend/vanilla-disintegrate/releases/tag/v1.0.0
