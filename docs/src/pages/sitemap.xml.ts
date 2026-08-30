@@ -3,10 +3,16 @@ import { getCollection } from 'astro:content';
 
 import { docsHref, homeHref, locales, type Locale } from '../i18n';
 import { entryPath, type DocEntry } from '../lib/docs';
+import { absoluteUrl } from '../lib/site-url';
 
 interface LocalizedPage {
   readonly href: string;
   readonly locale: Locale;
+}
+
+interface UrlContext {
+  readonly site?: URL | undefined;
+  readonly url: URL;
 }
 
 function escapeXml(value: string) {
@@ -22,25 +28,21 @@ function orderByLocale(pages: readonly LocalizedPage[]) {
   return locales.flatMap((locale) => pages.filter((page) => page.locale === locale));
 }
 
-function absoluteUrl(href: string, base: URL) {
-  return new URL(href, base).href;
-}
-
-function renderUrl(page: LocalizedPage, alternatives: readonly LocalizedPage[], base: URL) {
+function renderUrl(page: LocalizedPage, alternatives: readonly LocalizedPage[], context: UrlContext) {
   const alternateLinks = alternatives
     .map(
       (alternate) =>
-        `    <xhtml:link rel="alternate" hreflang="${alternate.locale}" href="${escapeXml(absoluteUrl(alternate.href, base))}" />`,
+        `    <xhtml:link rel="alternate" hreflang="${alternate.locale}" href="${escapeXml(absoluteUrl(context, alternate.href))}" />`,
     )
     .join('\n');
   const english = alternatives.find((alternate) => alternate.locale === 'en');
   const defaultLink = english
-    ? `\n    <xhtml:link rel="alternate" hreflang="x-default" href="${escapeXml(absoluteUrl(english.href, base))}" />`
+    ? `\n    <xhtml:link rel="alternate" hreflang="x-default" href="${escapeXml(absoluteUrl(context, english.href))}" />`
     : '';
 
   return [
     '  <url>',
-    `    <loc>${escapeXml(absoluteUrl(page.href, base))}</loc>`,
+    `    <loc>${escapeXml(absoluteUrl(context, page.href))}</loc>`,
     alternateLinks + defaultLink,
     '  </url>',
   ].join('\n');
@@ -63,8 +65,8 @@ export const GET: APIRoute = async ({ site, url }) => {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([, pages]) => orderByLocale(pages)),
   ];
-  const base = site ?? new URL(url.origin);
-  const urls = groups.flatMap((pages) => pages.map((page) => renderUrl(page, pages, base))).join('\n');
+  const context = { site, url };
+  const urls = groups.flatMap((pages) => pages.map((page) => renderUrl(page, pages, context))).join('\n');
   const sitemap = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',

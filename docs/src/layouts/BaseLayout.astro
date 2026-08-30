@@ -4,6 +4,7 @@ import '../../../demo/style.css';
 import '../styles/docs.css';
 
 import { locales, switchLocalePath, type Locale } from '../i18n';
+import { absoluteUrl as toAbsoluteUrl } from '../lib/site-url';
 
 interface Props {
   title: string;
@@ -11,12 +12,13 @@ interface Props {
   locale: Locale;
   pageClass?: string;
   noindex?: boolean;
+  /** Extra JSON-LD nodes for this page, joined with the site node in one graph. */
+  structuredData?: readonly Record<string, unknown>[];
 }
 
-const { title, description, locale, pageClass = '', noindex = false } = Astro.props;
+const { title, description, locale, pageClass = '', noindex = false, structuredData = [] } = Astro.props;
 const pathname = Astro.url.pathname;
-const base = Astro.site ?? new URL(Astro.url.origin);
-const absoluteUrl = (href: string) => new URL(href, base).href;
+const absoluteUrl = (href: string) => toAbsoluteUrl(Astro, href);
 
 // Crawlers reject relative image paths, so the preview is resolved against the
 // canonical origin. The query is bumped whenever the file changes: Facebook and
@@ -28,6 +30,23 @@ const openGraphLocales: Readonly<Record<Locale, string>> = {
   ru: 'ru_RU',
   zh: 'zh_CN',
 };
+
+// One graph per page: nodes reference the site by @id instead of repeating it.
+// `<` is escaped because the JSON is written into an HTML element, where a bare
+// `</script` inside any string would end the block early.
+const jsonLd = JSON.stringify({
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': absoluteUrl('/#website'),
+      name: 'Vanilla Disintegrate',
+      url: absoluteUrl('/'),
+      inLanguage: locale,
+    },
+    ...structuredData,
+  ],
+}).replaceAll('<', '\\u003c');
 ---
 
 <!doctype html>
@@ -68,6 +87,7 @@ const openGraphLocales: Readonly<Record<Locale, string>> = {
           <meta property="og:image:height" content="1000" />
           <meta property="og:image:alt" content="A card dissolving into particles with the scatter effect" />
           <meta name="twitter:card" content="summary_large_image" />
+          <script type="application/ld+json" is:inline set:html={jsonLd} />
         </Fragment>
       )
     }

@@ -8,6 +8,7 @@ import ParticleVortexSource from '../components/ParticleVortexSource.astro';
 import Sidebar from '../components/Sidebar.astro';
 import { docsHref, homeHref, ui, type Locale } from '../i18n';
 import { editHref, entryHref, type DocEntry } from '../lib/docs';
+import { absoluteUrl } from '../lib/site-url';
 import BaseLayout from './BaseLayout.astro';
 
 interface Props {
@@ -24,9 +25,46 @@ const currentIndex = entries.findIndex((candidate) => candidate.id === entry.id)
 const previous = currentIndex > 0 ? entries[currentIndex - 1] : undefined;
 const next = currentIndex >= 0 ? entries[currentIndex + 1] : undefined;
 const toc = headings.filter((heading) => heading.depth === 2);
+
+// The trail mirrors the breadcrumb rendered below. A section has no page of its
+// own, so it points at its first entry — the same target the navigation uses.
+const sectionLanding = entries.find((candidate) => candidate.data.section === entry.data.section);
+// Dropped when the page is its own section landing, so no level links to itself.
+const sectionEntry = sectionLanding?.id === entry.id ? undefined : sectionLanding;
+const articleNode = {
+  '@type': 'TechArticle',
+  '@id': `${absoluteUrl(Astro, pathname)}#article`,
+  headline: entry.data.title,
+  description: entry.data.description,
+  url: absoluteUrl(Astro, pathname),
+  inLanguage: locale,
+  isPartOf: { '@id': absoluteUrl(Astro, '/#website') },
+};
+const breadcrumbNode = {
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Vanilla Disintegrate', item: absoluteUrl(Astro, homeHref(locale)) },
+    ...(sectionEntry
+      ? [
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: copy.sections[entry.data.section],
+            item: absoluteUrl(Astro, entryHref(sectionEntry)),
+          },
+        ]
+      : []),
+    { '@type': 'ListItem', position: sectionEntry ? 3 : 2, name: entry.data.navTitle },
+  ],
+};
 ---
 
-<BaseLayout title={`${entry.data.title} · Vanilla Disintegrate`} description={entry.data.description} locale={locale}>
+<BaseLayout
+  title={`${entry.data.title} · Vanilla Disintegrate`}
+  description={entry.data.description}
+  locale={locale}
+  structuredData={[articleNode, breadcrumbNode]}
+>
   <Header locale={locale} pathname={pathname} />
   <div class="sidebar-backdrop" data-sidebar-backdrop></div>
   <div class="docs-layout">

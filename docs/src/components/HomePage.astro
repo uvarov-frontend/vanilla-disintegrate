@@ -3,8 +3,10 @@ import { Code } from 'astro:components';
 
 import particleVortexSource from '../../../demo/particle-vortex.ts?raw';
 import particleVortexUsageSource from '../../../demo/particle-vortex-usage.ts?raw';
+import packageJson from '../../../package.json';
 import { docsHref, type Locale, ui } from '../i18n';
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { absoluteUrl } from '../lib/site-url';
 import BundleSizePanel from './BundleSizePanel.astro';
 import Footer from './Footer.astro';
 import Header from './Header.astro';
@@ -65,9 +67,29 @@ const cards = {
 } as const;
 
 const cardTargets = ['learn/effects', 'learn/retention', 'learn/custom-effects', 'learn/frameworks'] as const;
+const libraryNode = {
+  '@type': 'SoftwareSourceCode',
+  '@id': absoluteUrl(Astro, '/#library'),
+  name: 'Vanilla Disintegrate',
+  description: copy.home.description,
+  url: absoluteUrl(Astro, '/'),
+  codeRepository: 'https://github.com/uvarov-frontend/vanilla-disintegrate',
+  programmingLanguage: 'TypeScript',
+  runtimePlatform: 'Web browser',
+  license: 'https://spdx.org/licenses/MIT.html',
+  version: packageJson.version,
+  author: { '@type': 'Person', name: 'Yury Uvarov', url: 'https://frontend.uvarov.tech' },
+  isPartOf: { '@id': absoluteUrl(Astro, '/#website') },
+};
 ---
 
-<BaseLayout title={copy.home.documentTitle} description={copy.home.description} locale={locale} pageClass="home-page">
+<BaseLayout
+  title={copy.home.documentTitle}
+  description={copy.home.description}
+  locale={locale}
+  pageClass="home-page"
+  structuredData={[libraryNode]}
+>
   <Header locale={locale} pathname={pathname} />
   <main class="home-main" id="main-content">
     <section class="home-hero">
