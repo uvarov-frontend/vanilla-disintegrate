@@ -75,7 +75,7 @@ The restore phase uses the effect remembered during removal unless the call supp
 
 ## Use another capture library
 
-`capture` is a small adapter contract, not a SnapDOM-only API. For example, an application can use `html2canvas`:
+`capture` is a function: it takes an element and returns a `<canvas>`, or a promise for one. Any library that does that fits, such as `html2canvas`:
 
 ```ts
 import html2canvas from 'html2canvas';

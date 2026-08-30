@@ -73,7 +73,7 @@ if (removal.removalId) {
 
 ## Другой движок захвата
 
-`capture` — открытый адаптер, а не API только для SnapDOM. Например, можно подключить `html2canvas`:
+`capture` — функция: принимает элемент, возвращает `<canvas>` или промис с ним. Подойдёт любая библиотека, которая это умеет, например `html2canvas`:
 
 ```ts
 import html2canvas from 'html2canvas';

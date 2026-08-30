@@ -73,7 +73,7 @@ if (removal.removalId) {
 
 ## 使用其他捕获库
 
-`capture` 是开放的适配器接口。例如可以接入 `html2canvas`：
+`capture` 是一个函数：接收元素，返回 `<canvas>` 或其 promise。任何能做到这一点的库都可以接入，例如 `html2canvas`：
 
 ```ts
 import html2canvas from 'html2canvas';
