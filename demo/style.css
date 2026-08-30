@@ -200,6 +200,92 @@ summary:focus-visible {
   background: rgb(255 255 255 / 5%);
 }
 
+.github-navigation-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.github-star-prompt {
+  position: absolute;
+  z-index: 110;
+  top: calc(100% + 14px);
+  right: -10px;
+  width: 265px;
+  padding: 14px 38px 14px 16px;
+  border: 1px solid var(--border-light);
+  border-radius: 10px;
+  background: #17171f;
+  box-shadow: 0 20px 55px rgb(0 0 0 / 45%);
+  opacity: 0;
+  transform: translateY(-5px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.github-star-prompt[hidden] {
+  display: none;
+}
+
+.github-star-prompt.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.github-star-prompt > i {
+  position: absolute;
+  top: -7px;
+  right: 26px;
+  width: 13px;
+  height: 13px;
+  border-top: 1px solid var(--border-light);
+  border-left: 1px solid var(--border-light);
+  background: #17171f;
+  transform: rotate(45deg);
+}
+
+.github-star-prompt p {
+  margin: 0;
+  color: #d7d2dc;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.github-star-prompt button {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  width: 25px;
+  height: 25px;
+  padding: 5px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--faint);
+  background: transparent;
+  cursor: pointer;
+  place-items: center;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.github-star-prompt button:hover {
+  color: var(--accent-bright);
+  background: var(--accent-soft);
+}
+
+.github-star-prompt svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-width: 1.5;
+}
+
 .menu-button {
   display: none;
   width: 36px;
@@ -2281,12 +2367,23 @@ code {
     max-width: var(--content-width);
   }
 
-  .top-navigation a:not(:last-child) {
+  .top-navigation > a {
     display: none;
   }
 
   .top-navigation a {
     padding-inline: 6px;
+  }
+
+  .github-star-prompt {
+    position: fixed;
+    top: calc(var(--header-height) + 10px);
+    right: 14px;
+    width: min(265px, calc(100vw - 28px));
+  }
+
+  .github-star-prompt > i {
+    right: 70px;
   }
 
   .menu-button {

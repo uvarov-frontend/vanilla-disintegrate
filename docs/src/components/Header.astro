@@ -45,9 +45,20 @@ const releasesHref = 'https://github.com/uvarov-frontend/vanilla-disintegrate/re
       <a href={docsHref(locale, 'reference/api')} aria-current={isReference ? 'true' : undefined}>
         {copy.reference}
       </a>
-      <a href="https://github.com/uvarov-frontend/vanilla-disintegrate" target="_blank" rel="noopener noreferrer">
-        GitHub <span aria-hidden="true">↗</span>
-      </a>
+      <div class="github-navigation-item">
+        <a href="https://github.com/uvarov-frontend/vanilla-disintegrate" target="_blank" rel="noopener noreferrer">
+          GitHub <span aria-hidden="true">↗</span>
+        </a>
+        <aside class="github-star-prompt" data-github-star-prompt hidden>
+          <i aria-hidden="true"></i>
+          <button type="button" aria-label={copy.close} data-github-star-close>
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="m4 4 8 8m0-8-8 8"></path>
+            </svg>
+          </button>
+          <p>{copy.githubStarPrompt}</p>
+        </aside>
+      </div>
     </nav>
     <LanguageSwitcher locale={locale} pathname={pathname} />
   </div>

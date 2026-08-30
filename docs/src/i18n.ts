@@ -9,6 +9,8 @@ export interface UiCopy {
   readonly learn: string;
   readonly reference: string;
   readonly menu: string;
+  readonly githubStarPrompt: string;
+  readonly close: string;
   readonly onThisPage: string;
   readonly previous: string;
   readonly next: string;
@@ -62,6 +64,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     learn: 'Learn',
     reference: 'Reference',
     menu: 'Open navigation',
+    githubStarPrompt: 'If you like Vanilla Disintegrate, please give it a 🌟 star on GitHub.',
+    close: 'Close',
     onThisPage: 'On this page',
     previous: 'Previous',
     next: 'Next',
@@ -110,6 +114,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     learn: 'Руководство',
     reference: 'Справочник',
     menu: 'Открыть навигацию',
+    githubStarPrompt: 'Если вам нравится Vanilla Disintegrate, пожалуйста, поставьте ему 🌟 звёздочку на GitHub.',
+    close: 'Закрыть',
     onThisPage: 'На этой странице',
     previous: 'Назад',
     next: 'Далее',
@@ -158,6 +164,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     learn: '指南',
     reference: 'API 参考',
     menu: '打开导航',
+    githubStarPrompt: '如果你喜欢 Vanilla Disintegrate，请在 GitHub 上点个 🌟 星标。',
+    close: '关闭',
     onThisPage: '本页内容',
     previous: '上一页',
     next: '下一页',
@@ -203,6 +211,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     learn: '가이드',
     reference: 'API 레퍼런스',
     menu: '탐색 열기',
+    githubStarPrompt: 'Vanilla Disintegrate가 마음에 드신다면 GitHub에 🌟 스타를 눌러 주세요.',
+    close: '닫기',
     onThisPage: '이 페이지에서',
     previous: '이전',
     next: '다음',

@@ -194,6 +194,43 @@ function required<T extends Element>(root: ParentNode, selector: string) {
 }
 
 const packageManagerStorageKey = 'vanilla-disintegrate-package-manager';
+const githubStarPromptStorageKey = 'vanilla-disintegrate-github-star-prompt';
+
+function setupGitHubStarPrompt() {
+  const prompt = document.querySelector<HTMLElement>('[data-github-star-prompt]');
+  const close = prompt?.querySelector<HTMLButtonElement>('[data-github-star-close]');
+  if (!prompt || !close) return;
+
+  try {
+    if (window.localStorage.getItem(githubStarPromptStorageKey)) return;
+  } catch {
+    // The prompt may still be shown when storage is unavailable.
+  }
+
+  const hide = () => {
+    prompt.classList.remove('is-visible');
+    window.setTimeout(() => {
+      if (!prompt.classList.contains('is-visible')) prompt.hidden = true;
+    }, 180);
+  };
+  const dismiss = () => {
+    hide();
+    try {
+      window.localStorage.setItem(githubStarPromptStorageKey, 'closed');
+    } catch {
+      // Closing still works when storage is unavailable.
+    }
+  };
+
+  close.addEventListener('click', dismiss);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !prompt.hidden) dismiss();
+  });
+  window.setTimeout(() => {
+    prompt.hidden = false;
+    window.requestAnimationFrame(() => prompt.classList.add('is-visible'));
+  }, 30_000);
+}
 
 function setupPackageInstall() {
   const roots = [...document.querySelectorAll<HTMLElement>('[data-package-install]')];
@@ -771,6 +808,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
 
 export function setupSite() {
   setupNavigation();
+  setupGitHubStarPrompt();
   setupPackageInstall();
   setupCodeTabs();
   setupCodeBlocks();
