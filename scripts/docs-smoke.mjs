@@ -7,6 +7,11 @@ const packageJson = JSON.parse(await readFile(new URL('../package.json', import.
 
 const port = 43_291;
 const origin = `http://127.0.0.1:${port}`;
+// Absolute URLs in canonical tags, hreflang alternates, robots and the sitemap
+// come from `site`, not from the request, so a proxy that terminates TLS cannot
+// downgrade them to http. Read from the config so both stay in step.
+const { default: astroConfig } = await import(new URL('../astro.config.mjs', import.meta.url).href);
+const site = astroConfig.site.replace(/\/$/, '');
 const server = spawn(process.execPath, ['./demo-dist/server/entry.mjs'], {
   env: {
     ...process.env,
@@ -133,11 +138,11 @@ try {
     assert.ok(anchor.includes('rel="noopener noreferrer"'), `external link must use a safe rel: ${anchor}`);
   }
   assert.ok(
-    localized.includes(`<link rel="canonical" href="${origin}/ru/docs/learn/installation/">`),
+    localized.includes(`<link rel="canonical" href="${site}/ru/docs/learn/installation/">`),
     'localized documentation must expose an absolute canonical URL',
   );
   assert.ok(
-    localized.includes(`<link rel="alternate" hreflang="en" href="${origin}/docs/learn/installation/">`),
+    localized.includes(`<link rel="alternate" hreflang="en" href="${site}/docs/learn/installation/">`),
     'localized documentation must expose absolute language alternatives',
   );
 
@@ -207,20 +212,22 @@ try {
   assert.equal(robotsResponse.status, 200);
   assert.match(robotsResponse.headers.get('content-type') ?? '', /^text\/plain/);
   assert.ok(robots.includes('User-agent: *\nAllow: /'));
-  assert.ok(robots.includes(`Sitemap: ${origin}/sitemap.xml`));
+  assert.ok(robots.includes(`Sitemap: ${site}/sitemap.xml`));
 
   const sitemapResponse = await fetch(`${origin}/sitemap.xml`);
   const sitemap = await sitemapResponse.text();
   assert.equal(sitemapResponse.status, 200);
   assert.match(sitemapResponse.headers.get('content-type') ?? '', /^application\/xml/);
   assert.equal(sitemap.match(/<url>/g)?.length, 40, 'sitemap must contain every localized public page');
-  assert.ok(sitemap.includes(`<loc>${origin}/ru/docs/learn/frameworks/</loc>`));
-  assert.ok(sitemap.includes(`<loc>${origin}/</loc>`));
-  assert.ok(sitemap.includes(`<loc>${origin}/ru/docs/learn/installation/</loc>`));
-  assert.ok(sitemap.includes(`<loc>${origin}/zh/docs/reference/audio/</loc>`));
-  assert.ok(sitemap.includes(`<loc>${origin}/ko/</loc>`));
-  assert.ok(sitemap.includes(`hreflang="x-default" href="${origin}/docs/learn/installation/"`));
+  assert.ok(sitemap.includes(`<loc>${site}/ru/docs/learn/frameworks/</loc>`));
+  assert.ok(sitemap.includes(`<loc>${site}/</loc>`));
+  assert.ok(sitemap.includes(`<loc>${site}/ru/docs/learn/installation/</loc>`));
+  assert.ok(sitemap.includes(`<loc>${site}/zh/docs/reference/audio/</loc>`));
+  assert.ok(sitemap.includes(`<loc>${site}/ko/</loc>`));
+  assert.ok(sitemap.includes(`hreflang="x-default" href="${site}/docs/learn/installation/"`));
   assert.ok(!sitemap.includes('/404/'));
+  assert.ok(site.startsWith('https://'), 'the configured site must be https');
+  assert.ok(!/<loc>http:\/\/[^<]/.test(sitemap), 'every sitemap entry must use the https origin');
 
   const legacy = await fetch(`${origin}/learn/installation/`, { redirect: 'manual' });
   assert.equal(legacy.status, 302);

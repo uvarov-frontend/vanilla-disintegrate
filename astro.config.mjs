@@ -26,6 +26,7 @@ export default defineConfig({
   outDir: './demo-dist',
   output: 'server',
   publicDir: './docs/public',
+  site: 'https://disintegrate.uvarov.tech',
   srcDir: './docs/src',
   trailingSlash: 'always',
 });
