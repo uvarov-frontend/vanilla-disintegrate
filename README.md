@@ -1,4 +1,4 @@
-# Vanilla Disintegrate — Particle Animations for DOM Elements
+# Vanilla Disintegrate — Animate DOM Removal and Restoration
 
 [![A card dissolving into particles with the scatter preset](docs/public/readme-preview.html.png?v2)](https://disintegrate.uvarov.tech)
 
