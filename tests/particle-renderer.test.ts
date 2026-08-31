@@ -183,7 +183,7 @@ describe('particle renderer', () => {
 
   it('reserves enough timeline for the last particles to fade naturally', () => {
     const pixels = new Uint8ClampedArray([255, 255, 255, 255]);
-    const field = createParticleField(pixels, 1, 1, resolveParticles({ origin: 'random' }), 1, 1, () => 1);
+    const field = createParticleField(pixels, 1, 1, resolveParticles({ release: 'random' }), 1, 1, () => 1);
 
     expect(field.data[2]).toBeCloseTo(0.68);
   });
@@ -191,7 +191,7 @@ describe('particle renderer', () => {
   it('dissolves vapor evenly instead of peeling toward the centre', () => {
     const pixels = new Uint8ClampedArray(9 * 4);
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
-    const field = createParticleField(pixels, 9, 1, resolveParticles({ motion: 'vapor' }), 1, 1, () => 0.5);
+    const field = createParticleField(pixels, 9, 1, resolveParticles({ release: 'top' }), 1, 1, () => 0.5);
 
     // One row, so nothing in the horizontal position may order the departures.
     const thresholdAt = (column: number) => field.data[column * 7 + 2] ?? 0;
@@ -202,7 +202,7 @@ describe('particle renderer', () => {
   it('releases the top rows of vapor first', () => {
     const pixels = new Uint8ClampedArray(9 * 4);
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
-    const field = createParticleField(pixels, 1, 9, resolveParticles({ motion: 'vapor' }), 1, 1, () => 0.5);
+    const field = createParticleField(pixels, 1, 9, resolveParticles({ release: 'top' }), 1, 1, () => 0.5);
 
     // Row 0 is the top of the element, so it must leave before the bottom row.
     const thresholdAt = (rowIndex: number) => field.data[rowIndex * 7 + 2] ?? 0;
@@ -212,7 +212,7 @@ describe('particle renderer', () => {
   it('draws vapor toward a narrower central plume', () => {
     const pixels = new Uint8ClampedArray(9 * 4);
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
-    const field = createParticleField(pixels, 9, 1, resolveParticles({ motion: 'vapor' }), 1, 1, () => 0.5);
+    const field = createParticleField(pixels, 9, 1, resolveParticles({ convergence: 1 }), 1, 1, () => 0.5);
 
     const horizontalVelocityAt = (column: number) => field.data[column * 7 + 3] ?? 0;
     expect(horizontalVelocityAt(0)).toBeGreaterThan(0);
@@ -222,27 +222,19 @@ describe('particle renderer', () => {
   it('dissolves scatter from left to right', () => {
     const pixels = new Uint8ClampedArray(9 * 4);
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
-    const scatter = createParticleField(
-      pixels,
-      9,
-      1,
-      resolveParticles({ motion: 'scatter', origin: 'left' }),
-      1,
-      1,
-      () => 0.5,
-    );
+    const scatter = createParticleField(pixels, 9, 1, resolveParticles({ release: 'left' }), 1, 1, () => 0.5);
 
     const thresholdAt = (column: number) => scatter.data[column * 7 + 2] ?? 0;
     expect(thresholdAt(0)).toBeLessThan(thresholdAt(8));
   });
 
-  it('spreads scatter on individually directed paths with an upward bias', () => {
+  it('supports independently directed horizontal and vertical paths', () => {
     const pixels = new Uint8ClampedArray([255, 255, 255, 255]);
     const upward = createParticleField(
       pixels,
       1,
       1,
-      resolveParticles({ motion: 'scatter', horizontalTravel: [-100, 100], rise: [50, 100] }),
+      resolveParticles({ horizontalTravel: [-100, 100], verticalTravel: [-100, 100] }),
       1,
       1,
       () => 0,
@@ -251,7 +243,7 @@ describe('particle renderer', () => {
       pixels,
       1,
       1,
-      resolveParticles({ motion: 'scatter', horizontalTravel: [-100, 100], rise: [50, 100] }),
+      resolveParticles({ horizontalTravel: [-100, 100], verticalTravel: [-100, 100] }),
       1,
       1,
       () => 1,
@@ -261,6 +253,29 @@ describe('particle renderer', () => {
     expect(upward.data[4]).toBeLessThan(0);
     expect(downward.data[3]).toBeGreaterThan(0);
     expect(downward.data[4]).toBeGreaterThan(0);
+  });
+
+  it('keeps particle geometry independent from the temporal curve', () => {
+    const pixels = new Uint8ClampedArray(4 * 4 * 4).fill(255);
+    const random = () => {
+      let state = 0;
+      return () => {
+        state = (state * 1_664_525 + 1_013_904_223) >>> 0;
+        return state / 4_294_967_296;
+      };
+    };
+    const options = {
+      convergence: 0.6,
+      horizontalTravel: [-80, 120] as const,
+      release: 'top' as const,
+      verticalTravel: [-140, 35] as const,
+    };
+
+    const settle = createParticleField(pixels, 4, 4, resolveParticles({ ...options, curve: 'settle' }), 1, 1, random());
+    const burst = createParticleField(pixels, 4, 4, resolveParticles({ ...options, curve: 'burst' }), 1, 1, random());
+
+    expect(burst.thresholdMap).toEqual(settle.thresholdMap);
+    expect(burst.data).toEqual(settle.data);
   });
 
   it('does not substitute another renderer when WebGL2 is unavailable', () => {

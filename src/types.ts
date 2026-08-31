@@ -7,10 +7,14 @@ export type EffectTargets = EffectTarget | Iterable<HTMLElement>;
 export type EffectOperationKind = 'remove' | 'restore';
 /** Names of the effects bundled with the package. */
 export type BuiltInEffect = 'dust' | 'vapor' | 'scatter' | 'wind';
-/** Horizontal origin used to distribute built-in particles. */
-export type DisintegrationOrigin = 'left' | 'right' | 'random';
-/** Particle movement profile used by the built-in WebGL renderer. */
-export type ParticleMotion = 'dust' | 'vapor' | 'scatter' | 'wind';
+/** How particles are released across the captured element. */
+export type ParticleRelease = 'left' | 'right' | 'top' | 'random';
+/**
+ * Easing curve the built-in WebGL renderer applies to particle travel. It shapes
+ * how a particle accelerates and fades, and is independent of the geometry
+ * options below, which decide where it goes.
+ */
+export type ParticleCurve = 'settle' | 'float' | 'burst' | 'drift';
 
 declare const removalIdBrand: unique symbol;
 /** Opaque identifier returned by `remove()` when `retain: true` is selected. */
@@ -34,8 +38,8 @@ export type SnapshotCapture = (
 
 /** Controls the built-in particle renderer returned by `createParticleAnimation()`. */
 export interface ParticleOptions {
-  /** Motion profile. Defaults to `dust`. */
-  readonly motion?: ParticleMotion;
+  /** Travel curve. Defaults to `settle`. */
+  readonly curve?: ParticleCurve;
   /** Base animation duration in milliseconds. */
   readonly duration?: number;
   /** Maximum per-particle start delay in milliseconds. */
@@ -44,15 +48,20 @@ export interface ParticleOptions {
   readonly horizontalDrift?: number;
   /** Minimum and maximum horizontal travel in CSS pixels. */
   readonly horizontalTravel?: readonly [number, number];
-  /** Minimum and maximum upward travel in CSS pixels. */
-  readonly rise?: readonly [number, number];
+  /** Minimum and maximum vertical travel in CSS pixels. Negative values move upward. */
+  readonly verticalTravel?: readonly [number, number];
+  /** Pull toward the element's horizontal center, from `0` to `1`. */
+  readonly convergence?: number;
   /** Vertical oscillation amplitude in CSS pixels. */
   readonly swirl?: number;
   /** Particle scale at the end of its movement. */
   readonly endScale?: number;
-  /** Where the particle threshold starts: left, right or random. */
-  readonly origin?: DisintegrationOrigin;
+  /** How particles are released across the element. Defaults to `left`. */
+  readonly release?: ParticleRelease;
 }
+
+/** A complete, reusable particle configuration such as an entry in `particlePresets`. */
+export type ParticlePreset = Required<ParticleOptions>;
 
 /** A cancellable result returned by a custom effect renderer. */
 export interface AnimationPlayback {

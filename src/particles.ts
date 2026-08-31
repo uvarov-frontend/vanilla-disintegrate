@@ -1,3 +1,4 @@
 export { createParticleAnimation, createParticleRestoreAnimation } from './particle-renderer';
-export { builtInEffects } from './presets';
-export type { BuiltInEffect, ParticleMotion, ParticleOptions } from './types';
+export { createParticleEffect, type ParticleEffectSounds } from './particle-effect';
+export { builtInEffects, particlePresets } from './presets';
+export type { BuiltInEffect, ParticleCurve, ParticleOptions, ParticlePreset, ParticleRelease } from './types';

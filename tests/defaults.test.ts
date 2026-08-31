@@ -8,13 +8,15 @@ describe('option resolvers', () => {
     const particles = resolveParticles({
       duration: -1,
       horizontalTravel: [280, 120],
-      rise: [80, Number.NaN],
+      verticalTravel: [80, Number.NaN],
+      convergence: 2,
       swirl: -10,
     });
 
     expect(particles.duration).toBe(0);
     expect(particles.horizontalTravel).toEqual([120, 280]);
-    expect(particles.rise).toEqual([80, 100]);
+    expect(particles.verticalTravel).toEqual([-45, 80]);
+    expect(particles.convergence).toBe(1);
     expect(particles.swirl).toBe(0);
   });
 

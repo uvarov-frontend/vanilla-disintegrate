@@ -94,6 +94,7 @@ const TRANSITION_WIDTH = 0.018;
 const LAYOUT_RELEASE_FRACTION = 0.6;
 const MIN_THRESHOLD = 0.025;
 const MAX_THRESHOLD = 0.68;
+const CONVERGENCE_FACTOR = 0.58;
 const QUAD_VERTICES = new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]);
 const WEBGL_CONTEXT_ATTRIBUTES: WebGLContextAttributes = {
   alpha: true,
@@ -283,15 +284,15 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function resolveMotion(motion: ResolvedParticleOptions['motion']) {
-  switch (motion) {
-    case 'vapor':
+function resolveCurve(curve: ResolvedParticleOptions['curve']) {
+  switch (curve) {
+    case 'float':
       return { curveMix: 0.85, fadeStart: 0.3, motionPower: 2.2, waveTurns: 1.6 };
-    case 'scatter':
+    case 'burst':
       return { curveMix: 0.45, fadeStart: 0.12, motionPower: 4, waveTurns: 1 };
-    case 'wind':
+    case 'drift':
       return { curveMix: 0, fadeStart: 0.32, motionPower: 2.2, waveTurns: 1.25 };
-    case 'dust':
+    case 'settle':
     default:
       return { curveMix: 0, fadeStart: 0.3, motionPower: 3, waveTurns: 1 };
   }
@@ -685,15 +686,11 @@ function createBounds(
   const scaleX = snapshot.width / rect.width;
   const scaleY = snapshot.height / rect.height;
   const drift = particles.horizontalDrift * 0.5;
-  const isScatter = particles.motion === 'scatter';
-  const horizontalExtent =
-    Math.max(Math.abs(particles.horizontalTravel[0]), Math.abs(particles.horizontalTravel[1])) + drift;
-  const minX = isScatter ? -horizontalExtent : Math.min(0, particles.horizontalTravel[0] - drift);
-  const maxX = isScatter ? horizontalExtent : Math.max(0, particles.horizontalTravel[1] + drift);
-  const minY = isScatter
-    ? -particles.rise[1] * 0.75 - particles.swirl
-    : Math.min(0, -particles.rise[1] - particles.swirl);
-  const maxY = isScatter ? particles.rise[1] * 0.3 + particles.swirl : Math.max(0, particles.swirl);
+  const convergence = rect.width * particles.convergence * CONVERGENCE_FACTOR * 0.5;
+  const minX = Math.min(0, particles.horizontalTravel[0] - drift - convergence);
+  const maxX = Math.max(0, particles.horizontalTravel[1] + drift + convergence);
+  const minY = Math.min(0, particles.verticalTravel[0] - particles.swirl);
+  const maxY = Math.max(0, particles.verticalTravel[1] + particles.swirl);
   const padding = Math.max(8, Math.min(rect.width, rect.height) * 0.04);
   const left = minX - padding;
   const top = minY - padding;
@@ -710,13 +707,18 @@ function createBounds(
 }
 
 function resolveThreshold(particles: ResolvedParticleOptions, column: number, row: number, noise: number) {
-  if (particles.motion === 'vapor') {
-    // Noise dominates so no geometric front forms; the row bias releases the top first.
-    return 0.04 + row * 0.12 + noise * 0.62;
+  switch (particles.release) {
+    case 'top':
+      // Noise dominates so no hard geometric front forms; the row bias releases the top first.
+      return 0.04 + row * 0.12 + noise * 0.62;
+    case 'right':
+      return (1 - column) * 0.78 + noise * 0.22;
+    case 'random':
+      return noise;
+    case 'left':
+    default:
+      return column * 0.78 + noise * 0.22;
   }
-
-  const directional = particles.origin === 'right' ? 1 - column : column;
-  return particles.origin === 'random' ? noise : directional * 0.78 + noise * 0.22;
 }
 
 export function createParticleField(
@@ -782,13 +784,13 @@ export function createParticleField(
         particles.horizontalTravel[0] === particles.horizontalTravel[1]
           ? particles.horizontalTravel[0]
           : particles.horizontalTravel[0] + random() * (particles.horizontalTravel[1] - particles.horizontalTravel[0]);
-      const riseSpan = particles.rise[1] - particles.rise[0];
-      const riseAmount = particles.rise[0] + random() * riseSpan;
-      // Pull scales with height, so the plume keeps tapering as it lifts.
-      const riseFraction = riseSpan === 0 ? 1 : (riseAmount - particles.rise[0]) / riseSpan;
-      const vaporCenterPull = particles.motion === 'vapor' ? (0.5 - column) * width * (0.16 + riseFraction * 0.42) : 0;
-      const velocityX = (directedTravel + particles.horizontalDrift * (random() - 0.5)) * scaleX + vaporCenterPull;
-      const velocityY = (particles.motion === 'scatter' ? random() - 0.74 : -1) * riseAmount * scaleY;
+      const verticalTravel =
+        particles.verticalTravel[0] === particles.verticalTravel[1]
+          ? particles.verticalTravel[0]
+          : particles.verticalTravel[0] + random() * (particles.verticalTravel[1] - particles.verticalTravel[0]);
+      const centerPull = (0.5 - column) * width * particles.convergence * CONVERGENCE_FACTOR;
+      const velocityX = (directedTravel + particles.horizontalDrift * (random() - 0.5)) * scaleX + centerPull;
+      const velocityY = verticalTravel * scaleY;
       const swirl = particles.swirl * (0.45 + random() * 0.55) * scaleY;
       data[dataOffset] = x;
       data[dataOffset + 1] = y;
@@ -895,7 +897,7 @@ function createParticleRenderer(
     const canvasSize = [canvas.width, canvas.height] as const;
     const sourceOffset = [bounds.sourceX, bounds.sourceY] as const;
     const sourceSize = [snapshot.width, snapshot.height] as const;
-    const motion = resolveMotion(particles.motion);
+    const curve = resolveCurve(particles.curve);
 
     const bindTexture = (uniform: WebGLUniformLocation | null, texture: WebGLTexture, unit: number) => {
       gl.activeTexture(gl.TEXTURE0 + unit);
@@ -918,10 +920,10 @@ function createParticleRenderer(
     gl.uniform2f(particleUniforms.textureSize, ...sourceSize);
     gl.uniform1f(particleUniforms.blockSize, field.blockSize);
     gl.uniform1f(particleUniforms.endScale, particles.endScale);
-    gl.uniform1f(particleUniforms.curveMix, motion.curveMix);
-    gl.uniform1f(particleUniforms.motionPower, motion.motionPower);
-    gl.uniform1f(particleUniforms.fadeStart, motion.fadeStart);
-    gl.uniform1f(particleUniforms.waveTurns, motion.waveTurns);
+    gl.uniform1f(particleUniforms.curveMix, curve.curveMix);
+    gl.uniform1f(particleUniforms.motionPower, curve.motionPower);
+    gl.uniform1f(particleUniforms.fadeStart, curve.fadeStart);
+    gl.uniform1f(particleUniforms.waveTurns, curve.waveTurns);
     gl.uniform1f(particleUniforms.transition, TRANSITION_WIDTH);
     bindTexture(particleUniforms.source, sourceTexture, 0);
 

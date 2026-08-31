@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import Disintegrator, { builtInEffects, defineEffect } from '../src';
+import Disintegrator, { builtInEffects, createParticleEffect, defineEffect, particlePresets } from '../src';
 import type { AnimationFactory } from '../src/types';
 
 function rect(): DOMRect {
@@ -89,6 +89,21 @@ function audioBuffer(): AudioBuffer {
 beforeEach(() => document.body.replaceChildren());
 
 describe('public entries', () => {
+  it('exports immutable particle presets and a silent paired-effect factory', () => {
+    expect(Object.keys(particlePresets)).toEqual(['dust', 'vapor', 'scatter', 'wind']);
+    expect(Object.isFrozen(particlePresets)).toBe(true);
+    expect(Object.isFrozen(particlePresets.dust)).toBe(true);
+    expect(Object.isFrozen(particlePresets.dust.horizontalTravel)).toBe(true);
+    expect(Object.isFrozen(particlePresets.dust.verticalTravel)).toBe(true);
+
+    const effect = createParticleEffect({ curve: 'drift', release: 'random' });
+    expect(effect.remove.animate).toBeTypeOf('function');
+    expect(effect.restore.animate).toBeTypeOf('function');
+    expect(effect.remove.sound).toBeNull();
+    expect(effect.restore.sound).toBeNull();
+    expect(Object.isFrozen(effect)).toBe(true);
+  });
+
   it('contains four paired effects and eight explicit audio slots', () => {
     expect(Object.keys(builtInEffects)).toEqual(['dust', 'vapor', 'scatter', 'wind']);
     for (const effect of Object.values(builtInEffects)) {

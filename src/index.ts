@@ -15,7 +15,8 @@ export class Disintegrator extends CoreDisintegrator {
 
 export { defineEffect } from './effects';
 export { createParticleAnimation, createParticleRestoreAnimation } from './particle-renderer';
-export { builtInEffects } from './presets';
+export { createParticleEffect, type ParticleEffectSounds } from './particle-effect';
+export { builtInEffects, particlePresets } from './presets';
 export type * from './types';
 
 export default Disintegrator;
