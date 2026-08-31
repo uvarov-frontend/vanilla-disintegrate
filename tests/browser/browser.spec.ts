@@ -42,6 +42,68 @@ test('runs the snapshotless remove and restore lifecycle', async ({ page }) => {
   expect(result).toEqual({ connected: true, overlayCount: 0, removed: 'completed', restored: 'completed' });
 });
 
+test('configures and runs the home-page particle playground', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium');
+  await page.goto('http://localhost:4321/');
+
+  const root = page.locator('[data-particle-playground]');
+  await root.scrollIntoViewIfNeeded();
+  await expect(root.locator('[data-preset="dust"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(root.locator('[data-operation="remove"]')).toHaveAttribute('aria-selected', 'true');
+  await expect(root.locator('[data-operation="restore"]')).toHaveAttribute('aria-selected', 'false');
+  await expect(root.locator('[data-curve]')).toHaveValue('settle');
+  await expect(root.locator('[data-sound-enabled]')).toBeChecked();
+  await expect(root.locator('[data-group-panel="sound"] input[type="range"]')).toHaveCount(4);
+  await expect(root.locator('[data-group-panel="sound"]')).toBeHidden();
+  await expect(root.locator('.playground-field-heading').first().locator('small')).toBeVisible();
+  await root.locator('[data-group-tab="sound"]').click();
+  await expect(root.locator('[data-group-panel="sound"]')).toBeVisible();
+  await root.locator('[data-group-tab="timing"]').click();
+  await expect(root.locator('[data-view-panel="preview"]')).toBeVisible();
+  await expect(root.locator('[data-view-panel="code"]')).toBeHidden();
+  await root.locator('[data-view-tab="code"]').click();
+  await expect(root.locator('[data-view-panel="code"]')).toBeVisible();
+  await expect(root.locator('[data-code]')).toContainText('createParticleEffect');
+  await root.locator('[data-view-tab="preview"]').click();
+
+  const setRange = async (key: string, value: string) => {
+    await root.locator(`[data-option="${key}"]`).evaluate((element, nextValue) => {
+      const input = element as HTMLInputElement;
+      input.value = nextValue;
+      input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+    }, value);
+  };
+  await setRange('duration', '200');
+  await setRange('stagger', '0');
+  await setRange('verticalMin', '-180');
+  await setRange('soundGain', '0.5');
+  await expect(root.locator('[data-preset][aria-pressed="true"]')).toHaveCount(0);
+  await expect(root.locator('[data-code]')).toContainText('verticalTravel: [-180, -30]');
+  await expect(root.locator('[data-code]')).toContainText('gain: 0.5');
+  await expect(page).toHaveURL(/#playground\?/);
+  await expect(root.locator('[data-status]')).toContainText('remove · completed', { timeout: 15_000 });
+
+  await root.locator('[data-operation="restore"]').click();
+  await expect(root.locator('[data-option="verticalMin"]')).toHaveValue('-210');
+  await setRange('verticalMin', '-120');
+  await expect(root.locator('[data-code]')).toContainText('verticalTravel: [-120, -30]');
+  await root.locator('[data-operation="remove"]').click();
+  await expect(root.locator('[data-option="verticalMin"]')).toHaveValue('-180');
+  await expect(root.locator('[data-status]')).toContainText('remove · completed', { timeout: 15_000 });
+
+  const remove = root.locator('[data-action="remove"]');
+  await expect(remove).toBeEnabled();
+  await remove.click();
+  await expect(root.locator('[data-status]')).toContainText('remove · completed', { timeout: 15_000 });
+  await expect(root.locator('.playground-card')).toHaveCount(0);
+
+  const restore = root.locator('[data-action="restore"]');
+  await expect(restore).toBeEnabled();
+  await restore.click();
+  await expect(root.locator('[data-status]')).toContainText('restore · completed', { timeout: 15_000 });
+  await expect(root.locator('.playground-card')).toHaveCount(1);
+});
+
 test('runs, reuses and releases a real WebGL2 particle renderer', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   const result = await page.evaluate(async () => {

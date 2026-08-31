@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import Disintegrator, { builtInEffects, createParticleEffect, defineEffect, particlePresets } from '../src';
+import Disintegrator, {
+  builtInEffects,
+  createParticleEffect,
+  defineEffect,
+  particlePresets,
+  particlePresetSounds,
+} from '../src';
 import type { AnimationFactory } from '../src/types';
 
 function rect(): DOMRect {
@@ -96,7 +102,10 @@ describe('public entries', () => {
     expect(Object.isFrozen(particlePresets.dust.horizontalTravel)).toBe(true);
     expect(Object.isFrozen(particlePresets.dust.verticalTravel)).toBe(true);
 
-    const effect = createParticleEffect({ curve: 'drift', release: 'random' });
+    const effect = createParticleEffect({
+      remove: { curve: 'burst', release: 'random' },
+      restore: { curve: 'drift', release: 'right' },
+    });
     expect(effect.remove.animate).toBeTypeOf('function');
     expect(effect.restore.animate).toBeTypeOf('function');
     expect(effect.remove.sound).toBeNull();
@@ -105,6 +114,13 @@ describe('public entries', () => {
   });
 
   it('contains four paired effects and eight explicit audio slots', () => {
+    expect(Object.keys(particlePresetSounds)).toEqual(['dust', 'vapor', 'scatter', 'wind']);
+    expect(Object.isFrozen(particlePresetSounds)).toBe(true);
+    expect(Object.isFrozen(particlePresetSounds.dust)).toBe(true);
+    expect(Object.isFrozen(particlePresetSounds.dust.remove)).toBe(true);
+    expect(Object.isFrozen(particlePresetSounds.dust.restore)).toBe(true);
+    expect(particlePresetSounds.dust.restore.reverse).toBe(true);
+
     expect(Object.keys(builtInEffects)).toEqual(['dust', 'vapor', 'scatter', 'wind']);
     for (const effect of Object.values(builtInEffects)) {
       expect(effect.remove.animate).toBeTypeOf('function');

@@ -4,7 +4,13 @@ import scatterSoundUrl from './sounds/scatter.mp3?url&no-inline';
 import vaporSoundUrl from './sounds/vapor.mp3?url&no-inline';
 
 import { createParticleEffect } from './particle-effect';
-import type { BuiltInEffect, EffectDefinition, ParticlePreset } from './types';
+import type { BuiltInEffect, EffectDefinition, ParticlePreset, SoundOptions } from './types';
+
+/** Native playback definitions used by one built-in particle preset. */
+export interface ParticlePresetSounds {
+  readonly remove: Readonly<SoundOptions>;
+  readonly restore: Readonly<SoundOptions>;
+}
 
 function freezeRange(range: readonly [number, number]): readonly [number, number] {
   const copy: [number, number] = [range[0], range[1]];
@@ -16,6 +22,13 @@ function defineParticlePreset(options: ParticlePreset): Readonly<ParticlePreset>
     ...options,
     horizontalTravel: freezeRange(options.horizontalTravel),
     verticalTravel: freezeRange(options.verticalTravel),
+  });
+}
+
+function defineParticlePresetSounds(src: string): Readonly<ParticlePresetSounds> {
+  return Object.freeze({
+    remove: Object.freeze({ src }),
+    restore: Object.freeze({ src, reverse: true }),
   });
 }
 
@@ -71,22 +84,18 @@ export const particlePresets: Readonly<Record<BuiltInEffect, Readonly<ParticlePr
   }),
 });
 
+/** Deeply frozen native sounds used by the four built-in particle presets. */
+export const particlePresetSounds: Readonly<Record<BuiltInEffect, Readonly<ParticlePresetSounds>>> = Object.freeze({
+  dust: defineParticlePresetSounds(dustSoundUrl),
+  vapor: defineParticlePresetSounds(vaporSoundUrl),
+  scatter: defineParticlePresetSounds(scatterSoundUrl),
+  wind: defineParticlePresetSounds(christmasSoundUrl),
+});
+
 /** The four built-in paired effects: `dust`, `vapor`, `scatter` and `wind`. */
 export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> = Object.freeze({
-  dust: createParticleEffect(particlePresets.dust, {
-    remove: { src: dustSoundUrl },
-    restore: { src: dustSoundUrl, reverse: true },
-  }),
-  vapor: createParticleEffect(particlePresets.vapor, {
-    remove: { src: vaporSoundUrl },
-    restore: { src: vaporSoundUrl, reverse: true },
-  }),
-  scatter: createParticleEffect(particlePresets.scatter, {
-    remove: { src: scatterSoundUrl },
-    restore: { src: scatterSoundUrl, reverse: true },
-  }),
-  wind: createParticleEffect(particlePresets.wind, {
-    remove: { src: christmasSoundUrl },
-    restore: { src: christmasSoundUrl, reverse: true },
-  }),
+  dust: createParticleEffect({ remove: particlePresets.dust }, particlePresetSounds.dust),
+  vapor: createParticleEffect({ remove: particlePresets.vapor }, particlePresetSounds.vapor),
+  scatter: createParticleEffect({ remove: particlePresets.scatter }, particlePresetSounds.scatter),
+  wind: createParticleEffect({ remove: particlePresets.wind }, particlePresetSounds.wind),
 });
