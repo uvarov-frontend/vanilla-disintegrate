@@ -1,14 +1,14 @@
+import Disintegrator from '../../../src/snapdom';
 import type { BuiltInPreset, EffectDefinition, EffectOperation, RemovalId, SoundSelection } from '../../../src/types';
-import { mountParticlePlayground } from './particle-playground';
+import { createDemoCard } from './demo-card';
+import { mountParticlePlayground, presetNames } from './particle-playground';
 
 type Locale = 'en' | 'ru' | 'zh' | 'ko';
-type DemoKind = 'built-in' | 'preparation' | 'particle-vortex';
-type DisintegratorConstructor = typeof import('../../../src/snapdom').default;
-type DisintegratorInstance = InstanceType<DisintegratorConstructor>;
+type DemoKind = 'built-in' | 'particle-vortex';
+type DisintegratorInstance = InstanceType<typeof Disintegrator>;
 
 const locale = (document.body.dataset.locale ?? 'en') as Locale;
 const instances = new Set<DisintegratorInstance>();
-let DisintegratorClass: DisintegratorConstructor | null = null;
 let particleVortexEffect: EffectDefinition | null = null;
 let particleVortexSounds: SoundSelection | null = null;
 
@@ -19,7 +19,6 @@ const copy = {
     ready: 'Ready',
     remove: 'Remove',
     restore: 'Restore',
-    preview: 'Preview restore',
     effectPair: 'Effect pair',
     operation: 'Operation',
     dom: 'DOM',
@@ -27,41 +26,20 @@ const copy = {
     retainedId: 'Retained ID',
     connected: 'Connected',
     detached: 'Detached',
-    hint: 'Preview restore animates the connected card without removing it first.',
-    snapshotPreparation: 'Snapshot preparation',
-    prepareNow: 'Prepare now',
-    invalidate: 'Invalidate',
-    clearCache: 'Clear cache',
-    prepared: 'Prepared',
-    waiting: 'Scheduled',
-    invalidated: 'Invalidated',
-    cacheCleared: 'Cache cleared',
-    preparationHint: 'register() keeps this card eligible for visible-idle preparation.',
   },
   ru: {
     sound: 'Звук',
     reset: 'Сбросить демо',
     ready: 'Готово',
     remove: 'Удалить',
-    restore: 'Вернуть',
-    preview: 'Показать восстановление',
+    restore: 'Восстановить',
     effectPair: 'Пара эффектов',
     operation: 'Операция',
     dom: 'DOM',
-    restorePair: 'Эффект возврата',
+    restorePair: 'Эффект восстановления',
     retainedId: 'Сохранённый ID',
     connected: 'Подключён',
     detached: 'Отсоединён',
-    hint: 'Предпросмотр анимирует подключённую карточку без предварительного удаления.',
-    snapshotPreparation: 'Подготовка снимков',
-    prepareNow: 'Подготовить сейчас',
-    invalidate: 'Инвалидировать',
-    clearCache: 'Очистить кэш',
-    prepared: 'Подготовлен',
-    waiting: 'Запланирован',
-    invalidated: 'Инвалидирован',
-    cacheCleared: 'Кэш очищен',
-    preparationHint: 'register() оставляет эту карточку кандидатом для visible-idle подготовки.',
   },
   zh: {
     sound: '声音',
@@ -69,7 +47,6 @@ const copy = {
     ready: '就绪',
     remove: '删除',
     restore: '恢复',
-    preview: '预览恢复',
     effectPair: '效果对',
     operation: '操作',
     dom: 'DOM',
@@ -77,16 +54,6 @@ const copy = {
     retainedId: '保留 ID',
     connected: '已连接',
     detached: '已分离',
-    hint: '预览恢复会直接动画显示当前卡片，无需先删除。',
-    snapshotPreparation: '快照预准备',
-    prepareNow: '立即准备',
-    invalidate: '失效',
-    clearCache: '清除缓存',
-    prepared: '已准备',
-    waiting: '已排队',
-    invalidated: '已失效',
-    cacheCleared: '缓存已清除',
-    preparationHint: 'register() 会让这张卡片保持为 visible-idle 准备的候选项。',
   },
   ko: {
     sound: '사운드',
@@ -94,7 +61,6 @@ const copy = {
     ready: '준비됨',
     remove: '삭제',
     restore: '복원',
-    preview: '복원 미리보기',
     effectPair: '효과 쌍',
     operation: '작업',
     dom: 'DOM',
@@ -102,34 +68,17 @@ const copy = {
     retainedId: '보관 ID',
     connected: '연결됨',
     detached: '분리됨',
-    hint: '복원 미리보기는 먼저 삭제하지 않고 연결된 카드를 애니메이션합니다.',
-    snapshotPreparation: '스냅샷 준비',
-    prepareNow: '지금 준비',
-    invalidate: '무효화',
-    clearCache: '캐시 비우기',
-    prepared: '준비됨',
-    waiting: '예약됨',
-    invalidated: '무효화됨',
-    cacheCleared: '캐시가 비워짐',
-    preparationHint: 'register()는 이 카드를 visible-idle 준비 후보로 유지합니다.',
   },
 }[locale];
 
-const presetNames: Record<BuiltInPreset, string> = {
-  dust: 'Rising dust',
-  scatter: 'Fine scatter',
-  vapor: 'Rising vapor',
-  wind: 'Wind',
-};
 function required<T extends Element>(root: ParentNode, selector: string) {
   const element = root.querySelector<T>(selector);
   if (!element) throw new Error(`Missing documentation element: ${selector}`);
   return element;
 }
 
-function createDisintegrator(options: ConstructorParameters<DisintegratorConstructor>[0]) {
-  if (DisintegratorClass === null) throw new Error('The documentation demo runtime is not loaded.');
-  return new DisintegratorClass(options);
+function createDisintegrator(options: ConstructorParameters<typeof Disintegrator>[0]) {
+  return new Disintegrator(options);
 }
 
 const packageManagerStorageKey = 'vanilla-disintegrate-package-manager';
@@ -451,116 +400,9 @@ function whenNear(element: HTMLElement, callback: () => void) {
   observer.observe(element);
 }
 
-interface CardDefinition {
-  readonly title: string;
-  readonly category: string;
-  readonly duration: string;
-}
-
-const preparationCard: CardDefinition = {
-  title: 'A map of quiet places',
-  category: 'Travel log',
-  duration: '12 min',
-};
-const effectCard: CardDefinition = {
-  title: 'Signals after midnight',
-  category: 'Radio archive',
-  duration: '16 min',
-};
-
-function createCard(definition: CardDefinition) {
-  const card = document.createElement('article');
-  card.className = 'example-card';
-  card.dataset.cardTitle = definition.title;
-  card.innerHTML = `<div class="example-cover" aria-hidden="true"><span></span><span></span><span></span></div><div class="example-copy"><div><span class="example-kicker">${definition.category}</span><h3>${definition.title}</h3></div><p>A real DOM element captured in its current documentation layout.</p><div class="example-meta"><span>${definition.duration}</span><span>DOM element</span></div></div>`;
-  return card;
-}
-
 function track(instance: DisintegratorInstance) {
   instances.add(instance);
   return instance;
-}
-
-function mountPreparationDemo(root: HTMLElement) {
-  root.innerHTML = `<div class="interactive-example preparation-demo"><div class="example-toolbar"><div class="example-setting"><span>${copy.snapshotPreparation}</span><strong>visible-idle</strong></div></div><div class="example-stage" data-slot></div><div class="example-actions"><button class="button-primary" type="button" data-action="prepare">${copy.prepareNow}</button><button class="button-secondary" type="button" data-action="invalidate">${copy.invalidate}</button><button class="button-secondary" type="button" data-action="clear">${copy.clearCache}</button><button class="button-quiet" type="button" data-action="reset">${copy.reset}</button></div><dl class="example-state" aria-live="polite"><div><dt>${copy.operation}</dt><dd data-operation>${copy.ready}</dd></div><div><dt>${copy.snapshotPreparation}</dt><dd data-cache>${copy.waiting}</dd></div><div><dt>${copy.dom}</dt><dd>${copy.connected}</dd></div></dl><p class="example-hint">${copy.preparationHint}</p></div>`;
-
-  const slot = required<HTMLElement>(root, '[data-slot]');
-  const prepare = required<HTMLButtonElement>(root, '[data-action="prepare"]');
-  const invalidate = required<HTMLButtonElement>(root, '[data-action="invalidate"]');
-  const clear = required<HTMLButtonElement>(root, '[data-action="clear"]');
-  const reset = required<HTMLButtonElement>(root, '[data-action="reset"]');
-  const operation = required<HTMLElement>(root, '[data-operation]');
-  const cache = required<HTMLElement>(root, '[data-cache]');
-  const card = createCard(preparationCard);
-  const instance = track(
-    createDisintegrator({
-      preparation: { strategy: 'visible-idle', fallbackDelay: 120, scrollSettle: 0 },
-      preset: 'dust',
-      sound: false,
-      onError: (error) => {
-        operation.textContent = String(error);
-      },
-    }),
-  );
-  let busy = false;
-  const setPreparationState = (
-    state: 'scheduled' | 'preparing' | 'prepared' | 'invalidated' | 'cleared' | 'failed',
-  ) => {
-    root.dataset.preparationState = state;
-  };
-
-  slot.append(card);
-  instance.register(card);
-  setPreparationState('scheduled');
-
-  const update = () => {
-    root.setAttribute('aria-busy', String(busy));
-    prepare.disabled = busy;
-    invalidate.disabled = busy;
-    clear.disabled = busy;
-    reset.disabled = busy;
-  };
-  const prepareNow = async () => {
-    if (busy) return;
-    busy = true;
-    setPreparationState('preparing');
-    operation.textContent = `${copy.prepareNow}…`;
-    update();
-    try {
-      await instance.prepare(card);
-      setPreparationState('prepared');
-      cache.textContent = copy.prepared;
-      operation.textContent = copy.prepared;
-    } catch (error) {
-      setPreparationState('failed');
-      operation.textContent = String(error);
-    } finally {
-      busy = false;
-      update();
-    }
-  };
-
-  prepare.addEventListener('click', () => void prepareNow());
-  invalidate.addEventListener('click', () => {
-    instance.invalidate(card);
-    setPreparationState('invalidated');
-    cache.textContent = copy.invalidated;
-    operation.textContent = copy.invalidated;
-  });
-  clear.addEventListener('click', () => {
-    instance.clearPrepared();
-    setPreparationState('cleared');
-    cache.textContent = copy.cacheCleared;
-    operation.textContent = copy.cacheCleared;
-  });
-  reset.addEventListener('click', () => {
-    instance.clearPrepared();
-    instance.invalidate(card);
-    setPreparationState('scheduled');
-    cache.textContent = copy.waiting;
-    operation.textContent = copy.ready;
-  });
-  update();
 }
 
 function mountPairDemo(root: HTMLElement, kind: DemoKind) {
@@ -572,7 +414,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
           .map(([value, label]) => `<option value="${value}">${label}</option>`)
           .join('')}</select><i></i></label>`
       : `<strong>${effectLabel}</strong>`
-  }</div><label class="sound-toggle"><input type="checkbox" data-sound checked><span></span>${copy.sound}</label></div><div class="example-stage" data-slot></div><div class="example-actions"><button class="button-primary" type="button" data-action="remove">${copy.remove}</button><button class="button-secondary" type="button" data-action="restore">${copy.preview}</button><button class="button-quiet" type="button" data-action="reset">${copy.reset}</button></div><dl class="example-state" aria-live="polite"><div><dt>${copy.operation}</dt><dd data-operation>${copy.ready}</dd></div><div><dt>${copy.dom}</dt><dd data-dom>${copy.connected}</dd></div><div><dt>${copy.restorePair}</dt><dd data-pair>${effectLabel}</dd></div><div><dt>${copy.retainedId}</dt><dd data-id>none</dd></div></dl><p class="example-hint" data-hint>${copy.hint}</p></div>`;
+  }</div><label class="sound-toggle"><input type="checkbox" data-sound checked><span></span>${copy.sound}</label></div><div class="example-stage" data-slot></div><div class="example-actions"><button class="button-primary" type="button" data-action="remove">${copy.remove}</button><button class="button-secondary" type="button" data-action="restore">${copy.restore}</button><button class="button-quiet" type="button" data-action="reset">${copy.reset}</button></div><dl class="example-state example-state-four" aria-live="polite"><div><dt>${copy.operation}</dt><dd data-operation>${copy.ready}</dd></div><div><dt>${copy.dom}</dt><dd data-dom>${copy.connected}</dd></div><div><dt>${copy.restorePair}</dt><dd data-pair>${effectLabel}</dd></div><div><dt>${copy.retainedId}</dt><dd data-id>none</dd></div></dl></div>`;
 
   const slot = required<HTMLElement>(root, '[data-slot]');
   const select = root.querySelector<HTMLSelectElement>('select[data-effect]');
@@ -599,7 +441,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
       },
     }),
   );
-  let card: HTMLElement | null = createCard(effectCard);
+  let card: HTMLElement | null = createDemoCard('example-card');
   let removalId: RemovalId | null = null;
   let busy = false;
   let remembered = effectLabel;
@@ -620,7 +462,6 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
     root.setAttribute('aria-busy', String(busy));
     remove.disabled = busy || !connected;
     restore.disabled = busy || (!connected && !removalId);
-    restore.textContent = connected ? copy.preview : copy.restore;
     dom.textContent = connected ? copy.connected : copy.detached;
     pair.textContent = remembered;
     idOutput.textContent = removalId ? String(removalId) : 'none';
@@ -631,11 +472,9 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
     busy = true;
     state.textContent = operation.operation === 'remove' ? 'Removing…' : 'Restoring…';
     update();
-    const startedAt = performance.now();
     try {
       const result = await operation.finished;
-      const elapsed = Math.round(performance.now() - startedAt);
-      state.textContent = `${result.operation} · ${result.status} · ${elapsed} ms`;
+      state.textContent = `${result.operation} · ${result.status}`;
       done?.();
     } finally {
       busy = false;
@@ -674,7 +513,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
     if (removalId) instance.discard(removalId);
     removalId = null;
     card?.remove();
-    card = createCard(effectCard);
+    card = createDemoCard('example-card');
     slot.replaceChildren(card);
     registerCard(card);
     remembered = selectedLabel();
@@ -703,15 +542,13 @@ export function setupSite() {
     whenNear(firstDemo, () => {
       const needsVortex = demoRoots.some((root) => root.dataset.demoKind === 'particle-vortex');
       const vortex = needsVortex ? import('../demo/particle-vortex') : Promise.resolve(null);
-      void Promise.all([import('../../../src/snapdom'), vortex])
-        .then(([runtime, vortexModule]) => {
-          DisintegratorClass = runtime.default;
+      void vortex
+        .then((vortexModule) => {
           particleVortexEffect = vortexModule?.particleVortex ?? null;
           particleVortexSounds = vortexModule?.particleVortexSounds ?? null;
           for (const root of demoRoots) {
             const kind = (root.dataset.demoKind ?? 'built-in') as DemoKind;
-            if (kind === 'preparation') mountPreparationDemo(root);
-            else mountPairDemo(root, kind);
+            mountPairDemo(root, kind);
           }
           window.addEventListener(
             'pagehide',

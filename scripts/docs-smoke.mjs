@@ -274,7 +274,6 @@ try {
 
   const demoKinds = {
     'learn/effects': 'built-in',
-    'learn/preparation': 'preparation',
     'learn/custom-effects': 'particle-vortex',
   };
   for (const [contentPath, kind] of Object.entries(demoKinds)) {

@@ -1,5 +1,5 @@
 @font-face {
-  font-family: 'Lato Local';
+  font-family: Lato;
   src: url('../assets/fonts/Lato/Lato-Hairline.woff2') format('woff2');
   font-weight: 100;
   font-style: normal;
@@ -7,7 +7,7 @@
 }
 
 @font-face {
-  font-family: 'Lato Local';
+  font-family: Lato;
   src: url('../assets/fonts/Lato/Lato-Thin.woff2') format('woff2');
   font-weight: 200;
   font-style: normal;
@@ -15,7 +15,7 @@
 }
 
 @font-face {
-  font-family: 'Lato Local';
+  font-family: Lato;
   src: url('../assets/fonts/Lato/Lato-Light.woff2') format('woff2');
   font-weight: 300;
   font-style: normal;
@@ -23,7 +23,7 @@
 }
 
 @font-face {
-  font-family: 'Lato Local';
+  font-family: Lato;
   src: url('../assets/fonts/Lato/Lato-Regular.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
@@ -31,7 +31,7 @@
 }
 
 @font-face {
-  font-family: 'Lato Local';
+  font-family: Lato;
   src: url('../assets/fonts/Lato/Lato-Medium.woff2') format('woff2');
   font-weight: 500;
   font-style: normal;
@@ -39,7 +39,7 @@
 }
 
 @font-face {
-  font-family: 'Lato Local';
+  font-family: Lato;
   src: url('../assets/fonts/Lato/Lato-Semibold.woff2') format('woff2');
   font-weight: 600;
   font-style: normal;
@@ -47,7 +47,7 @@
 }
 
 @font-face {
-  font-family: 'Lato Local';
+  font-family: Lato;
   src: url('../assets/fonts/Lato/Lato-Bold.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
@@ -55,7 +55,7 @@
 }
 
 @font-face {
-  font-family: 'Lato Local';
+  font-family: Lato;
   src: url('../assets/fonts/Lato/Lato-Heavy.woff2') format('woff2');
   font-weight: 800;
   font-style: normal;
@@ -63,7 +63,7 @@
 }
 
 @font-face {
-  font-family: 'Lato Local';
+  font-family: Lato;
   src: url('../assets/fonts/Lato/Lato-Black.woff2') format('woff2');
   font-weight: 900;
   font-style: normal;
@@ -71,7 +71,7 @@
 }
 
 @font-face {
-  font-family: 'JetBrains Mono Local';
+  font-family: 'JetBrains Mono';
   src: url('../assets/fonts/JetBrainsMono/JetBrainsMono-Thin.woff2') format('woff2');
   font-weight: 200;
   font-style: normal;
@@ -79,7 +79,7 @@
 }
 
 @font-face {
-  font-family: 'JetBrains Mono Local';
+  font-family: 'JetBrains Mono';
   src: url('../assets/fonts/JetBrainsMono/JetBrainsMono-Light.woff2') format('woff2');
   font-weight: 300;
   font-style: normal;
@@ -87,7 +87,7 @@
 }
 
 @font-face {
-  font-family: 'JetBrains Mono Local';
+  font-family: 'JetBrains Mono';
   src: url('../assets/fonts/JetBrainsMono/JetBrainsMono-Regular.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
@@ -95,7 +95,7 @@
 }
 
 @font-face {
-  font-family: 'JetBrains Mono Local';
+  font-family: 'JetBrains Mono';
   src: url('../assets/fonts/JetBrainsMono/JetBrainsMono-Medium.woff2') format('woff2');
   font-weight: 500;
   font-style: normal;
@@ -103,7 +103,7 @@
 }
 
 @font-face {
-  font-family: 'JetBrains Mono Local';
+  font-family: 'JetBrains Mono';
   src: url('../assets/fonts/JetBrainsMono/JetBrainsMono-SemiBold.woff2') format('woff2');
   font-weight: 600;
   font-style: normal;
@@ -111,7 +111,7 @@
 }
 
 @font-face {
-  font-family: 'JetBrains Mono Local';
+  font-family: 'JetBrains Mono';
   src: url('../assets/fonts/JetBrainsMono/JetBrainsMono-Bold.woff2') format('woff2');
   font-weight: 700;
   font-style: normal;
@@ -119,7 +119,7 @@
 }
 
 @font-face {
-  font-family: 'JetBrains Mono Local';
+  font-family: 'JetBrains Mono';
   src: url('../assets/fonts/JetBrainsMono/JetBrainsMono-ExtraBold.woff2') format('woff2');
   font-weight: 800;
   font-style: normal;

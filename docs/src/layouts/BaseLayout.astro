@@ -1,5 +1,14 @@
 ---
 import favicon from '../assets/favicon.svg?url';
+import latoBlack from '../assets/fonts/Lato/Lato-Black.woff2?url';
+import latoBold from '../assets/fonts/Lato/Lato-Bold.woff2?url';
+import latoHairline from '../assets/fonts/Lato/Lato-Hairline.woff2?url';
+import latoHeavy from '../assets/fonts/Lato/Lato-Heavy.woff2?url';
+import latoLight from '../assets/fonts/Lato/Lato-Light.woff2?url';
+import latoMedium from '../assets/fonts/Lato/Lato-Medium.woff2?url';
+import latoRegular from '../assets/fonts/Lato/Lato-Regular.woff2?url';
+import latoSemibold from '../assets/fonts/Lato/Lato-Semibold.woff2?url';
+import latoThin from '../assets/fonts/Lato/Lato-Thin.woff2?url';
 import '../styles/site.css';
 import '../styles/docs.css';
 
@@ -19,6 +28,17 @@ interface Props {
 const { title, description, locale, pageClass = '', noindex = false, structuredData = [] } = Astro.props;
 const pathname = Astro.url.pathname;
 const absoluteUrl = (href: string) => toAbsoluteUrl(Astro, href);
+const fontUrls = [
+  latoHairline,
+  latoThin,
+  latoLight,
+  latoRegular,
+  latoMedium,
+  latoSemibold,
+  latoBold,
+  latoHeavy,
+  latoBlack,
+];
 
 // Crawlers reject relative image paths, so the preview is resolved against the
 // canonical origin. The query is bumped whenever the file changes: Facebook and
@@ -58,6 +78,7 @@ const jsonLd = JSON.stringify({
     <meta name="generator" content={Astro.generator} />
     {noindex && <meta name="robots" content="noindex, nofollow" />}
     <link rel="icon" type="image/svg+xml" href={favicon} />
+    {fontUrls.map((href) => <link rel="preload" href={href} as="font" type="font/woff2" crossorigin="anonymous" />)}
     {!noindex && <link rel="canonical" href={absoluteUrl(pathname)} />}
     {
       !noindex &&

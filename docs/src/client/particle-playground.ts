@@ -11,6 +11,7 @@ import Disintegrator, {
   type RemovalId,
   type SoundOptions,
 } from '../../../src/snapdom';
+import { createDemoCard, demoCardContent } from './demo-card';
 import {
   deletePlaygroundAudio,
   loadPlaygroundAudio,
@@ -382,33 +383,33 @@ const locale = (typeof document === 'undefined' ? 'en' : (document.body.dataset.
 const copy = copies[locale];
 const help = helps[locale];
 
-const presetNames: Record<BuiltInPreset, string> = {
+export const presetNames: Record<BuiltInPreset, string> = {
   dust: 'Dust',
-  vapor: 'Vapor',
   scatter: 'Scatter',
+  vapor: 'Vapor',
   wind: 'Wind',
 };
 const presetDescriptions: Record<Locale, Record<BuiltInPreset, string>> = {
   en: {
     dust: 'diagonal trail',
-    vapor: 'rises and fades',
     scatter: 'spreads outward',
+    vapor: 'rises and fades',
     wind: 'drifts sideways',
   },
   ru: {
     dust: 'диагональный шлейф',
-    vapor: 'вверх и растворяется',
     scatter: 'разлёт в стороны',
+    vapor: 'вверх и растворяется',
     wind: 'сносит вбок',
   },
-  zh: { dust: '对角拖尾', vapor: '上升并消散', scatter: '向四周散开', wind: '横向飘移' },
-  ko: { dust: '대각선 궤적', vapor: '상승하며 사라짐', scatter: '사방으로 확산', wind: '옆으로 이동' },
+  zh: { dust: '对角拖尾', scatter: '向四周散开', vapor: '上升并消散', wind: '横向飘移' },
+  ko: { dust: '대각선 궤적', scatter: '사방으로 확산', vapor: '상승하며 사라짐', wind: '옆으로 이동' },
 };
 const soundOptionLabels: Record<Locale, Record<BuiltInSound, string>> = {
-  en: { dust: 'Dust', vapor: 'Vapor', scatter: 'Scatter', wind: 'Wind' },
-  ru: { dust: 'Пыль', vapor: 'Пар', scatter: 'Импульс', wind: 'Ветер' },
-  zh: { dust: '尘埃', vapor: '气流', scatter: '冲击', wind: '风声' },
-  ko: { dust: '먼지', vapor: '공기', scatter: '충격', wind: '바람' },
+  en: { dust: 'Dust', scatter: 'Scatter', vapor: 'Vapor', wind: 'Wind' },
+  ru: { dust: 'Пыль', scatter: 'Импульс', vapor: 'Пар', wind: 'Ветер' },
+  zh: { dust: '尘埃', scatter: '冲击', vapor: '气流', wind: '风声' },
+  ko: { dust: '먼지', scatter: '충격', vapor: '공기', wind: '바람' },
 };
 const curveOptionLabels: Record<Locale, Record<ParticleCurve, string>> = {
   en: {
@@ -455,7 +456,7 @@ const releaseOptionLabels: Record<Locale, Record<ParticleRelease, string>> = {
 const curves: readonly ParticleCurve[] = ['settle', 'float', 'burst', 'drift'];
 const releases: readonly ParticleRelease[] = ['left', 'right', 'top', 'random'];
 const presetKeys = Object.keys(presetNames) as BuiltInPreset[];
-const builtInSoundKeys: readonly BuiltInSound[] = ['dust', 'vapor', 'scatter', 'wind'];
+const builtInSoundKeys: readonly BuiltInSound[] = ['dust', 'scatter', 'vapor', 'wind'];
 const soundNumericKeys: readonly NumericKey[] = ['soundVolume', 'soundPlaybackRate', 'soundDelay', 'soundFadeDuration'];
 function createRanges(copy: (typeof copies)[Locale], help: (typeof helps)[Locale]): readonly RangeDefinition[] {
   return [
@@ -721,20 +722,20 @@ function optionsSource(state: PlaygroundState) {
 
 function playbackSource(source: string, state: PlaygroundState) {
   return `{
-  src: ${source},
-  reverse: ${String(state.soundReverse)},
-  volume: ${formatNumber(state.soundVolume)},
-  playbackRate: ${formatNumber(state.soundPlaybackRate)},
-  delay: ${formatNumber(state.soundDelay)},
-  fadeDuration: ${formatNumber(state.soundFadeDuration)},
-}`;
+      src: ${source},
+      reverse: ${String(state.soundReverse)},
+      volume: ${formatNumber(state.soundVolume)},
+      playbackRate: ${formatNumber(state.soundPlaybackRate)},
+      delay: ${formatNumber(state.soundDelay)},
+      fadeDuration: ${formatNumber(state.soundFadeDuration)},
+    }`;
 }
 
 function effectSource(configuration: PlaygroundConfiguration, customSounds: PlaygroundCustomSounds) {
   const removeOptions = optionsSource(configuration.remove);
   const restoreOptions = optionsSource(configuration.restore);
   const hasSound = configuration.remove.soundEnabled || configuration.restore.soundEnabled;
-  const importSource = `import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';`;
+  const importSource = `import Disintegrator, { createParticleEffect, type ParticleOptions } from 'vanilla-disintegrate/snapdom';`;
   const sourceFor = (operation: PlaygroundOperation) => {
     const state = configuration[operation];
     if (state.soundSource !== 'custom') return `'${state.soundSource}'`;
@@ -743,12 +744,12 @@ function effectSource(configuration: PlaygroundConfiguration, customSounds: Play
   };
   const soundEntries = (['remove', 'restore'] as const)
     .filter((operation) => configuration[operation].soundEnabled)
-    .map((operation) => `  ${operation}: ${playbackSource(sourceFor(operation), configuration[operation])},`)
+    .map((operation) => `    ${operation}: ${playbackSource(sourceFor(operation), configuration[operation])},`)
     .join('\n');
   return `${importSource}
 
-const removeOptions = ${removeOptions};
-const restoreOptions = ${restoreOptions};
+const removeOptions: ParticleOptions = ${removeOptions};
+const restoreOptions: ParticleOptions = ${restoreOptions};
 
 export const effect = createParticleEffect({
   remove: removeOptions,
@@ -763,7 +764,7 @@ export const disintegrator = new Disintegrator({
 function highlightedEffectSource(configuration: PlaygroundConfiguration, customSounds: PlaygroundCustomSounds) {
   const source = effectSource(configuration, customSounds);
   const pattern =
-    /(["'][^"'\n]*["'])|\b(import|from|export|const|new|true|false)\b|(-?\d+(?:\.\d+)?)|(\b[a-zA-Z]\w*)(?=:)|\b(createParticleEffect|Disintegrator|URL)\b/g;
+    /(["'][^"'\n]*["'])|\b(import|from|export|const|new|true|false|type)\b|(-?\d+(?:\.\d+)?)|(\b[a-zA-Z]\w*)(?=:)|\b(createParticleEffect|Disintegrator|ParticleOptions|URL)\b/g;
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   let highlighted = '';
   let previousIndex = 0;
@@ -786,10 +787,7 @@ function highlightedEffectSource(configuration: PlaygroundConfiguration, customS
 }
 
 function createPreviewCard() {
-  const card = document.createElement('article');
-  card.className = 'playground-card';
-  card.innerHTML = `<div class="playground-card-cover" aria-hidden="true"><span></span><span></span></div><div class="playground-card-copy"><span>Particle laboratory</span><h3>Shape the motion</h3><div><small>DOM element</small><small>WebGL2</small></div></div>`;
-  return card;
+  return createDemoCard('playground-card');
 }
 
 function configurationFromPreset(preset: BuiltInPreset): PlaygroundConfiguration {
@@ -944,7 +942,7 @@ export function renderParticlePlayground(locale: Locale) {
             </div>
           </div>
           <div id="playground-view-panel-preview" class="playground-view-panel playground-preview-panel" role="tabpanel" data-view-panel="preview" aria-labelledby="playground-view-tab-preview">
-            <div class="playground-stage" data-slot><article class="playground-card"><div class="playground-card-cover" aria-hidden="true"><span></span><span></span></div><div class="playground-card-copy"><span>Particle laboratory</span><h3>Shape the motion</h3><div><small>DOM element</small><small>WebGL2</small></div></div></article></div>
+            <div class="playground-stage" data-slot><article class="demo-card playground-card">${demoCardContent}</article></div>
           </div>
           <section id="playground-view-panel-code" class="playground-view-panel playground-code code-block" role="tabpanel" data-view-panel="code" aria-labelledby="playground-view-tab-code" hidden>
             <div class="code-toolbar playground-code-heading">
@@ -1361,7 +1359,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     void prepareOperationSound(operation);
     schedulePreview();
   });
-  localAudioInput.addEventListener('change', () => {
+  localAudioInput.addEventListener('change', async () => {
     const file = localAudioInput.files?.[0];
     localAudioInput.value = '';
     if (file === undefined) return;
@@ -1375,39 +1373,34 @@ export function mountParticlePlayground(root: HTMLElement) {
       return;
     }
     status.textContent = copy.audioSaving;
-    void audioDuration(file)
-      .then((duration) => {
-        if (duration > MAX_LOCAL_AUDIO_SECONDS) throw new RangeError(copy.audioTooLong);
-        const previous = configuredSound(operation, configuration[operation], customSounds);
-        if (previous !== null) instance.discardPreparedAudio(previous);
-        return savePlaygroundAudio(localAudioStorageKey(operation), file).catch(
-          () =>
-            ({
-              blob: file,
-              name: file.name,
-              type: file.type,
-              size: file.size,
-              lastModified: file.lastModified,
-            }) satisfies StoredPlaygroundAudio,
-        );
-      })
-      .then((stored) => {
-        customSounds[operation] = stored;
-        configuration[operation].soundSource = 'custom';
-        configuration[operation].soundEnabled = true;
-        status.textContent = copy.updated;
-        // Persist the URL state before exposing the completed upload state so an
-        // immediate reload cannot restore the previously selected source.
-        flushHash();
-        render();
-        return prepareOperationSound(operation);
-      })
-      .then(() => {
-        if (operation === activeOperation) schedulePreview();
-      })
-      .catch((error: unknown) => {
-        status.textContent = error instanceof RangeError ? error.message : copy.audioInvalid;
-      });
+    try {
+      const duration = await audioDuration(file);
+      if (duration > MAX_LOCAL_AUDIO_SECONDS) throw new RangeError(copy.audioTooLong);
+      const previous = configuredSound(operation, configuration[operation], customSounds);
+      if (previous !== null) instance.discardPreparedAudio(previous);
+      const stored = await savePlaygroundAudio(localAudioStorageKey(operation), file).catch(
+        () =>
+          ({
+            blob: file,
+            name: file.name,
+            type: file.type,
+            size: file.size,
+            lastModified: file.lastModified,
+          }) satisfies StoredPlaygroundAudio,
+      );
+      customSounds[operation] = stored;
+      configuration[operation].soundSource = 'custom';
+      configuration[operation].soundEnabled = true;
+      status.textContent = copy.updated;
+      // Persist the URL state before exposing the completed upload state so an
+      // immediate reload cannot restore the previously selected source.
+      flushHash();
+      render();
+      await prepareOperationSound(operation);
+      if (operation === activeOperation) schedulePreview();
+    } catch (error: unknown) {
+      status.textContent = error instanceof RangeError ? error.message : copy.audioInvalid;
+    }
   });
   localAudioRemove.addEventListener('click', () => {
     const operation = activeOperation;
