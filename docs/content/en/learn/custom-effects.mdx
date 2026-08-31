@@ -22,10 +22,10 @@ import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 import { particleVortex } from './particle-vortex';
 
-const effects = new Disintegrator();
+const effects = new Disintegrator({ effect: particleVortex });
 
-effects.remove(element, { effect: particleVortex, retain: true });
-effects.restore(insertedElement, { effect: particleVortex });
+effects.remove(element, { retain: true });
+effects.restore(insertedElement);
 ```
 
 <Demo kind="particle-vortex" />
@@ -117,36 +117,43 @@ type AnimationResult =
 
 So a Web Animation, a promise, a Canvas or WebGL loop, or a wrapper around another engine all fit. `cancel()` stops playback. `dispose()` frees whatever your renderer allocated, and it runs whether the animation finished, was cancelled, or failed.
 
-## Register a named effect
+## Create a reusable preset
+
+A custom `effect` is silent by default. When animation and audio should travel together as one reusable choice, wrap them in a complete preset:
 
 ```ts
-const effects = new Disintegrator({
-  effects: {
-    vortex: particleVortex,
+import { definePreset } from 'vanilla-disintegrate';
+
+const vortex = definePreset({
+  effect: particleVortex,
+  sound: {
+    remove: { src: 'vapor', volume: 0.35 },
+    restore: { src: 'vapor', volume: 0.35, reverse: true },
   },
-  effect: 'vortex',
+});
+
+const effects = new Disintegrator({
+  preset: 'vortex',
+  presets: { vortex },
 });
 
 effects.remove(element);
 ```
 
-Effect objects and registered names work the same way, and so do the four built-in effects.
+The built-in preset names are registered by the root and `/snapdom` entries. `/core` only sees presets supplied through `presets` or passed inline through `preset`.
 
 ## Add custom audio
 
-Each phase takes a URL, an `ArrayBuffer`, an `AudioBuffer`, an options object, or a factory.
+Keep audio separate from visual phases. The constructor accepts independent `remove` and `restore` definitions; omit `sound` when the custom effect should be silent.
 
 ```ts
-const effect = defineEffect({
-  remove: {
-    animate: removeAnimation,
-    sound: { src: '/sounds/remove.ogg', gain: 0.35 },
-  },
-  restore: {
-    animate: restoreAnimation,
-    sound: ({ signal }) => startMyAudioEngine(signal),
+const effects = new Disintegrator({
+  effect: particleVortex,
+  sound: {
+    remove: { src: '/sounds/remove.ogg', volume: 0.35 },
+    restore: ({ signal }) => startMyAudioEngine(signal),
   },
 });
 ```
 
-If audio fails, the error goes to `onError` and the animation and the DOM change carry on.
+`src` also accepts a bundled name, `URL`, local `Blob`/`File`, `ArrayBuffer`, typed-array view, or `AudioBuffer`. If audio fails, the error goes to `onError` and the animation and DOM change continue.

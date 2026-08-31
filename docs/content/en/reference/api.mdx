@@ -1,50 +1,78 @@
 ---
 title: API reference
-description: Constructor options, operation methods, retention, preparation, and lifecycle in one place.
+description: Constructor contracts, operations, retention, preparation, and lifecycle in one place.
 locale: en
 section: reference
 navTitle: API
 order: 70
 ---
 
-The default export is one class. It ties together capture, the animation, sound, the layout shift of the neighbours, background preparation, and storage for retained nodes.
+`Disintegrator` ties together one complete visual configuration, optional audio, capture, layout animation, background preparation, and retained-node storage.
 
-The root and `/snapdom` entries preconfigure the four built-in effects and default to `dust`; only `/snapdom` also supplies a capture adapter. `/core` exposes the same lifecycle API without a default effect, particles, or built-in sounds. `/particles` contains factories and effect definitions rather than a `Disintegrator` class.
+The root and `/snapdom` entries register four complete built-in presets; only `/snapdom` supplies a capture adapter. `/core` provides the lifecycle without built-in presets, particles, sounds, or capture. No entry chooses a default preset.
 
 ## Constructor
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';
 
-const effects = new Disintegrator(options);
+const ready = new Disintegrator({ preset: 'dust' });
+const custom = new Disintegrator({ effect: fade });
 ```
 
-Important options:
+Exactly one of `preset` and `effect` is required:
+
+```ts
+type DisintegratorOptions =
+  | { preset: PresetSelection; effect?: never; sound?: false }
+  | { preset?: never; effect: EffectDefinition; sound?: false | SoundSelection };
+```
+
+A preset is an atomic visual-and-audio choice. It may be muted with `sound: false`, but it cannot be combined with replacement visuals or audio. A custom effect is an object with complete `remove` and `restore` phases; it is silent unless a sound pair is supplied.
+
+Shared options:
 
 | Option                 | Type                                                        | Default         | What it does                                                       |
 | ---------------------- | ----------------------------------------------------------- | --------------- | ------------------------------------------------------------------ |
-| `effect`               | `EffectSelection`                                           | `'dust'`¹       | Effect used when an operation does not pick one                    |
-| `effects`              | `Record<string, EffectDefinition>`                          | `{}`            | Custom effects you can then select by name                         |
-| `sound`                | `boolean \| SoundDefinition`                                | `false`         | `true` plays the phase sounds; a definition replaces them          |
-| `layout`               | `boolean \| LayoutOptions`                                  | `true`          | Moves the neighbours into their new places after a removal         |
-| `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | Prepares registered elements in the background                     |
-| `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'immediate'`   | Prepares only enabled audio; `sound: false` still performs no work |
-| `respectReducedMotion` | `boolean`                                                   | `true`          | Skips the animation when the user asked for less motion            |
-| `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | Turns an element into a canvas                                     |
-| `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | Where the animation overlay is appended                            |
-| `zIndex`               | `number`                                                    | `2147483646`    | Stack level of that overlay                                        |
-| `random`               | `() => number`                                              | `Math.random`   | Seed source, called once per operation                             |
-| `snapdom`              | `SnapdomOptions`                                            | —               | Passed to SnapDOM's `toCanvas()`. Only on the `/snapdom` entry     |
-| `onTrigger`            | `(context) => void`                                         | —               | After validation, before capture starts                            |
-| `onStart`              | `(context) => void`                                         | —               | After the DOM change, as playback begins                           |
-| `onComplete`           | `(context) => void`                                         | —               | After a visual phase finishes normally                             |
-| `onError`              | `(error, context) => void`                                  | —               | Capture, animation, sound and callback errors                      |
+| `presets`              | `Record<string, PresetDefinition>`                          | `{}`            | Adds complete custom presets addressable through `preset`          |
+| `layout`               | `boolean \| LayoutOptions`                                  | `true`          | Moves neighbours into their new places after removal               |
+| `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | Prepares snapshots for registered elements                         |
+| `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'idle'`        | Controls preparation and the decoded-audio ownership budget        |
+| `respectReducedMotion` | `boolean`                                                   | `true`          | Skips animation when the user requests less motion                 |
+| `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | Turns an element into a canvas for snapshot-based effects          |
+| `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | Receives fixed-position animation overlays                         |
+| `zIndex`               | `number`                                                    | `2147483646`    | Sets the overlay stack level                                       |
+| `random`               | `() => number`                                              | `Math.random`   | Seeds one repeatable pseudo-random stream per operation            |
+| `snapdom`              | `SnapdomOptions`                                            | —               | Configures SnapDOM's `toCanvas()`; available only from `/snapdom`  |
+| `onTrigger`            | `(context) => void`                                         | —               | Runs after validation and before capture                           |
+| `onStart`              | `(context) => void`                                         | —               | Runs after the DOM change as playback begins                       |
+| `onComplete`           | `(context) => void`                                         | —               | Runs after a visual phase completes normally                       |
+| `onError`              | `(error, context) => void`                                  | —               | Receives isolated capture, animation, sound, and callback failures |
 
-¹ The `dust` and SnapDOM defaults apply to `/snapdom`; the root entry supplies `dust` but no capture. `/core` supplies neither.
+¹ SnapDOM is the default only for `/snapdom`. The root and `/core` entries require `capture` when the chosen effect needs a snapshot.
 
-For operation failures, `context.operation` is `remove` or `restore`. Background snapshot preparation reports `prepare`, so it is never mislabeled as a content operation.
+Background snapshot failures report `context.operation === 'prepare'`; operation failures report `remove` or `restore`.
 
-Pass a fixed `random` to make an effect reproducible: the same seed lays the particles out the same way every run, which is what makes a visual regression test possible.
+## Complete presets
+
+```ts
+import { definePreset } from 'vanilla-disintegrate';
+
+const dissolve = definePreset({
+  effect: fade,
+  sound: {
+    remove: { src: '/audio/out.ogg', volume: 0.4 },
+    restore: { src: '/audio/in.ogg', volume: 0.4 },
+  },
+});
+
+const effects = new Disintegrator({
+  preset: 'dissolve',
+  presets: { dissolve },
+});
+```
+
+`definePreset()` freezes the preset, visual phases, and native sound option objects without freezing caller-owned binary audio data.
 
 ## remove(target, options?)
 
@@ -52,9 +80,9 @@ Detaches the resolved element and returns `EffectOperation` synchronously.
 
 ```ts
 const operation = effects.remove('.card', {
-  effect: 'scatter',
+  preset: 'scatter',
+  sound: false,
   retain: true,
-  sound: true,
   layout: { duration: 260 },
   detach: (element) => element.remove(),
 });
@@ -62,7 +90,7 @@ const operation = effects.remove('.card', {
 
 `target` may be an `HTMLElement` or selector string. A missing selector throws before an operation starts.
 
-`detach` replaces the default `element.remove()` commit. Use it when a reactive renderer must remove the node through its own state. If the callback throws, the error is sent to `onError` and native removal is used as a safe fallback.
+`detach` replaces the default `element.remove()` commit. Use it when a reactive renderer must remove the node through its own state. If it throws, the error is sent to `onError` and native removal is used as a safe fallback.
 
 ## restore(target, options?)
 
@@ -70,12 +98,14 @@ Animates a connected, measurable element in its current geometry.
 
 ```ts
 const operation = effects.restore(element, {
-  effect: 'scatter',
-  sound: true,
+  preset: 'scatter',
+  sound: false,
 });
 ```
 
 The method throws when the element is detached or has zero width or height.
+
+For either operation, pass one complete `preset`, one custom `effect` with an optional sound definition for that phase, or neither to inherit the instance or retained-node presentation. Inherited or preset audio may only be muted with `sound: false`.
 
 ## Retained elements
 
@@ -96,19 +126,20 @@ effects.invalidate(elements);
 effects.clearPrepared();
 ```
 
-`register()` follows the strategy you configured. `prepare()` captures right away, even when background preparation is off, and resolves with nothing once every element is done.
-
-Repeated registrations of the same element are reference-counted; each returned unregister function releases only its own registration.
+`register()` follows the configured strategy. `prepare()` captures immediately even when background preparation is disabled. Repeated registrations of the same element are reference-counted; every returned unregister function releases only its own registration.
 
 ## Audio preparation
 
 ```ts
-await effects.prepareAudio(['dust', 'wind']);
-effects.discardPreparedAudio('dust');
+await effects.prepareAudio({
+  remove: { src: 'dust' },
+  restore: { src: 'dust', reverse: true },
+});
+effects.discardPreparedAudio();
 effects.clearPreparedAudio();
 ```
 
-With instance-level `sound: true`, the default effect is prepared automatically. Explicit methods still work while sound is disabled. Decoded buffers use a bounded LRU cache.
+Without an argument, `prepareAudio()` and `discardPreparedAudio()` use the instance's configured sound pair. Explicit methods work even when automatic preparation is disabled. Decoded buffers use a bounded per-instance ownership LRU while fetches, buffers, and `AudioContext` are shared across instances.
 
 ## destroy()
 
@@ -116,7 +147,7 @@ With instance-level `sound: true`, the default effect is prepared automatically.
 effects.destroy();
 ```
 
-Cancels active operations, stops observers and background work, releases snapshot and decoded audio ownership, and clears retained nodes. The shared playback context closes when its last `Disintegrator` owner is destroyed. Calling `destroy()` more than once is safe; starting new work afterwards throws.
+Cancels active operations, stops observers and background work, releases snapshot and decoded-audio ownership, and clears retained nodes. The shared playback context closes when its last owner is destroyed. Calling `destroy()` more than once is safe; starting new work afterwards throws.
 
 ## EffectOperation
 
@@ -133,7 +164,7 @@ interface EffectOperation {
 }
 ```
 
-There is no `element` on the handle. The operation drops its reference as soon as it settles, so a handle you kept around cannot hold a detached node in memory.
+The handle does not expose the element and drops its reference after settlement.
 
 | Status      | Content action                                | When `finished` resolves     |
 | ----------- | --------------------------------------------- | ---------------------------- |
@@ -144,4 +175,4 @@ There is no `element` on the handle. The operation drops its reference as soon a
 
 ## Callbacks and precedence
 
-Instance callbacks run for every operation. Operation callbacks can be supplied alongside them. Operation options override instance defaults; a retained node's remembered effect is used by `restore()` only when the restore call has no explicit `effect`.
+Instance callbacks run for every operation; operation callbacks run alongside them. Explicit operation presentation wins, then a retained node's remembered presentation, then the instance configuration. A concurrent call for an element already in use resolves as `rejected` after the current owner settles.

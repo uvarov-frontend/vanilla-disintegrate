@@ -15,7 +15,6 @@ order: 30
 
 ```ts
 const operation = effects.remove(element, {
-  effect: 'dust',
   retain: false,
   layout: true,
 });
@@ -32,9 +31,7 @@ const result = await operation.finished;
 ```ts
 container.append(element);
 
-const operation = effects.restore(element, {
-  effect: 'dust',
-});
+const operation = effects.restore(element);
 
 await operation.finished;
 ```
@@ -52,7 +49,7 @@ const message = document.createElement('aside');
 message.textContent = '방금 생성됨';
 notifications.append(message);
 
-effects.restore(message, { effect: 'vapor' });
+effects.restore(message, { preset: 'vapor' });
 ```
 
 ## 작업 객체
@@ -86,6 +83,7 @@ result.status; // 'completed' | 'cancelled' | 'skipped' | 'rejected'
 
 ```ts
 const effects = new Disintegrator({
+  preset: 'dust',
   onError(error, context) {
     console.error(context.operation, error);
   },

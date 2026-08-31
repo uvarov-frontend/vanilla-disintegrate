@@ -22,10 +22,10 @@ import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 import { particleVortex } from './particle-vortex';
 
-const effects = new Disintegrator();
+const effects = new Disintegrator({ effect: particleVortex });
 
-effects.remove(element, { effect: particleVortex, retain: true });
-effects.restore(insertedElement, { effect: particleVortex });
+effects.remove(element, { retain: true });
+effects.restore(insertedElement);
 ```
 
 <Demo kind="particle-vortex" />
@@ -117,34 +117,43 @@ type AnimationResult =
 
 Web Animation, Promise, Canvas나 WebGL 루프, 다른 엔진의 래퍼가 모두 이 계약에 맞습니다. `cancel()`은 재생을 멈추고 `dispose()`는 완료, 취소, 실패 여부와 관계없이 렌더러 자원을 해제합니다.
 
-## 이름으로 효과 등록
+## 재사용 가능한 프리셋 만들기
+
+사용자 `effect`는 기본적으로 무음입니다. 애니메이션과 오디오를 하나의 완성된 선택으로 함께 재사용하려면 완성 프리셋으로 묶으세요.
 
 ```ts
-const effects = new Disintegrator({
-  effects: {
-    vortex: particleVortex,
+import { definePreset } from 'vanilla-disintegrate';
+
+const vortex = definePreset({
+  effect: particleVortex,
+  sound: {
+    remove: { src: 'vapor', volume: 0.35 },
+    restore: { src: 'vapor', volume: 0.35, reverse: true },
   },
-  effect: 'vortex',
+});
+
+const effects = new Disintegrator({
+  preset: 'vortex',
+  presets: { vortex },
 });
 
 effects.remove(element);
 ```
 
-직접 전달한 효과와 등록된 이름은 같은 계약을 사용하며 네 가지 내장 효과도 마찬가지입니다.
+내장 프리셋 이름은 루트 및 `/snapdom` 엔트리가 등록합니다. `/core`는 `presets`로 제공하거나 `preset`에 인라인으로 전달한 프리셋만 사용합니다.
 
 ## 사용자 사운드
 
+사운드는 시각 단계와 분리하세요. 생성자는 독립된 `remove`와 `restore` 정의를 받으며 사용자 효과가 무음이어야 하면 `sound`를 생략합니다.
+
 ```ts
-const effect = defineEffect({
-  remove: {
-    animate: removeAnimation,
-    sound: { src: '/sounds/remove.ogg', gain: 0.35 },
-  },
-  restore: {
-    animate: restoreAnimation,
-    sound: ({ signal }) => startMyAudioEngine(signal),
+const effects = new Disintegrator({
+  effect: particleVortex,
+  sound: {
+    remove: { src: '/sounds/remove.ogg', volume: 0.35 },
+    restore: ({ signal }) => startMyAudioEngine(signal),
   },
 });
 ```
 
-각 단계는 URL, `ArrayBuffer`, `AudioBuffer`, 옵션 객체 또는 사용자 플레이어 팩토리를 지원합니다. 오디오 오류는 `onError`로 전달되지만 애니메이션과 DOM 변경은 계속됩니다.
+`src`는 내장 이름, `URL`, 로컬 `Blob`/`File`, `ArrayBuffer`, typed-array view 또는 `AudioBuffer`도 받습니다. 오디오 오류는 `onError`로 전달되지만 애니메이션과 DOM 변경은 계속됩니다.

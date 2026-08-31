@@ -7,7 +7,7 @@ navTitle: Quick start
 order: 10
 ---
 
-Vanilla Disintegrate adds a **Thanos-snap** particle deletion effect to any measurable DOM element. The `vanilla-disintegrate/snapdom` entry wires SnapDOM capture for you, and no CSS import is required.
+Vanilla Disintegrate recreates the recognizable **Thanos-snap effect** when removing and restoring any measurable DOM element.
 
 ## Installation
 
@@ -27,40 +27,40 @@ pnpm add vanilla-disintegrate @zumer/snapdom
 bun add vanilla-disintegrate @zumer/snapdom
 ```
 
-The library captures the current appearance of an element before splitting it into particles, and the capture library is your choice. The package ships four tree-shakable entry points:
+The library captures the current appearance of an element before splitting it into particles, and the capture library is your choice. The package ships five tree-shakable entry points:
 
-| Entry                            | Contents                                                                                         | Requires         |
-| -------------------------------- | ------------------------------------------------------------------------------------------------ | ---------------- |
-| `vanilla-disintegrate/core`      | Lifecycle, layout and audio for custom effects, without particles or built-in sounds.            | Nothing          |
-| `vanilla-disintegrate/particles` | Particle factories and the four built-in effect definitions.                                     | Nothing          |
-| `vanilla-disintegrate`           | `Disintegrator` preconfigured with all four built-in effects. You supply `capture`.              | Nothing          |
-| `vanilla-disintegrate/snapdom`   | Built-in effects with [SnapDOM](https://zumerlab.github.io/snapdom/) wired as default `capture`. | `@zumer/snapdom` |
+| Entry                            | Contents                                                                                            | Requires         |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------- |
+| `vanilla-disintegrate/core`      | Lifecycle, layout and audio for custom effects, without particles or bundled presets.               | Nothing          |
+| `vanilla-disintegrate/particles` | Particle factories and reusable geometry configurations.                                            | Nothing          |
+| `vanilla-disintegrate/sounds`    | URLs of the four bundled audio files, without the runtime.                                          | Nothing          |
+| `vanilla-disintegrate`           | `Disintegrator` with all four complete visual-and-audio presets. You supply `capture`.              | Nothing          |
+| `vanilla-disintegrate/snapdom`   | The same complete presets with [SnapDOM](https://zumerlab.github.io/snapdom/) as default `capture`. | `@zumer/snapdom` |
 
-The default and `/snapdom` entries export the identical `Disintegrator` API. `@zumer/snapdom` is an optional peer dependency and the other entries never reach for it. Use `/core` for custom snapshotless effects without bundling WebGL or built-in audio.
+The default and `/snapdom` entries export the identical `Disintegrator` API. Every instance must receive exactly one complete `preset` or one custom `effect`; there is no implicit default. Use `/core` for custom snapshotless effects without bundling WebGL or built-in audio.
 
-`/core` exports `Disintegrator`, `defineEffect`, and the public types. It deliberately has no default effect: pass an inline effect or configure a named one. `/particles` exports `builtInEffects`, both particle animation factories, and their option types; it does not create an instance. This lets an advanced build compose only the layers it needs; `captureElement` below stands for the adapter described later on this page:
+`/core` exports `Disintegrator`, `defineEffect`, `definePreset`, and the public types. `/particles` exports `createParticleEffect`, `particlePresets`, both particle animation factories, and their option types; it does not create an instance. This lets an advanced build compose only the layers it needs. The following example uses a built-in geometry as a silent custom effect; `captureElement` stands for the adapter described later on this page:
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/core';
-import { builtInEffects } from 'vanilla-disintegrate/particles';
+import { createParticleEffect, particlePresets } from 'vanilla-disintegrate/particles';
 
 const effects = new Disintegrator({
   capture: captureElement,
-  effect: 'dust',
-  effects: builtInEffects,
+  effect: createParticleEffect({ remove: particlePresets.dust }),
 });
 ```
 
-For a snapshotless custom effect, omit `/particles` and `capture` entirely and pass an effect whose phases set `needsSnapshot: false`.
+For the shortest setup, import `/snapdom` and choose one complete preset:
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';
 
-const effects = new Disintegrator();
+const effects = new Disintegrator({ preset: 'dust' });
 const card = document.querySelector<HTMLElement>('.card');
 
 if (card) {
-  effects.remove(card, { effect: 'dust' });
+  effects.remove(card);
 }
 ```
 
@@ -72,7 +72,6 @@ Set `retain: true` only when the original node may be needed again. The applicat
 
 ```ts
 const removal = effects.remove(card, {
-  effect: 'dust',
   retain: true,
 });
 
@@ -88,7 +87,7 @@ if (removal.removalId) {
 }
 ```
 
-The restore phase uses the effect remembered during removal unless the call supplies another `effect`.
+The restore phase uses the complete preset remembered during removal unless the call supplies another `preset` or a custom `effect`.
 
 ## Use another capture library
 
@@ -99,6 +98,7 @@ import html2canvas from 'html2canvas';
 import Disintegrator from 'vanilla-disintegrate';
 
 const effects = new Disintegrator({
+  preset: 'dust',
   capture: (element, context) => {
     if (context.signal.aborted) throw new DOMException('Capture aborted.', 'AbortError');
 
@@ -117,21 +117,23 @@ const effects = new Disintegrator({
 });
 ```
 
-The supplied function completely replaces capture. Import the default `vanilla-disintegrate` entry on this path: it has no runtime dependencies, and nothing from SnapDOM enters the module graph.
+The supplied function completely replaces capture. Import the default `vanilla-disintegrate` entry on this path: it has no runtime dependencies. `@zumer/snapdom` is an optional peer dependency used only by `/snapdom`, so SnapDOM does not enter the module graph here.
 
-## Use a script tag
+## Local setup or CDN
+
+To integrate Vanilla Disintegrate quickly without a bundler or package manager, load it from the CDN or [download the archive](https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/vanilla-disintegrate-iife.zip) containing the latest version for local use.
 
 The IIFE build includes SnapDOM and exposes `VanillaDisintegrate` globally:
 
 ```html
-<script src="/vendor/vanilla-disintegrate.iife.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/dist/vanilla-disintegrate.iife.min.js"></script>
 <script>
-  const effects = new VanillaDisintegrate.Disintegrator();
+  const effects = new VanillaDisintegrate.Disintegrator({ preset: 'dust' });
   effects.remove(document.querySelector('.card'));
 </script>
 ```
 
-For built-in audio, copy `dist/sounds` next to the script as `/vendor/sounds`.
+The archive contains a minimal `index.html`, the IIFE build, licenses, and all built-in sounds. Serve the extracted directory through a local HTTP server so the browser can load its audio. When copying the IIFE manually, keep the `sounds` directory next to the script; the CDN version resolves the matching assets automatically.
 
 ## Clean up
 
@@ -143,12 +145,12 @@ effects.destroy();
 
 ## Browser support
 
-The runtime is emitted as ES2020 and relies on Canvas, Web Animations (`Animation.finished` and `Element.getAnimations()`), `AbortController`, and `requestAnimationFrame`. The four built-in effects draw their particles with **WebGL2**. The combined API baseline is Chrome 84+, Firefox 75+, Edge 84+, Opera 70+, and Safari 15+. The same baseline applies to Chrome for Android 84+ and iOS Safari 15+. No polyfills are included.
+The runtime is emitted as ES2020 and relies on Canvas, Web Animations (`Animation.finished` and `Element.getAnimations()`), `AbortController`, and `requestAnimationFrame`. The built-in presets use the library's **WebGL2** particle renderer; custom effects can use any suitable animation engine. The combined API baseline is <strong>Chrome 84+</strong>, <strong>Firefox 75+</strong>, <strong>Edge 84+</strong>, <strong>Opera 70+</strong>, and <strong>Safari 15+</strong>. The same baseline applies to <strong>Chrome for Android 84+</strong> and <strong>iOS Safari 15+</strong>. No polyfills are included.
 
-Where WebGL2 is missing or a context cannot be created, the built-in effects degrade instead of failing: `remove()` still detaches the element, `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives the reason. Custom effects built on WAAPI, CSS, or Canvas 2D keep animating on older engines.
+Where WebGL2 is missing or a context cannot be created, built-in preset visuals degrade instead of failing: `remove()` still detaches the element, `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives the reason. Custom effects built on WAAPI, CSS, or Canvas 2D keep animating on older engines.
 
 These versions are API compatibility baselines, not a guarantee that every GPU, driver, or browser setting allows WebGL2 context creation.
 
-Each concurrently running built-in effect leases one WebGL2 context. When an operation ends, its textures are deleted and the context returns to a document-scoped pool. The pool retains at most two idle contexts for up to 30 seconds, destroys excess contexts immediately, and releases everything on `pagehide`.
+Each concurrently running built-in preset visual leases one WebGL2 context. When an operation ends, its textures are deleted and the context returns to a document-scoped pool. The pool retains at most two idle contexts for up to 30 seconds, destroys excess contexts immediately, and releases everything on `pagehide`.
 
 Create `Disintegrator` only in the browser, not during server rendering. Cross-origin images, fonts, and stylesheets must allow CORS or use the capture adapter's proxy option; otherwise they may be absent from the canvas snapshot.

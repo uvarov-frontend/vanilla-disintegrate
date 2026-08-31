@@ -22,10 +22,10 @@ import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 import { particleVortex } from './particle-vortex';
 
-const effects = new Disintegrator();
+const effects = new Disintegrator({ effect: particleVortex });
 
-effects.remove(element, { effect: particleVortex, retain: true });
-effects.restore(insertedElement, { effect: particleVortex });
+effects.remove(element, { retain: true });
+effects.restore(insertedElement);
 ```
 
 <Demo kind="particle-vortex" />
@@ -117,34 +117,43 @@ type AnimationResult =
 
 Так подойдёт и Web Animation, и промис, и цикл на Canvas или WebGL, и обёртка над чужим движком. `cancel()` останавливает проигрывание. `dispose()` освобождает то, что выделил ваш рендерер, и вызывается независимо от того, доиграла анимация, была отменена или упала.
 
-## Именованный эффект
+## Переиспользуемый пресет
+
+Пользовательский `effect` по умолчанию бесшумный. Если анимация и аудио должны использоваться вместе как один готовый выбор, объедините их в полный пресет:
 
 ```ts
-const effects = new Disintegrator({
-  effects: {
-    vortex: particleVortex,
+import { definePreset } from 'vanilla-disintegrate';
+
+const vortex = definePreset({
+  effect: particleVortex,
+  sound: {
+    remove: { src: 'vapor', volume: 0.35 },
+    restore: { src: 'vapor', volume: 0.35, reverse: true },
   },
-  effect: 'vortex',
+});
+
+const effects = new Disintegrator({
+  preset: 'vortex',
+  presets: { vortex },
 });
 
 effects.remove(element);
 ```
 
-Объекты эффектов и зарегистрированные имена работают одинаково — и четыре встроенных эффекта тоже.
+Имена встроенных пресетов зарегистрированы в корневом входе и `/snapdom`. `/core` видит только пресеты, переданные через `presets` или инлайном через `preset`.
 
 ## Свой звук
 
+Храните звук отдельно от визуальных фаз. Конструктор принимает независимые определения `remove` и `restore`; не передавайте `sound`, если пользовательский эффект должен быть бесшумным.
+
 ```ts
-const effect = defineEffect({
-  remove: {
-    animate: removeAnimation,
-    sound: { src: '/sounds/remove.ogg', gain: 0.35 },
-  },
-  restore: {
-    animate: restoreAnimation,
-    sound: ({ signal }) => startMyAudioEngine(signal),
+const effects = new Disintegrator({
+  effect: particleVortex,
+  sound: {
+    remove: { src: '/sounds/remove.ogg', volume: 0.35 },
+    restore: ({ signal }) => startMyAudioEngine(signal),
   },
 });
 ```
 
-Каждая фаза принимает URL, `ArrayBuffer`, `AudioBuffer`, объект параметров или фабрику. Если звук не сложился, ошибка уходит в `onError`, а анимация и изменение DOM продолжаются.
+`src` также принимает встроенное имя, `URL`, локальный `Blob`/`File`, `ArrayBuffer`, typed-array view или `AudioBuffer`. Если звук не сложился, ошибка уходит в `onError`, а анимация и изменение DOM продолжаются.

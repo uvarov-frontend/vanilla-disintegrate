@@ -11,7 +11,7 @@ order: 65
 
 ```ts
 effects.remove(element, {
-  effect: 'dust',
+  preset: 'dust',
   detach: () => removeFromFrameworkState(),
 });
 ```
@@ -20,7 +20,7 @@ effects.remove(element, {
 
 Для восстановления сначала отрендерите элемент, дождитесь его добавления в DOM и затем передайте новую ссылку в `restore()`. В состоянии приложения следует хранить данные, а не отсоединённый DOM-узел, поэтому в реактивных интеграциях `retain` обычно остаётся равным `false`.
 
-Это новый DOM-узел, поэтому явно передайте тот же `effect` в `restore()`, если при удалении использовался не эффект экземпляра по умолчанию. Запомненный эффект может перейти автоматически только вместе с тем же сохранённым DOM-узлом.
+Это новый DOM-узел. Он наследует пресет экземпляра; если при удалении был выбран другой `preset` операции или пользовательский `effect`, передайте ту же конфигурацию в `restore()`. Запомненная конфигурация автоматически следует только за тем же сохранённым DOM-узлом.
 
 ## React
 
@@ -40,7 +40,7 @@ export function DisintegratingCard() {
   const pendingRestore = useRef(false);
 
   useEffect(() => {
-    const effects = new Disintegrator();
+    const effects = new Disintegrator({ preset: 'dust' });
     effectsRef.current = effects;
 
     return () => {
@@ -55,7 +55,7 @@ export function DisintegratingCard() {
 
     if (!visible || !pendingRestore.current || !effects || !element) return;
     pendingRestore.current = false;
-    effects.restore(element, { effect: 'dust' });
+    effects.restore(element, { preset: 'dust' });
   }, [visible]);
 
   function removeCard() {
@@ -64,7 +64,7 @@ export function DisintegratingCard() {
     if (!effects || !element) return;
 
     effects.remove(element, {
-      effect: 'dust',
+      preset: 'dust',
       detach: () => flushSync(() => setVisible(false)),
     });
   }
@@ -101,7 +101,7 @@ const card = ref<HTMLElement | null>(null);
 let effects: Disintegrator | null = null;
 
 onMounted(() => {
-  effects = new Disintegrator();
+  effects = new Disintegrator({ preset: 'dust' });
 });
 
 onUnmounted(() => {
@@ -112,7 +112,7 @@ function removeCard() {
   if (!effects || !card.value) return;
 
   effects.remove(card.value, {
-    effect: 'dust',
+    preset: 'dust',
     detach: () => {
       visible.value = false;
     },
@@ -124,7 +124,7 @@ async function restoreCard() {
   await nextTick();
 
   if (effects && card.value) {
-    effects.restore(card.value, { effect: 'dust' });
+    effects.restore(card.value, { preset: 'dust' });
   }
 }
 </script>
@@ -154,7 +154,7 @@ async function restoreCard() {
   let effects: Disintegrator | null = null;
 
   onMount(() => {
-    effects = new Disintegrator();
+    effects = new Disintegrator({ preset: 'dust' });
     return () => effects?.destroy();
   });
 
@@ -162,7 +162,7 @@ async function restoreCard() {
     if (!effects || !card) return;
 
     effects.remove(card, {
-      effect: 'dust',
+      preset: 'dust',
       detach: () => {
         visible = false;
       },
@@ -174,7 +174,7 @@ async function restoreCard() {
     await tick();
 
     if (effects && card) {
-      effects.restore(card, { effect: 'dust' });
+      effects.restore(card, { preset: 'dust' });
     }
   }
 </script>
@@ -205,7 +205,7 @@ export function DisintegratingCard() {
   let effects: Disintegrator | null = null;
 
   onMount(() => {
-    effects = new Disintegrator();
+    effects = new Disintegrator({ preset: 'dust' });
   });
 
   onCleanup(() => effects?.destroy());
@@ -214,14 +214,14 @@ export function DisintegratingCard() {
     if (!effects || !card) return;
 
     effects.remove(card, {
-      effect: 'dust',
+      preset: 'dust',
       detach: () => setVisible(false),
     });
   }
 
   function restoreCard() {
     setVisible(true);
-    queueMicrotask(() => effects?.restore(card, { effect: 'dust' }));
+    queueMicrotask(() => effects?.restore(card, { preset: 'dust' }));
   }
 
   return (
@@ -278,7 +278,7 @@ export class DisintegratingCard {
 
   constructor() {
     afterNextRender(() => {
-      this.effects = new Disintegrator();
+      this.effects = new Disintegrator({ preset: 'dust' });
     });
     this.destroyRef.onDestroy(() => this.effects?.destroy());
   }
@@ -288,7 +288,7 @@ export class DisintegratingCard {
     if (!this.effects || !element) return;
 
     this.effects.remove(element, {
-      effect: 'dust',
+      preset: 'dust',
       detach: () => {
         this.visible.set(false);
         this.changeDetector.detectChanges();
@@ -302,7 +302,7 @@ export class DisintegratingCard {
 
     const element = this.card()?.nativeElement;
     if (this.effects && element) {
-      this.effects.restore(element, { effect: 'dust' });
+      this.effects.restore(element, { preset: 'dust' });
     }
   }
 }

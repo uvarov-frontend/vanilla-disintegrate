@@ -1,62 +1,62 @@
 ---
-title: Built-in effect pairs
-description: Choose one of four removal animations and preview its matching restore phase.
+title: Built-in presets
+description: Choose one of four complete visual-and-audio presets and preview both phases.
 locale: en
 section: learn
-navTitle: Built-in effects
+navTitle: Built-in presets
 order: 20
 ---
 
-Each built-in name is a **pair**: one animation for removing, one for putting the element back. The restore animation is written separately — it is not a removal timeline played in reverse.
+Each built-in preset is ready to use: it contains removal and restoration animations plus matching audio for both phases. The restoration animation is its own implementation — only the bundled recording is reused with reverse playback.
 
-## The four effects
+## The four presets
 
-| Name      | Remove                                                                          | Restore                                                      | Length  |
-| --------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------- |
-| `dust`    | The element breaks into rising dust.                                            | Dust collects into the element's final geometry.             | 900 ms  |
-| `scatter` | Fine fragments dissolve left to right and drift with an upward bias.            | Fragments gather from the same scattered field.              | 1170 ms |
-| `vapor`   | The surface lifts away at random, the top going first, and swells as it climbs. | A narrowing vapor stream condenses into the visible element. | 1030 ms |
-| `wind`    | A stream carries particles sideways.                                            | The same stream returns them from its direction.             | 2040 ms |
+| Name      | Remove                                                                          | Restore                                                      | Duration |
+| --------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------- |
+| `dust`    | The element breaks into rising dust.                                            | Dust collects into the element's final geometry.             | 1400 ms  |
+| `scatter` | Fine fragments dissolve left to right and drift with an upward bias.            | Fragments gather from the same scattered field.              | 1100 ms  |
+| `vapor`   | The surface lifts away at random, the top going first, and swells as it climbs. | A narrowing vapor stream condenses into the visible element. | 900 ms   |
+| `wind`    | A long stream carries particles sideways.                                       | The same stream returns them from its direction.             | 2075 ms  |
 
-Both phases of an effect run for the same length. `remove()` uses it as the removal timeline, `restore()` as the entrance one, and a bundled sound is trimmed to it.
+`remove()` selects the removal phase and `restore()` selects the restoration phase. The preset's audio is enabled automatically and is aligned with the chosen visual.
 
 ```ts
-effects.remove(card, { effect: 'dust' });
-effects.restore(card, { effect: 'dust' });
+effects.remove(card, { preset: 'dust' });
+effects.restore(card, { preset: 'dust' });
 
-effects.remove(card, { effect: 'scatter' });
-effects.restore(card, { effect: 'scatter' });
+effects.remove(card, { preset: 'scatter' });
+effects.restore(card, { preset: 'scatter' });
 
-effects.remove(card, { effect: 'vapor' });
-effects.restore(card, { effect: 'vapor' });
+effects.remove(card, { preset: 'vapor' });
+effects.restore(card, { preset: 'vapor' });
 
-effects.remove(card, { effect: 'wind' });
-effects.restore(card, { effect: 'wind' });
+effects.remove(card, { preset: 'wind' });
+effects.restore(card, { preset: 'wind' });
 ```
 
 <Demo kind="built-in" />
 
-## Select a default
+## Select an instance preset
 
-Set a default on the instance and override it only for individual operations.
+The constructor requires one preset or one custom effect. A single operation can select another complete preset:
 
 ```ts
 const effects = new Disintegrator({
-  effect: 'vapor',
+  preset: 'vapor',
 });
 
 effects.remove(firstElement); // vapor
-effects.remove(secondElement, { effect: 'scatter' });
-effects.restore(insertedElement, { effect: 'wind' });
+effects.remove(secondElement, { preset: 'scatter' });
+effects.restore(insertedElement, { preset: 'wind' });
 ```
 
-## Restore with the remembered pair
+## Restore with the remembered preset
 
-When a retained node is taken and inserted again, `restore()` can recover the effect chosen during removal.
+When a retained node is taken and inserted again, `restore()` recovers the complete preset chosen during removal, including its restoration sound.
 
 ```ts
 const removal = effects.remove(card, {
-  effect: 'wind',
+  preset: 'wind',
   retain: true,
 });
 
@@ -65,16 +65,20 @@ await removal.finished;
 const retained = effects.take(removal.removalId!);
 if (retained) {
   list.prepend(retained);
-  await effects.restore(retained).finished; // wind restore
+  await effects.restore(retained).finished; // wind restoration
 }
 ```
 
-Pass `effect` to `restore()` when a different pair is intentional.
+Pass `preset` to `restore()` when a different complete preset is intentional. Passing an inline `effect` instead selects custom visuals and is silent unless that operation also provides its own sound.
 
-## Sound slots
+## Mute a preset
 
-Every phase has its own sound slot, so eight in total.
+Built-in audio requires no flag. To keep the preset animation but silence an instance or one operation, pass `sound: false`:
 
-`dust`, `scatter`, `vapor` and `wind` have audio on both phases. Their restore sound is the removal file played backwards through the `reverse` option; the animation phases remain independent.
+```ts
+const silent = new Disintegrator({ preset: 'dust', sound: false });
 
-Sound is off unless you ask for it. `sound: true` turns on the built-in audio for an instance or for one call, `sound: false` turns it off without changing the animation.
+effects.remove(card, { preset: 'vapor', sound: false });
+```
+
+A preset is intentionally atomic: it cannot be combined with another visual effect or replacement audio. For built-in particle motion with custom sound, use the preset's `effect` as a custom effect and provide an explicit sound pair.

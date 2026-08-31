@@ -7,7 +7,7 @@ navTitle: 빠른 시작
 order: 10
 ---
 
-Vanilla Disintegrate는 측정 가능한 모든 DOM 요소에 **타노스 스냅** 파티클 삭제 효과를 더합니다. `vanilla-disintegrate/snapdom` 진입점이 SnapDOM 캡처를 미리 연결해 두며, 별도 CSS import는 필요하지 않습니다.
+Vanilla Disintegrate는 측정 가능한 모든 DOM 요소를 삭제하고 복원할 때 익숙한 **타노스 스냅 효과**를 재현합니다.
 
 ## 설치
 
@@ -27,40 +27,40 @@ pnpm add vanilla-disintegrate @zumer/snapdom
 bun add vanilla-disintegrate @zumer/snapdom
 ```
 
-라이브러리는 요소가 파티클로 나뉘기 전에 현재 모습을 캡처하며, 캡처 엔진은 직접 고를 수 있습니다. 패키지는 tree-shaking 가능한 네 개의 진입점을 제공합니다.
+라이브러리는 요소가 파티클로 나뉘기 전에 현재 모습을 캡처하며, 캡처 엔진은 직접 고를 수 있습니다. 패키지는 tree-shaking 가능한 다섯 개의 진입점을 제공합니다.
 
-| 진입점                           | 내용                                                                                         | 필요 패키지      |
-| -------------------------------- | -------------------------------------------------------------------------------------------- | ---------------- |
-| `vanilla-disintegrate/core`      | 사용자 효과용 생명주기, 레이아웃, 오디오. 파티클 렌더러와 내장 사운드는 제외합니다.          | 없음             |
-| `vanilla-disintegrate/particles` | 파티클 애니메이션 팩토리와 네 가지 내장 효과 정의.                                           | 없음             |
-| `vanilla-disintegrate`           | 네 가지 내장 효과가 설정된 `Disintegrator`. `capture`는 직접 전달합니다.                     | 없음             |
-| `vanilla-disintegrate/snapdom`   | 내장 효과와 [SnapDOM](https://zumerlab.github.io/snapdom/) 기본 `capture`를 함께 제공합니다. | `@zumer/snapdom` |
+| 진입점                           | 내용                                                                                           | 필요 패키지      |
+| -------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------- |
+| `vanilla-disintegrate/core`      | 사용자 효과용 생명주기, 레이아웃과 오디오. 파티클과 완성된 프리셋은 제외합니다.                | 없음             |
+| `vanilla-disintegrate/particles` | 파티클 애니메이션 팩토리와 재사용 가능한 지오메트리 설정.                                      | 없음             |
+| `vanilla-disintegrate/sounds`    | 런타임 없이 네 가지 내장 오디오 파일 URL을 제공합니다.                                         | 없음             |
+| `vanilla-disintegrate`           | 네 가지 완성된 시각 및 오디오 프리셋이 있는 `Disintegrator`. `capture`는 직접 전달합니다.      | 없음             |
+| `vanilla-disintegrate/snapdom`   | 같은 완성 프리셋과 [SnapDOM](https://zumerlab.github.io/snapdom/) 기본 `capture`를 제공합니다. | `@zumer/snapdom` |
 
-기본 진입점과 `/snapdom`은 같은 `Disintegrator` API를 내보냅니다. `@zumer/snapdom`은 선택적 peer 의존성이며 `/snapdom`만 사용하고 다른 진입점은 참조하지 않습니다.
+기본 진입점과 `/snapdom`은 같은 `Disintegrator` API를 내보냅니다. 모든 인스턴스는 정확히 하나의 완성된 `preset` 또는 사용자 `effect`를 받아야 하며 암시적 기본값은 없습니다.
 
-`/core`는 `Disintegrator`, `defineEffect`, 공개 타입을 내보냅니다. 기본 효과는 의도적으로 없으므로 인라인 효과나 등록된 이름을 전달해야 합니다. `/particles`는 `builtInEffects`, 두 파티클 애니메이션 팩토리와 옵션 타입을 내보내지만 인스턴스를 만들지는 않습니다. 필요한 계층만 직접 조합할 수 있으며 아래 `captureElement`는 이 페이지 뒤에서 설명하는 어댑터를 뜻합니다.
+`/core`는 `Disintegrator`, `defineEffect`, `definePreset`과 공개 타입을 내보냅니다. `/particles`는 `createParticleEffect`, `particlePresets`, 두 파티클 애니메이션 팩토리와 옵션 타입을 내보내지만 인스턴스를 만들지는 않습니다. 필요한 계층만 조합할 수 있습니다. 아래 예제는 내장 지오메트리를 무음 사용자 효과로 사용하며 `captureElement`는 이 페이지 뒤에서 설명하는 어댑터입니다.
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/core';
-import { builtInEffects } from 'vanilla-disintegrate/particles';
+import { createParticleEffect, particlePresets } from 'vanilla-disintegrate/particles';
 
 const effects = new Disintegrator({
   capture: captureElement,
-  effect: 'dust',
-  effects: builtInEffects,
+  effect: createParticleEffect({ remove: particlePresets.dust }),
 });
 ```
 
-스냅샷이 필요 없는 사용자 효과라면 `/particles`와 `capture`를 모두 생략하고 두 단계에 `needsSnapshot: false`를 지정하세요.
+가장 짧은 설정은 `/snapdom`을 가져오고 완성된 프리셋 하나를 선택하는 것입니다.
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';
 
-const effects = new Disintegrator();
+const effects = new Disintegrator({ preset: 'dust' });
 const card = document.querySelector<HTMLElement>('.card');
 
 if (card) {
-  effects.remove(card, { effect: 'dust' });
+  effects.remove(card);
 }
 ```
 
@@ -72,7 +72,6 @@ if (card) {
 
 ```ts
 const removal = effects.remove(card, {
-  effect: 'dust',
   retain: true,
 });
 
@@ -88,7 +87,7 @@ if (removal.removalId) {
 }
 ```
 
-`restore()`에 다른 `effect`를 지정하지 않으면 삭제 시 기억한 효과 쌍을 사용합니다.
+`restore()`에 다른 `preset`이나 사용자 `effect`를 지정하지 않으면 삭제 시 기억한 전체 설정을 사용합니다.
 
 ## 다른 캡처 라이브러리
 
@@ -99,6 +98,7 @@ import html2canvas from 'html2canvas';
 import Disintegrator from 'vanilla-disintegrate';
 
 const effects = new Disintegrator({
+  preset: 'dust',
   capture: (element, context) => {
     if (context.signal.aborted) throw new DOMException('Capture aborted.', 'AbortError');
 
@@ -117,21 +117,23 @@ const effects = new Disintegrator({
 });
 ```
 
-전달한 함수는 캡처 동작을 완전히 대체합니다. 이 경로에서는 기본 진입점 `vanilla-disintegrate`를 가져오세요. 필수 런타임 의존성이 없고 SnapDOM도 모듈 그래프에 들어오지 않습니다.
+전달한 함수는 캡처 동작을 완전히 대체합니다. 이 경로에서는 기본 진입점 `vanilla-disintegrate`를 가져오세요. 필수 런타임 의존성이 없습니다. `@zumer/snapdom`은 `/snapdom` 진입점에서만 사용하는 선택적 peer 의존성이므로 여기서는 SnapDOM이 모듈 그래프에 들어오지 않습니다.
 
-## script 태그로 사용하기
+## 로컬 또는 CDN으로 연결하기
+
+번들러나 패키지 관리자 없이 Vanilla Disintegrate를 빠르게 통합하려면 CDN으로 불러오거나 [최신 버전이 담긴 압축 파일을 다운로드](https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/vanilla-disintegrate-iife.zip)하여 로컬에서 사용하세요.
 
 IIFE 빌드에는 SnapDOM이 포함되며 전역 `VanillaDisintegrate`를 노출합니다.
 
 ```html
-<script src="/vendor/vanilla-disintegrate.iife.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/dist/vanilla-disintegrate.iife.min.js"></script>
 <script>
-  const effects = new VanillaDisintegrate.Disintegrator();
+  const effects = new VanillaDisintegrate.Disintegrator({ preset: 'dust' });
   effects.remove(document.querySelector('.card'));
 </script>
 ```
 
-내장 오디오를 사용하려면 `dist/sounds`를 스크립트 옆의 `/vendor/sounds`로 복사하세요. 사운드 URL은 IIFE 파일을 기준으로 해석됩니다.
+압축 파일에는 최소 `index.html`, IIFE 빌드, 라이선스와 모든 내장 사운드가 들어 있습니다. 브라우저가 오디오를 불러올 수 있도록 압축을 푼 디렉터리를 로컬 HTTP 서버로 실행하세요. IIFE를 직접 복사할 때는 `sounds` 디렉터리를 스크립트 옆에 두세요. CDN 버전은 대응하는 리소스를 자동으로 찾습니다.
 
 ## 정리
 
@@ -143,12 +145,12 @@ effects.destroy();
 
 ## 브라우저 지원
 
-런타임은 ES2020 형식으로 출력되며 Canvas, Web Animations(`Animation.finished` 및 `Element.getAnimations()`), `AbortController`, `requestAnimationFrame`에 의존합니다. 네 가지 내장 효과는 **WebGL2**로 파티클을 그립니다. 이를 모두 합친 API 최소 기준은 Chrome 84+, Firefox 75+, Edge 84+, Opera 70+, Safari 15+입니다. Chrome for Android 84+와 iOS Safari 15+에도 같은 기준이 적용됩니다. 폴리필은 포함되지 않습니다.
+런타임은 ES2020 형식으로 출력되며 Canvas, Web Animations(`Animation.finished` 및 `Element.getAnimations()`), `AbortController`, `requestAnimationFrame`에 의존합니다. 내장 프리셋은 라이브러리의 **WebGL2** 파티클 렌더러를 사용하며, 사용자 효과는 적합한 어떤 애니메이션 엔진으로도 만들 수 있습니다. 이를 모두 합친 API 최소 기준은 <strong>Chrome 84+</strong>, <strong>Firefox 75+</strong>, <strong>Edge 84+</strong>, <strong>Opera 70+</strong>, <strong>Safari 15+</strong>입니다. <strong>Chrome for Android 84+</strong>와 <strong>iOS Safari 15+</strong>에도 같은 기준이 적용됩니다. 폴리필은 포함되지 않습니다.
 
-WebGL2가 없거나 컨텍스트를 만들 수 없는 환경에서 내장 효과는 실패하지 않고 축소 동작합니다. `remove()`는 요소를 그대로 분리하고 `restore()`는 그대로 드러내며, 작업은 `skipped` 상태로 끝나고 원인은 `onError`로 전달됩니다. WAAPI, CSS, Canvas 2D로 만든 사용자 효과는 구형 엔진에서도 그대로 재생됩니다.
+WebGL2가 없거나 컨텍스트를 만들 수 없는 환경에서 내장 프리셋 시각 효과는 실패하지 않고 축소 동작합니다. `remove()`는 요소를 그대로 분리하고 `restore()`는 그대로 드러내며, 작업은 `skipped` 상태로 끝나고 원인은 `onError`로 전달됩니다. WAAPI, CSS, Canvas 2D로 만든 사용자 효과는 구형 엔진에서도 그대로 재생됩니다.
 
 이 버전은 API 호환성에 대한 최소 기준이며, 모든 GPU, 드라이버 또는 브라우저 설정에서 WebGL2 컨텍스트를 만들 수 있다는 보장은 아닙니다.
 
-동시에 실행되는 각 내장 효과는 WebGL2 컨텍스트 하나를 대여합니다. 작업이 끝나면 해당 텍스처를 삭제하고 컨텍스트를 문서 단위 풀에 반환합니다. 풀은 유휴 컨텍스트를 최대 두 개까지 30초 동안 유지하고, 초과분은 즉시 파기하며, `pagehide`에서 모든 자원을 해제합니다.
+동시에 실행되는 각 내장 프리셋 시각 효과는 WebGL2 컨텍스트 하나를 대여합니다. 작업이 끝나면 해당 텍스처를 삭제하고 컨텍스트를 문서 단위 풀에 반환합니다. 풀은 유휴 컨텍스트를 최대 두 개까지 30초 동안 유지하고, 초과분은 즉시 파기하며, `pagehide`에서 모든 자원을 해제합니다.
 
 `Disintegrator`는 서버 렌더링 중이 아니라 브라우저에서만 생성하세요. 교차 출처 이미지, 글꼴, 스타일시트는 CORS를 허용하거나 캡처 어댑터의 프록시 옵션을 사용해야 하며, 그렇지 않으면 Canvas 스냅샷에서 빠질 수 있습니다.

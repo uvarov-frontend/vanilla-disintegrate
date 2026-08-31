@@ -1,149 +1,162 @@
 ---
 title: Audio
-description: Configure built-in sounds, decoded buffers, URLs, and custom playback factories without coupling audio failures to animation.
+description: Configure preset audio, bundled sources, local files, decoded buffers, and custom players.
 locale: en
 section: reference
 navTitle: Audio
 order: 80
 ---
 
-Sound is opt-in: pass `sound: true` to use the built-in audio. Call `remove()` or `restore()` from a user gesture such as a click so the library can resume Web Audio playback. Each remove and restore phase owns an independent sound definition, so matching visuals do not have to share or reverse one audio track.
+Audio is part of a complete preset and independent from a custom visual effect. Call `remove()` or `restore()` from a user gesture such as a click so the library can resume Web Audio playback.
 
-## Enable and disable sound
+## Preset audio and custom audio
+
+A built-in preset is audible by default. It can only be muted; replacement audio would make it a different preset.
 
 ```ts
-const audible = new Disintegrator({ sound: true });
-const silent = new Disintegrator();
+const audible = new Disintegrator({ preset: 'dust' });
+const muted = new Disintegrator({ preset: 'dust', sound: false });
 
-effects.remove(element, { sound: true });
+effects.remove(element, { preset: 'vapor', sound: false });
 ```
 
-An operation-level value overrides the instance for that one call.
+A custom effect is silent by default. Supply an explicit pair when it needs audio:
+
+```ts
+const effects = new Disintegrator({
+  effect: fade,
+  sound: {
+    remove: { src: 'dust', volume: 0.35 },
+    restore: { src: 'dust', volume: 0.35, reverse: true },
+  },
+});
+```
+
+`remove` and `restore` are independent. At least one must be configured; use `false` for an intentionally silent phase.
 
 ## Prepare before the first interaction
 
-With instance-level `sound: true`, the selected default effect is fetched and decoded immediately. Only that effect is prepared: `effect: 'vapor'` does not load the other three built-in files. Use `idle` when initial rendering matters more than first-interaction readiness:
+Enabled audio is prepared during browser idle time by default. Use `immediate` when readiness matters more than initial work:
 
 ```ts
 const effects = new Disintegrator({
-  effect: 'vapor',
-  sound: true,
-  audioPreparation: 'idle',
+  preset: 'vapor',
+  audioPreparation: 'immediate',
 });
 ```
 
-If the UI can choose several effects, list exactly those effects or prepare them explicitly:
+The `sounds` field accepts actual sound definitions or pairs, not visual effect names:
 
 ```ts
+import { builtInPresets } from 'vanilla-disintegrate';
+
 const effects = new Disintegrator({
-  sound: true,
+  preset: 'dust',
   audioPreparation: {
-    strategy: 'immediate',
-    effects: ['dust', 'scatter', 'vapor', 'wind'],
+    strategy: 'idle',
+    sounds: [builtInPresets.dust.sound, builtInPresets.wind.sound],
   },
 });
 
-await effects.prepareAudio(['dust', 'wind']);
-effects.discardPreparedAudio('dust');
+await effects.prepareAudio({
+  remove: { src: 'scatter' },
+  restore: { src: 'scatter', reverse: true },
+});
+effects.discardPreparedAudio();
 effects.clearPreparedAudio();
 ```
 
-`audioPreparation: false` disables automatic work. `prepareAudio()` remains explicit and therefore works even while instance sound is off. If an operation selects an unprepared native sound, the visual and audio wait for decoding and then start together; audio never joins a running built-in animation late. Custom player factories own their loading and are not invoked by preparation.
+`audioPreparation: false` disables automatic work; explicit `prepareAudio()` still works. If native audio is not ready, visual and sound wait for decoding and start together. Custom player factories own their loading and are not invoked by preparation.
 
-Each instance owns an 8 MiB LRU budget for decoded forward and reversed buffers by default. Instances on the same page reuse one fetch, decoded buffer, and `AudioContext`; a shared buffer counts toward every instance that prepared it but occupies memory only once. Configure the per-instance budget with `audioPreparation.cacheByteBudget`. Eviction or `destroy()` releases only that instance's buffer ownership. The buffer is deleted after its final owner releases it; the shared context closes when the final live instance is destroyed.
+Each instance has an 8 MiB LRU budget for decoded forward and reversed buffers. Instances on the same page share fetches, decoded buffers, and one reference-counted `AudioContext`. Configure the per-instance ownership budget through `audioPreparation.cacheByteBudget`; `destroy()` releases that instance's ownership.
 
-## Where to put the sound
-
-The sounds live in the effect, one per phase:
+## Pair removal and restoration
 
 ```ts
 const snap = '/sounds/snap.mp3';
-
-const fold = defineEffect({
-  remove: { animate: out, sound: { src: snap } },
-  restore: { animate: back, sound: { src: snap, reverse: true } },
-});
 ```
 
-The `sound` option on the instance or on a call is an on/off switch for them:
+| What you want                     | `remove`        | `restore`                      |
+| --------------------------------- | --------------- | ------------------------------ |
+| One file, reversed on restoration | `{ src: snap }` | `{ src: snap, reverse: true }` |
+| Two different files               | `{ src: out }`  | `{ src: back }`                |
+| Sound only when removing          | `{ src: snap }` | `false`                        |
+| Sound only when restoring         | `false`         | `{ src: back }`                |
+
+All built-in presets use the first arrangement.
+
+## Bundled names and asset URLs
+
+The root and `/snapdom` entries resolve these stable `src` names without coupling audio selection to particle geometry:
 
 ```ts
-const effects = new Disintegrator({ effect: fold, sound: true });
+type BuiltInSound = 'dust' | 'vapor' | 'scatter' | 'wind';
 
-effects.remove(card); // plays the sound from the effect
-effects.remove(card, { sound: false }); // no sound, same animation
+const sound = { src: 'wind', volume: 0.3 };
 ```
 
-One catch. If you pass a sound there instead of `true` or `false`, it does not switch anything — it replaces the sounds in the effect, and both phases get the same file:
+Import `/sounds` when another audio system or the dependency-free `/core` entry needs the generated file URLs:
 
 ```ts
-new Disintegrator({ sound: { src: '/sounds/snap.mp3' } });
-// remove and restore both play snap.mp3 forwards
+import { builtInSounds } from 'vanilla-disintegrate/sounds';
+
+audioElement.src = builtInSounds.vapor;
 ```
 
-That is handy when one sound covers everything. To give remove and restore different sounds, put them in the effect.
+The files stay encoded, cacheable assets. They are not embedded as base64 or eagerly decoded into the JavaScript bundle.
 
-## Pairing remove and restore
-
-| What you want                         | `remove`        | `restore`                      |
-| ------------------------------------- | --------------- | ------------------------------ |
-| One file, played backwards on restore | `{ src: snap }` | `{ src: snap, reverse: true }` |
-| Two different files                   | `{ src: out }`  | `{ src: back }`                |
-| Sound only when removing              | `{ src: snap }` | `null`                         |
-
-All four built-in effects use the first row.
-
-## Supported sources
+## Supported sources and local files
 
 ```ts
-type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
+type SoundSource = BuiltInSound | string | URL | Blob | ArrayBuffer | ArrayBufferView | AudioBuffer;
 ```
 
-Strings and `URL` values are fetched and decoded during automatic, explicit, or on-demand preparation. `ArrayBuffer` is useful when the application already controls loading. `AudioBuffer` is the most direct reusable form when the application owns an `AudioContext`-based asset pipeline.
+Strings and URLs are fetched; blobs and encoded bytes are decoded locally; an `AudioBuffer` can be reused directly. A browser `File` is a `Blob`, so user audio can remain entirely on the device:
 
-The library does not force bundled audio into source code as `AudioBuffer`: browser decoding is runtime work, and encoded files remain smaller and cacheable. Internally decoded results can still be reused.
+```ts
+const file = fileInput.files?.[0];
+
+if (file) {
+  const effects = new Disintegrator({
+    effect: fade,
+    sound: { remove: { src: file }, restore: false },
+  });
+}
+```
+
+The package neither uploads nor persists the file. The website playground stores its optional custom file in that browser's IndexedDB; it never sends it to the server and excludes the bytes from shared links.
 
 ## Playback options
 
 ```ts
 const sound = {
   src: new URL('/sounds/snap.ogg', location.href),
-  gain: 0.35,
+  volume: 0.35,
   delay: 40,
   duration: 0.7,
   fadeDuration: 0.12,
   playbackRate: 1.05,
 };
-
-effects.remove(element, { sound });
 ```
 
-## Playing a sound backwards
+`volume` is linear from `0` to `1`. `delay` is milliseconds; `duration` and `fadeDuration` are seconds; `playbackRate` defaults to `1`.
 
-The restore animation is independent, but its sound can be the removal recording played backwards. One file then covers both phases; no second recording:
+## Playing a sound backwards
 
 ```ts
 const remove = { src: '/sounds/snap.mp3' };
 const restore = { src: '/sounds/snap.mp3', reverse: true };
 ```
 
-That is how all four built-in effects work.
-
-Reversing moves the loud part of the file from the start to the end, so two more things change with it:
-
-- The sound is cut from the end of the file, not the start. Otherwise the loud part would be trimmed off.
-- `fadeDuration` fades in instead of out. Otherwise the fade would land on the loud part.
-
-The reversed copy is made once and kept in memory. If you pass an `AudioBuffer`, it is copied — your buffer is left alone.
+With `reverse`, playback is aligned so the end of the reversed recording lands on the visual end. Trimming comes from the source's end, and `fadeDuration` becomes a fade-in. The reversed decoded copy is cached; caller-owned `AudioBuffer` data is not modified.
 
 ## Custom player
 
-Use a factory to integrate an existing audio engine.
+Use a factory to integrate an existing audio engine:
 
 ```ts
 const sound = ({ operation, element, signal }) => {
   const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
-
   const stop = () => playback.stop();
   signal.addEventListener('abort', stop, { once: true });
 
@@ -162,4 +175,4 @@ The factory receives the operation, target element, and abort signal. Return `st
 
 ## Failure isolation
 
-Autoplay restrictions, fetch failures, decode errors, and custom player exceptions never reject the visual operation solely because of audio. They are forwarded to `onError`; animation and the selected DOM action continue.
+Autoplay restrictions, fetch failures, decode errors, and custom player exceptions never reject a visual operation solely because of audio. They are forwarded to `onError`; animation and the selected DOM action continue.

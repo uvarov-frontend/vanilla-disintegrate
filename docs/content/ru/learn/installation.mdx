@@ -7,7 +7,7 @@ navTitle: Быстрый старт
 order: 10
 ---
 
-Vanilla Disintegrate позволяет удалить любой измеримый DOM-элемент с эффектом **щелчка Таноса**. Точка входа `vanilla-disintegrate/snapdom` уже подключает захват через SnapDOM, а импорт CSS не нужен.
+Vanilla Disintegrate воссоздаёт узнаваемый эффект **«щелчка Таноса»** при удалении и возврате любого измеримого DOM-элемента.
 
 ## Установка
 
@@ -27,40 +27,40 @@ pnpm add vanilla-disintegrate @zumer/snapdom
 bun add vanilla-disintegrate @zumer/snapdom
 ```
 
-Библиотека снимает внешний вид элемента до распада на частицы, и движок захвата выбираете вы. Пакет содержит четыре tree-shakable точки входа:
+Библиотека снимает внешний вид элемента до распада на частицы, а движок захвата выбираете вы. Пакет содержит пять tree-shakable точек входа:
 
-| Точка входа                      | Состав                                                                                             | Требует          |
-| -------------------------------- | -------------------------------------------------------------------------------------------------- | ---------------- |
-| `vanilla-disintegrate/core`      | Жизненный цикл, layout и аудио для своих эффектов, без рендерера частиц и встроенных звуков.       | Ничего           |
-| `vanilla-disintegrate/particles` | Фабрики частиц и определения четырёх встроенных эффектов.                                          | Ничего           |
-| `vanilla-disintegrate`           | `Disintegrator` с четырьмя настроенными встроенными эффектами. `capture` передаёте вы.             | Ничего           |
-| `vanilla-disintegrate/snapdom`   | Встроенные эффекты с [SnapDOM](https://zumerlab.github.io/snapdom/) в роли `capture` по умолчанию. | `@zumer/snapdom` |
+| Точка входа                      | Состав                                                                                               | Требует          |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------- |
+| `vanilla-disintegrate/core`      | Жизненный цикл, layout и аудио для своих эффектов, без частиц и готовых пресетов.                    | Ничего           |
+| `vanilla-disintegrate/particles` | Фабрики частиц и переиспользуемые настройки геометрии.                                               | Ничего           |
+| `vanilla-disintegrate/sounds`    | URL четырёх встроенных аудиофайлов без runtime библиотеки.                                           | Ничего           |
+| `vanilla-disintegrate`           | `Disintegrator` с четырьмя полными визуально-звуковыми пресетами. `capture` передаёте вы.            | Ничего           |
+| `vanilla-disintegrate/snapdom`   | Те же полные пресеты с [SnapDOM](https://zumerlab.github.io/snapdom/) в роли `capture` по умолчанию. | `@zumer/snapdom` |
 
-Корневой вход и `/snapdom` экспортируют одинаковый API `Disintegrator`. `@zumer/snapdom` — необязательная peer-зависимость: она нужна только входу `/snapdom`, остальные входы к ней не обращаются.
+Корневой вход и `/snapdom` экспортируют одинаковый API `Disintegrator`. Каждый экземпляр обязан получить ровно один полный `preset` или один пользовательский `effect`; неявного значения по умолчанию нет.
 
-`/core` экспортирует `Disintegrator`, `defineEffect` и публичные типы. Эффекта по умолчанию там намеренно нет: передайте объект эффекта или зарегистрированное имя. `/particles` экспортирует `builtInEffects`, обе фабрики анимации частиц и их типы, но не создаёт экземпляр. Так можно вручную собрать только нужные слои; `captureElement` ниже обозначает адаптер из следующего раздела:
+`/core` экспортирует `Disintegrator`, `defineEffect`, `definePreset` и публичные типы. `/particles` экспортирует `createParticleEffect`, `particlePresets`, обе фабрики анимации частиц и их типы, но не создаёт экземпляр. Так можно вручную собрать только нужные слои. В примере встроенная геометрия используется как бесшумный пользовательский эффект, а `captureElement` обозначает адаптер из следующего раздела:
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/core';
-import { builtInEffects } from 'vanilla-disintegrate/particles';
+import { createParticleEffect, particlePresets } from 'vanilla-disintegrate/particles';
 
 const effects = new Disintegrator({
   capture: captureElement,
-  effect: 'dust',
-  effects: builtInEffects,
+  effect: createParticleEffect({ remove: particlePresets.dust }),
 });
 ```
 
-Для своего эффекта без снимка вообще не импортируйте `/particles` и не передавайте `capture`: достаточно установить `needsSnapshot: false` в обеих фазах.
+Для самого короткого подключения импортируйте `/snapdom` и выберите один полный пресет:
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';
 
-const effects = new Disintegrator();
+const effects = new Disintegrator({ preset: 'dust' });
 const card = document.querySelector<HTMLElement>('.card');
 
 if (card) {
-  effects.remove(card, { effect: 'dust' });
+  effects.remove(card);
 }
 ```
 
@@ -72,7 +72,6 @@ if (card) {
 
 ```ts
 const removal = effects.remove(card, {
-  effect: 'dust',
   retain: true,
 });
 
@@ -88,7 +87,7 @@ if (removal.removalId) {
 }
 ```
 
-Если в `restore()` не передан другой `effect`, библиотека использует пару, запомненную при удалении.
+Если в `restore()` не передан другой `preset` или пользовательский `effect`, библиотека использует полную конфигурацию, запомненную при удалении.
 
 ## Другой движок захвата
 
@@ -99,6 +98,7 @@ import html2canvas from 'html2canvas';
 import Disintegrator from 'vanilla-disintegrate';
 
 const effects = new Disintegrator({
+  preset: 'dust',
   capture: (element, context) => {
     if (context.signal.aborted) throw new DOMException('Capture aborted.', 'AbortError');
 
@@ -117,21 +117,23 @@ const effects = new Disintegrator({
 });
 ```
 
-Переданная функция полностью заменяет захват. На этом пути импортируйте корневой вход `vanilla-disintegrate`: у него нет обязательных runtime-зависимостей, а SnapDOM не попадает в граф модулей.
+Переданная функция полностью заменяет захват. На этом пути импортируйте корневой вход `vanilla-disintegrate`: у него нет обязательных runtime-зависимостей. `@zumer/snapdom` — необязательная peer-зависимость, которая нужна только входу `/snapdom`, поэтому здесь SnapDOM не попадёт в граф модулей.
 
-## Подключение через script
+## Подключение локально или через CDN
+
+Если нужно быстро интегрировать Vanilla Disintegrate без сборщика или пакетного менеджера, подключите библиотеку через CDN либо [скачайте архив](https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/vanilla-disintegrate-iife.zip) с актуальной версией для локального использования.
 
 IIFE-сборка уже содержит SnapDOM и создаёт глобальный объект `VanillaDisintegrate`:
 
 ```html
-<script src="/vendor/vanilla-disintegrate.iife.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/dist/vanilla-disintegrate.iife.min.js"></script>
 <script>
-  const effects = new VanillaDisintegrate.Disintegrator();
+  const effects = new VanillaDisintegrate.Disintegrator({ preset: 'dust' });
   effects.remove(document.querySelector('.card'));
 </script>
 ```
 
-Для встроенного аудио скопируйте каталог `dist/sounds` рядом со скриптом как `/vendor/sounds`: URL звуков вычисляются относительно IIFE-файла.
+В архиве уже находятся минимальный `index.html`, IIFE-сборка, лицензии и все встроенные звуки. Запускайте распакованный каталог через локальный HTTP-сервер, чтобы браузер мог загрузить аудио. Если копируете IIFE вручную, оставьте каталог `sounds` рядом со скриптом; CDN-версия найдёт соответствующие ресурсы автоматически.
 
 ## Очистка
 
@@ -143,12 +145,12 @@ effects.destroy();
 
 ## Поддержка браузеров
 
-Рантайм выпускается в формате ES2020 и использует Canvas, Web Animations (`Animation.finished` и `Element.getAnimations()`), `AbortController` и `requestAnimationFrame`. Четыре встроенных эффекта рисуют частицы через **WebGL2**. Совокупная минимальная планка: Chrome 84+, Firefox 75+, Edge 84+, Opera 70+ и Safari 15+. Та же планка действует для Chrome for Android 84+ и iOS Safari 15+. Полифиллы не включены.
+Рантайм выпускается в формате ES2020 и использует Canvas, Web Animations (`Animation.finished` и `Element.getAnimations()`), `AbortController` и `requestAnimationFrame`. Встроенные пресеты используют штатный рендерер частиц на **WebGL2**, а кастомные эффекты могут работать на любом подходящем движке. Совокупная минимальная планка: <strong>Chrome 84+</strong>, <strong>Firefox 75+</strong>, <strong>Edge 84+</strong>, <strong>Opera 70+</strong> и <strong>Safari 15+</strong>. Та же планка действует для <strong>Chrome for Android 84+</strong> и <strong>iOS Safari 15+</strong>. Полифиллы не включены.
 
-Там, где WebGL2 нет или контекст создать не удалось, встроенные эффекты деградируют, а не падают: `remove()` всё равно открепляет элемент, `restore()` всё равно показывает его, операция завершается со статусом `skipped`, а причина уходит в `onError`. Кастомные эффекты на WAAPI, CSS или Canvas 2D продолжают анимироваться и на старых движках.
+Там, где WebGL2 нет или контекст создать не удалось, визуалы встроенных пресетов деградируют, а не падают: `remove()` всё равно открепляет элемент, `restore()` всё равно показывает его, операция завершается со статусом `skipped`, а причина уходит в `onError`. Кастомные эффекты на WAAPI, CSS или Canvas 2D продолжают анимироваться и на старых движках.
 
 Это минимальные версии по набору API, а не гарантия того, что любой GPU, драйвер или настройка браузера позволит создать контекст WebGL2.
 
-Каждый одновременно запущенный встроенный эффект арендует один контекст WebGL2. После завершения операции её текстуры удаляются, а контекст возвращается в привязанный к документу пул. Пул хранит не более двух простаивающих контекстов до 30 секунд, лишние уничтожает сразу и полностью освобождается при `pagehide`.
+Каждый одновременно запущенный визуал встроенного пресета арендует один контекст WebGL2. После завершения операции её текстуры удаляются, а контекст возвращается в привязанный к документу пул. Пул хранит не более двух простаивающих контекстов до 30 секунд, лишние уничтожает сразу и полностью освобождается при `pagehide`.
 
 Создавайте `Disintegrator` только в браузере, а не во время серверного рендеринга. Внешние изображения, шрифты и стили должны разрешать CORS или проходить через proxy-опцию движка захвата, иначе они могут не попасть в снимок Canvas.

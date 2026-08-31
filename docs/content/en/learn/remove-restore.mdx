@@ -15,7 +15,6 @@ Removal measures the element while it is still on the page, then detaches it. Th
 
 ```ts
 const operation = effects.remove(element, {
-  effect: 'dust',
   retain: false,
   layout: true,
 });
@@ -32,9 +31,7 @@ Restoration means “animate this connected element into view.” Insert the nod
 ```ts
 container.append(element);
 
-const operation = effects.restore(element, {
-  effect: 'dust',
-});
+const operation = effects.restore(element);
 
 await operation.finished;
 ```
@@ -52,7 +49,7 @@ const message = document.createElement('aside');
 message.textContent = 'Created just now';
 
 notifications.append(message);
-effects.restore(message, { effect: 'vapor' });
+effects.restore(message, { preset: 'vapor' });
 ```
 
 ## Operation handle
@@ -86,6 +83,7 @@ If capture, audio, or a custom effect fails, removal still detaches the node and
 
 ```ts
 const effects = new Disintegrator({
+  preset: 'dust',
   onError(error, context) {
     console.error(context.operation, error);
   },

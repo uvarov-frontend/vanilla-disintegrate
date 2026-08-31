@@ -14,7 +14,7 @@ The default policy is `visible-idle`. It does not scan the DOM: observers and ba
 ## Register candidates
 
 ```ts
-const effects = new Disintegrator();
+const effects = new Disintegrator({ preset: 'dust' });
 
 const unregister = effects.register(document.querySelectorAll('[data-effects]'));
 ```
@@ -29,6 +29,7 @@ Registrations are reference-counted. If two components register the same element
 
 ```ts
 const effects = new Disintegrator({
+  preset: 'dust',
   preparation: {
     strategy: 'visible-idle',
     rootMargin: '300px 0px',

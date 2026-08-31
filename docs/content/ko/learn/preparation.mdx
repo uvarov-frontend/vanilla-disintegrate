@@ -14,7 +14,7 @@ order: 50
 ## 후보 요소 등록하기
 
 ```ts
-const effects = new Disintegrator();
+const effects = new Disintegrator({ preset: 'dust' });
 
 const unregister = effects.register(document.querySelectorAll('[data-effects]'));
 ```
@@ -27,6 +27,7 @@ const unregister = effects.register(document.querySelectorAll('[data-effects]'))
 
 ```ts
 const effects = new Disintegrator({
+  preset: 'dust',
   preparation: {
     strategy: 'visible-idle',
     rootMargin: '300px 0px',

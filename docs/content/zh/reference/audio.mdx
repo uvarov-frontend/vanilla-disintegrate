@@ -1,146 +1,162 @@
 ---
 title: 音频
-description: 配置内置声音、解码缓冲区、URL 与自定义播放器，并隔离音频错误。
+description: 配置预设音频、内置音源、本地文件、解码缓冲区与自定义播放器。
 locale: zh
 section: reference
 navTitle: 音频
 order: 80
 ---
 
-声音默认关闭：传入 `sound: true` 启用内置音频。请从点击等用户手势中调用 `remove()` 或 `restore()`，让库能够恢复 Web Audio 播放。每个删除与恢复阶段都有独立声音定义，因此恢复音轨无需倒放删除音轨。
+音频属于完整预设，与自定义视觉效果相互独立。请从点击等用户手势中调用 `remove()` 或 `restore()`，以便库恢复 Web Audio 播放。
 
-## 开启与关闭声音
+## 预设音频与自定义音频
+
+内置预设默认带声音。它只能被静音；替换音频就意味着创建另一个预设。
 
 ```ts
-const audible = new Disintegrator({ sound: true });
-const silent = new Disintegrator();
-effects.remove(element, { sound: true });
+const audible = new Disintegrator({ preset: 'dust' });
+const muted = new Disintegrator({ preset: 'dust', sound: false });
+
+effects.remove(element, { preset: 'vapor', sound: false });
 ```
 
-操作级选项只覆盖当前调用。
-
-## 在首次交互前准备
-
-实例设置 `sound: true` 后，默认选中的效果会立即获取并解码。只准备该效果：`effect: 'vapor'` 不会加载另外三个内置文件。若首屏渲染比首次交互就绪更重要，可使用 `idle`：
+自定义效果默认静音。需要音频时，请显式提供一对定义：
 
 ```ts
 const effects = new Disintegrator({
-  effect: 'vapor',
-  sound: true,
-  audioPreparation: 'idle',
+  effect: fade,
+  sound: {
+    remove: { src: 'dust', volume: 0.35 },
+    restore: { src: 'dust', volume: 0.35, reverse: true },
+  },
 });
 ```
 
-如果界面可选择多个效果，请准确列出这些效果，或显式准备：
+`remove` 与 `restore` 相互独立。至少要配置一个方向；有意静音的阶段请使用 `false`。
+
+## 首次交互前准备
+
+默认情况下，已启用的音频会在浏览器空闲时准备。若就绪时间比首屏工作量更重要，可使用 `immediate`：
 
 ```ts
 const effects = new Disintegrator({
-  sound: true,
+  preset: 'vapor',
+  audioPreparation: 'immediate',
+});
+```
+
+`sounds` 字段接收实际声音定义或声音对，而不是视觉效果名称：
+
+```ts
+import { builtInPresets } from 'vanilla-disintegrate';
+
+const effects = new Disintegrator({
+  preset: 'dust',
   audioPreparation: {
-    strategy: 'immediate',
-    effects: ['dust', 'scatter', 'vapor', 'wind'],
+    strategy: 'idle',
+    sounds: [builtInPresets.dust.sound, builtInPresets.wind.sound],
   },
 });
 
-await effects.prepareAudio(['dust', 'wind']);
-effects.discardPreparedAudio('dust');
+await effects.prepareAudio({
+  remove: { src: 'scatter' },
+  restore: { src: 'scatter', reverse: true },
+});
+effects.discardPreparedAudio();
 effects.clearPreparedAudio();
 ```
 
-`audioPreparation: false` 会禁用自动准备。`prepareAudio()` 是显式操作，因此即使实例声音关闭也能工作。若某次操作选择了尚未准备的原生声音，视觉与音频会等待解码完成后同步开始，内置声音不会在动画进行中途加入。自定义播放器工厂自行负责加载，不会在准备阶段被调用。
+`audioPreparation: false` 会关闭自动准备；显式 `prepareAudio()` 仍然可用。若原生音频尚未就绪，视觉与声音会等待解码完成后同步开始。自定义播放器工厂自行负责加载，准备阶段不会调用它们。
 
-每个实例默认拥有 8 MiB 的 LRU 预算，用于正向与反向解码缓冲区。同一页面上的实例会复用一次获取、解码缓冲区和 `AudioContext`：共享缓冲区计入每个准备它的实例预算，但内存只占一份。可通过 `audioPreparation.cacheByteBudget` 配置实例预算。淘汰或 `destroy()` 只释放该实例对缓冲区的所有权。最后一个所有者释放后缓冲区才会删除；最后一个存活实例销毁后共享上下文才会关闭。
+每个实例拥有 8 MiB 的 LRU 预算，用于正向和反向解码缓冲区。同一页面的实例共享网络请求、解码缓冲区和一个引用计数的 `AudioContext`。可通过 `audioPreparation.cacheByteBudget` 设置实例所有权预算；`destroy()` 会释放该实例的所有权。
 
-## 声音放在哪里
-
-声音写在效果里，每个阶段一个：
+## 配对删除与恢复
 
 ```ts
 const snap = '/sounds/snap.mp3';
-
-const fold = defineEffect({
-  remove: { animate: out, sound: { src: snap } },
-  restore: { animate: back, sound: { src: snap, reverse: true } },
-});
 ```
 
-实例上和调用上的 `sound` 只是它们的开关：
-
-```ts
-const effects = new Disintegrator({ effect: fold, sound: true });
-
-effects.remove(card); // 播放效果里的声音
-effects.remove(card, { sound: false }); // 静音，动画不变
-```
-
-有一点要注意。如果在那里传的不是 `true` 或 `false` 而是一个声音，它不会起开关作用——它会替换效果里的声音，两个阶段用同一个文件：
-
-```ts
-new Disintegrator({ sound: { src: '/sounds/snap.mp3' } });
-// 删除和恢复都会正向播放 snap.mp3
-```
-
-只用一个声音时这样很方便。想让删除和恢复各有各的声音，就写进效果里。
-
-## 为删除与恢复配对
-
-| 需求                 | `remove`        | `restore`                      |
+| 目标                 | `remove`        | `restore`                      |
 | -------------------- | --------------- | ------------------------------ |
-| 一个文件，恢复时倒放 | `{ src: snap }` | `{ src: snap, reverse: true }` |
-| 两个不同的文件       | `{ src: out }`  | `{ src: back }`                |
-| 只在删除时发声       | `{ src: snap }` | `null`                         |
+| 同一文件，恢复时倒放 | `{ src: snap }` | `{ src: snap, reverse: true }` |
+| 两个不同文件         | `{ src: out }`  | `{ src: back }`                |
+| 仅删除时播放         | `{ src: snap }` | `false`                        |
+| 仅恢复时播放         | `false`         | `{ src: back }`                |
 
-四个内置效果都使用第一行。
+所有内置预设都采用第一种方式。
 
-## 支持的来源
+## 内置名称与资源 URL
+
+根入口与 `/snapdom` 会解析这些稳定的 `src` 名称，而不会把音频选择与粒子几何绑定：
 
 ```ts
-type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
+type BuiltInSound = 'dust' | 'vapor' | 'scatter' | 'wind';
+
+const sound = { src: 'wind', volume: 0.3 };
 ```
 
-字符串与 `URL` 会在自动、显式或按需准备时获取并解码；应用自己加载资源时可传 `ArrayBuffer`；已有音频资源管线时可复用 `AudioBuffer`。
+当其他音频系统或无依赖的 `/core` 入口需要生成后的文件 URL 时，请导入 `/sounds`：
 
-库不会把压缩音频文件强制转换并打包成 `AudioBuffer`：解码是浏览器运行时工作，而压缩文件更小且可缓存。
+```ts
+import { builtInSounds } from 'vanilla-disintegrate/sounds';
 
-## 播放参数
+audioElement.src = builtInSounds.vapor;
+```
+
+这些文件保持为已编码、可缓存的资源，不会以 base64 嵌入 JavaScript，也不会被提前解码。
+
+## 支持的来源与本地文件
+
+```ts
+type SoundSource = BuiltInSound | string | URL | Blob | ArrayBuffer | ArrayBufferView | AudioBuffer;
+```
+
+字符串与 URL 会被请求；blob 与编码字节在本地解码；现成的 `AudioBuffer` 可直接复用。浏览器 `File` 属于 `Blob`，因此用户音频可以完全留在设备上：
+
+```ts
+const file = fileInput.files?.[0];
+
+if (file) {
+  const effects = new Disintegrator({
+    effect: fade,
+    sound: { remove: { src: file }, restore: false },
+  });
+}
+```
+
+包既不会上传也不会持久化该文件。网站游乐场只把可选自定义文件存入当前浏览器的 IndexedDB，绝不会发送到服务器，也不会把音频字节放进分享链接。
+
+## 播放选项
 
 ```ts
 const sound = {
   src: new URL('/sounds/snap.ogg', location.href),
-  gain: 0.35,
+  volume: 0.35,
   delay: 40,
   duration: 0.7,
   fadeDuration: 0.12,
   playbackRate: 1.05,
 };
-
-effects.remove(element, { sound });
 ```
 
-## 倒着播放
+`volume` 是从 `0` 到 `1` 的线性值。`delay` 使用毫秒，`duration` 与 `fadeDuration` 使用秒，`playbackRate` 默认为 `1`。
 
-恢复动画是独立的，但它的声音可以倒放删除录音。这样一个文件就够用，不必再录一份：
+## 反向播放
 
 ```ts
 const remove = { src: '/sounds/snap.mp3' };
 const restore = { src: '/sounds/snap.mp3', reverse: true };
 ```
 
-四个内置效果都采用这种方式。
-
-倒放会把文件里最响的部分从开头挪到结尾，因此还有两件事跟着变：
-
-- 声音从文件末尾截取，而不是开头。否则最响的部分会被裁掉。
-- `fadeDuration` 变成淡入而不是淡出。否则淡出正好压在最响的部分上。
-
-倒放副本只生成一次并留在内存里。如果传入 `AudioBuffer`，会先复制——你的缓冲区不会被改动。
+启用 `reverse` 后，播放会对齐，使反向录音的结尾落在视觉动画结尾。裁剪从源文件尾部开始，`fadeDuration` 会变成淡入。反向解码副本会被缓存；调用方提供的 `AudioBuffer` 数据不会被修改。
 
 ## 自定义播放器
+
+使用工厂接入现有音频引擎：
 
 ```ts
 const sound = ({ operation, element, signal }) => {
   const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
-
   const stop = () => playback.stop();
   signal.addEventListener('abort', stop, { once: true });
 
@@ -155,10 +171,8 @@ const sound = ({ operation, element, signal }) => {
 };
 ```
 
-播放器工厂会收到操作类型、目标元素与 `AbortSignal`。返回 `stop()` 处理取消，返回 `dispose()` 做无条件清理。
+工厂接收操作、目标元素和中止信号。返回 `stop()` 用于取消，返回 `dispose()` 用于无条件清理。
 
-自动播放限制、请求、解码或自定义播放器错误会传递给 `onError`，但不会单独终止视觉动画和 DOM 操作。
+## 故障隔离
 
-## 错误隔离
-
-自动播放限制、请求失败、解码错误以及自定义播放器抛出的异常，都不会仅因为声音而中断视觉操作。它们会转交给 `onError`，动画与所选的 DOM 操作照常继续。
+自动播放限制、请求失败、解码错误和自定义播放器异常，都不会仅因音频而拒绝视觉操作。它们会转发给 `onError`，动画与所选 DOM 操作继续执行。
