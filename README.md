@@ -15,7 +15,7 @@ Vanilla Disintegrate is a lightweight TypeScript library for removing and restor
 
 - **Thanos snap effect**: Recreate the recognizable cinematic disintegration and restoration of real DOM elements with particles.
 - **Four complete presets**: Choose `dust`, `scatter`, `vapor`, or `wind`; every preset includes removal, restoration, and matching audio.
-- **Restore any element**: Animate a retained node back into a user-chosen location or use `restore()` as an entrance animation for a completely new element.
+- **Restore any element**: Animate a retained node back into a user-chosen location or use `restore()` to animate a completely new element appearing.
 - **Simple integration**: Create an instance and call `remove(element)` directly from a click handler.
 - **Framework-agnostic**: Use it with vanilla JavaScript, React, Vue, Svelte, Solid, Angular, Web Components, or another DOM renderer.
 - **Custom effects**: Define independent removal and restoration phases with WAAPI, Canvas, SVG, WebGL, CSS, or another animation engine.
@@ -141,7 +141,7 @@ The retained node remembers the complete presentation used for removal, so `rest
 
 ### Animate a New Element
 
-`restore()` is also an entrance animation. Insert a new element first, then animate its visible final geometry.
+`restore()` can also animate a new element appearing. Insert the element first, then animate its visible final geometry.
 
 ```ts
 const message = document.createElement('aside');

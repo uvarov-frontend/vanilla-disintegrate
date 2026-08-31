@@ -14,10 +14,10 @@ The root and `/snapdom` entries register four complete built-in presets; only `/
 ## Constructor
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate/snapdom';
+import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';
 
 const ready = new Disintegrator({ preset: 'dust' });
-const custom = new Disintegrator({ effect: fade });
+const custom = new Disintegrator({ effect: createParticleEffect() });
 ```
 
 Exactly one of `preset` and `effect` is required:
@@ -56,10 +56,13 @@ Background snapshot failures report `context.operation === 'prepare'`; operation
 ## Complete presets
 
 ```ts
-import { definePreset } from 'vanilla-disintegrate';
+import Disintegrator, { createParticleEffect, definePreset } from 'vanilla-disintegrate/snapdom';
 
 const dissolve = definePreset({
-  effect: fade,
+  effect: createParticleEffect({
+    remove: { curve: 'float' },
+    restore: { curve: 'settle' },
+  }),
   sound: {
     remove: { src: '/audio/out.ogg', volume: 0.4 },
     restore: { src: '/audio/in.ogg', volume: 0.4 },

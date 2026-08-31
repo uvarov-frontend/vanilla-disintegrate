@@ -7,15 +7,78 @@ navTitle: Пользовательские эффекты
 order: 60
 ---
 
-Свой эффект — это две анимации: одна на удаление элемента, вторая на его возврат. Анимацию и звук пишете вы. Библиотека снимает элемент, измеряет его и берёт на себя отмену и уборку.
+Свой эффект — это две анимации: одна на удаление элемента, вторая на его восстановление. Анимацию и звук пишете вы. Библиотека снимает элемент, измеряет его и берёт на себя отмену и уборку.
+
+## Настроить частицы через плейграунд
+
+Плейграунд на главной создаёт готовый пользовательский эффект с отдельными настройками частиц и звука для удаления и восстановления. Например, такой код сочетает удаление `scatter` с восстановлением `vapor`:
+
+```ts
+import Disintegrator, { createParticleEffect, type ParticleOptions } from 'vanilla-disintegrate/snapdom';
+
+const removeOptions: ParticleOptions = {
+  curve: 'burst',
+  release: 'left',
+  duration: 1100,
+  stagger: 70,
+  horizontalDrift: 42,
+  horizontalTravel: [-125, 125],
+  verticalTravel: [-105, 36],
+  convergence: 0,
+  swirl: 8,
+  endScale: 0.4,
+};
+
+const restoreOptions: ParticleOptions = {
+  curve: 'float',
+  release: 'top',
+  duration: 900,
+  stagger: 130,
+  horizontalDrift: 16,
+  horizontalTravel: [-8, 8],
+  verticalTravel: [-230, -130],
+  convergence: 1,
+  swirl: 18,
+  endScale: 1.25,
+};
+
+export const effect = createParticleEffect({
+  remove: removeOptions,
+  restore: restoreOptions,
+});
+
+export const disintegrator = new Disintegrator({
+  effect,
+  sound: {
+    remove: {
+      src: 'scatter',
+      reverse: false,
+      volume: 0.32,
+      playbackRate: 1,
+      delay: 0,
+      fadeDuration: 0.18,
+    },
+    restore: {
+      src: 'vapor',
+      reverse: true,
+      volume: 0.32,
+      playbackRate: 1,
+      delay: 0,
+      fadeDuration: 0.18,
+    },
+  },
+});
+```
+
+`createParticleEffect()` использует встроенный рендерер частиц. Настройте обе фазы в плейграунде, скопируйте полученный код и используйте его без самостоятельной реализации рендерера на Canvas или WebGL. Следующий раздел нужен, только если вы хотите реализовать саму отрисовку.
 
 ## Эффект из снимка и частиц
 
-Пример ниже берёт непрозрачные пиксели из `snapshot`, превращает их в Canvas-частицы и ведёт через вихрь. Пиксели ему нужны, а снимок делается по умолчанию, поэтому `needsSnapshot` в нём и нет.
+Пример ниже берёт непрозрачные пиксели из `snapshot`, превращает их в Canvas-частицы и ведёт через вихрь. Эффект использует снимок, а `needsSnapshot: true` уже является значением по умолчанию, поэтому этот параметр можно не указывать.
 
 <ParticleVortexSource />
 
-Скопируйте исходник в проект как `particle-vortex.ts`, затем подключите тот же эффект, который работает в демо:
+Сохраните приведённый выше код в файле `particle-vortex.ts`, затем импортируйте `particleVortex` и передайте его в конструктор:
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';
@@ -117,7 +180,7 @@ type AnimationResult =
 
 Так подойдёт и Web Animation, и промис, и цикл на Canvas или WebGL, и обёртка над чужим движком. `cancel()` останавливает проигрывание. `dispose()` освобождает то, что выделил ваш рендерер, и вызывается независимо от того, доиграла анимация, была отменена или упала.
 
-## Переиспользуемый пресет
+## Создать свой пресет
 
 Пользовательский `effect` по умолчанию бесшумный. Если анимация и аудио должны использоваться вместе как один готовый выбор, объедините их в полный пресет:
 

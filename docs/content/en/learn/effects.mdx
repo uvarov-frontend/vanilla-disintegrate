@@ -81,4 +81,4 @@ const silent = new Disintegrator({ preset: 'dust', sound: false });
 effects.remove(card, { preset: 'vapor', sound: false });
 ```
 
-A preset is intentionally atomic: it cannot be combined with another visual effect or replacement audio. For built-in particle motion with custom sound, use the preset's `effect` as a custom effect and provide an explicit sound pair.
+A preset is intentionally atomic: its animation and audio are synchronized in advance. Replacing only one half would likely break that timing, so a preset cannot be combined with another visual effect or different audio. For built-in particle motion with custom sound, use the preset's `effect` as a custom effect and provide an explicit sound pair.

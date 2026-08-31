@@ -80,7 +80,7 @@ export function DisintegratingCard() {
       <button onClick={removeCard}>Удалить</button>
     </article>
   ) : (
-    <button onClick={restoreCard}>Вернуть</button>
+    <button onClick={restoreCard}>Восстановить</button>
   );
 }
 ```
@@ -134,7 +134,7 @@ async function restoreCard() {
     <h2>Активность</h2>
     <button @click="removeCard">Удалить</button>
   </article>
-  <button v-else @click="restoreCard">Вернуть</button>
+  <button v-else @click="restoreCard">Восстановить</button>
 </template>
 ```
 
@@ -185,7 +185,7 @@ async function restoreCard() {
     <button onclick={removeCard}>Удалить</button>
   </article>
 {:else}
-  <button onclick={restoreCard}>Вернуть</button>
+  <button onclick={restoreCard}>Восстановить</button>
 {/if}
 ```
 
@@ -225,7 +225,7 @@ export function DisintegratingCard() {
   }
 
   return (
-    <Show when={visible()} fallback={<button onClick={restoreCard}>Вернуть</button>}>
+    <Show when={visible()} fallback={<button onClick={restoreCard}>Восстановить</button>}>
       <article ref={card}>
         <h2>Активность</h2>
         <button onClick={removeCard}>Удалить</button>
@@ -264,7 +264,7 @@ import Disintegrator from 'vanilla-disintegrate/snapdom';
         <button (click)="removeCard()">Удалить</button>
       </article>
     } @else {
-      <button (click)="restoreCard()">Вернуть</button>
+      <button (click)="restoreCard()">Восстановить</button>
     }
   `,
 })

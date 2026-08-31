@@ -23,8 +23,10 @@ effects.remove(element, { preset: 'vapor', sound: false });
 A custom effect is silent by default. Supply an explicit pair when it needs audio:
 
 ```ts
+import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';
+
 const effects = new Disintegrator({
-  effect: fade,
+  effect: createParticleEffect(),
   sound: {
     remove: { src: 'dust', volume: 0.35 },
     restore: { src: 'dust', volume: 0.35, reverse: true },
@@ -90,7 +92,7 @@ All built-in presets use the first arrangement.
 The root and `/snapdom` entries resolve these stable `src` names without coupling audio selection to particle geometry:
 
 ```ts
-type BuiltInSound = 'dust' | 'vapor' | 'scatter' | 'wind';
+type BuiltInSound = 'dust' | 'scatter' | 'vapor' | 'wind';
 
 const sound = { src: 'wind', volume: 0.3 };
 ```
@@ -114,17 +116,19 @@ type SoundSource = BuiltInSound | string | URL | Blob | ArrayBuffer | ArrayBuffe
 Strings and URLs are fetched; blobs and encoded bytes are decoded locally; an `AudioBuffer` can be reused directly. A browser `File` is a `Blob`, so user audio can remain entirely on the device:
 
 ```ts
+import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';
+
 const file = fileInput.files?.[0];
 
 if (file) {
   const effects = new Disintegrator({
-    effect: fade,
+    effect: createParticleEffect(),
     sound: { remove: { src: file }, restore: false },
   });
 }
 ```
 
-The package neither uploads nor persists the file. The website playground stores its optional custom file in that browser's IndexedDB; it never sends it to the server and excludes the bytes from shared links.
+The package neither uploads nor persists the file.
 
 ## Playback options
 

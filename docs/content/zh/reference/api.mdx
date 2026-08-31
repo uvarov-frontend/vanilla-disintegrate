@@ -14,10 +14,10 @@ order: 70
 ## 构造器
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate/snapdom';
+import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';
 
 const ready = new Disintegrator({ preset: 'dust' });
-const custom = new Disintegrator({ effect: fade });
+const custom = new Disintegrator({ effect: createParticleEffect() });
 ```
 
 必须且只能提供 `preset` 与 `effect` 中的一个：
@@ -56,10 +56,13 @@ type DisintegratorOptions =
 ## 完整预设
 
 ```ts
-import { definePreset } from 'vanilla-disintegrate';
+import Disintegrator, { createParticleEffect, definePreset } from 'vanilla-disintegrate/snapdom';
 
 const dissolve = definePreset({
-  effect: fade,
+  effect: createParticleEffect({
+    remove: { curve: 'float' },
+    restore: { curve: 'settle' },
+  }),
   sound: {
     remove: { src: '/audio/out.ogg', volume: 0.4 },
     restore: { src: '/audio/in.ogg', volume: 0.4 },

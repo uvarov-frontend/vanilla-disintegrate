@@ -81,4 +81,4 @@ const silent = new Disintegrator({ preset: 'dust', sound: false });
 effects.remove(card, { preset: 'vapor', sound: false });
 ```
 
-预设有意保持原子性：不能与另一视觉效果或替换音频组合。若要使用内置粒子运动搭配自定义声音，请把预设的 `effect` 当作自定义效果，并提供显式声音对。
+预设有意保持原子性：它的动画与音频已预先同步，只替换其中一部分很可能会破坏时序。因此，预设不能与另一视觉效果或不同音频组合。若要使用内置粒子运动搭配自定义声音，请把预设的 `effect` 当作自定义效果，并提供显式声音对。

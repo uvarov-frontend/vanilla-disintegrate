@@ -23,8 +23,10 @@ effects.remove(element, { preset: 'vapor', sound: false });
 Пользовательский эффект по умолчанию бесшумный. Если ему нужно аудио, передайте явную пару:
 
 ```ts
+import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';
+
 const effects = new Disintegrator({
-  effect: fade,
+  effect: createParticleEffect(),
   sound: {
     remove: { src: 'dust', volume: 0.35 },
     restore: { src: 'dust', volume: 0.35, reverse: true },
@@ -70,18 +72,18 @@ effects.clearPreparedAudio();
 
 У каждого экземпляра есть LRU-бюджет 8 MiB для прямых и развёрнутых декодированных буферов. Экземпляры на одной странице совместно используют загрузки, буферы и один `AudioContext` со счётчиком ссылок. Бюджет владения экземпляра задаётся через `audioPreparation.cacheByteBudget`; `destroy()` освобождает его владение.
 
-## Пара удаления и возврата
+## Пара удаления и восстановления
 
 ```ts
 const snap = '/sounds/snap.mp3';
 ```
 
-| Что требуется                       | `remove`        | `restore`                      |
-| ----------------------------------- | --------------- | ------------------------------ |
-| Один файл, развёрнутый при возврате | `{ src: snap }` | `{ src: snap, reverse: true }` |
-| Два разных файла                    | `{ src: out }`  | `{ src: back }`                |
-| Звук только при удалении            | `{ src: snap }` | `false`                        |
-| Звук только при возврате            | `false`         | `{ src: back }`                |
+| Что требуется                             | `remove`        | `restore`                      |
+| ----------------------------------------- | --------------- | ------------------------------ |
+| Один файл, развёрнутый при восстановлении | `{ src: snap }` | `{ src: snap, reverse: true }` |
+| Два разных файла                          | `{ src: out }`  | `{ src: back }`                |
+| Звук только при удалении                  | `{ src: snap }` | `false`                        |
+| Звук только при восстановлении            | `false`         | `{ src: back }`                |
 
 Все встроенные пресеты используют первый вариант.
 
@@ -90,7 +92,7 @@ const snap = '/sounds/snap.mp3';
 Корневой entry point и `/snapdom` распознают стабильные имена `src`, не связывая выбор звука с геометрией частиц:
 
 ```ts
-type BuiltInSound = 'dust' | 'vapor' | 'scatter' | 'wind';
+type BuiltInSound = 'dust' | 'scatter' | 'vapor' | 'wind';
 
 const sound = { src: 'wind', volume: 0.3 };
 ```
@@ -114,17 +116,19 @@ type SoundSource = BuiltInSound | string | URL | Blob | ArrayBuffer | ArrayBuffe
 Строки и URL загружаются по сети; blob и закодированные байты декодируются локально; готовый `AudioBuffer` используется напрямую. Браузерный `File` является `Blob`, поэтому пользовательский звук может полностью оставаться на устройстве:
 
 ```ts
+import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';
+
 const file = fileInput.files?.[0];
 
 if (file) {
   const effects = new Disintegrator({
-    effect: fade,
+    effect: createParticleEffect(),
     sound: { remove: { src: file }, restore: false },
   });
 }
 ```
 
-Пакет не загружает и не сохраняет файл. Плейграунд сайта хранит выбранный файл только в IndexedDB этого браузера, никогда не отправляет его на сервер и не добавляет байты в общую ссылку.
+Пакет не загружает и не сохраняет файл.
 
 ## Настройки воспроизведения
 

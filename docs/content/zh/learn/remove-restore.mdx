@@ -40,9 +40,9 @@ await operation.finished;
 
 隐藏通过暂停的 Web Animation 实现，而非内联样式，因此在效果播放期间修改 class 或 style 都不会破坏它。由 CSS 层叠可推出一个限制：作者样式中的 `!important` 优先于动画，因此恢复目标上的 `.card { opacity: 1 !important }` 会让真实元素显示在粒子层下方。去掉目标上的 `!important` 即可避免，恢复一个不带该声明的包装元素同样可行。
 
-## 动画显示全新元素
+## 为新元素的出现添加动画
 
-不需要之前调用 `remove()`，`restore()` 也可作为入场动画。
+可以使用 `restore()` 为新元素的出现添加动画。先将元素添加到 DOM，再调用 `restore()`；无需提前调用 `remove()`。
 
 ```ts
 const message = document.createElement('aside');

@@ -14,10 +14,10 @@ order: 70
 ## 생성자
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate/snapdom';
+import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';
 
 const ready = new Disintegrator({ preset: 'dust' });
-const custom = new Disintegrator({ effect: fade });
+const custom = new Disintegrator({ effect: createParticleEffect() });
 ```
 
 `preset`과 `effect` 중 정확히 하나가 필요합니다.
@@ -56,10 +56,13 @@ type DisintegratorOptions =
 ## 완성된 프리셋
 
 ```ts
-import { definePreset } from 'vanilla-disintegrate';
+import Disintegrator, { createParticleEffect, definePreset } from 'vanilla-disintegrate/snapdom';
 
 const dissolve = definePreset({
-  effect: fade,
+  effect: createParticleEffect({
+    remove: { curve: 'float' },
+    restore: { curve: 'settle' },
+  }),
   sound: {
     remove: { src: '/audio/out.ogg', volume: 0.4 },
     restore: { src: '/audio/in.ogg', volume: 0.4 },

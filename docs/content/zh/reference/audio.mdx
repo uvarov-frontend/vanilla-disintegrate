@@ -23,8 +23,10 @@ effects.remove(element, { preset: 'vapor', sound: false });
 自定义效果默认静音。需要音频时，请显式提供一对定义：
 
 ```ts
+import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';
+
 const effects = new Disintegrator({
-  effect: fade,
+  effect: createParticleEffect(),
   sound: {
     remove: { src: 'dust', volume: 0.35 },
     restore: { src: 'dust', volume: 0.35, reverse: true },
@@ -90,7 +92,7 @@ const snap = '/sounds/snap.mp3';
 根入口与 `/snapdom` 会解析这些稳定的 `src` 名称，而不会把音频选择与粒子几何绑定：
 
 ```ts
-type BuiltInSound = 'dust' | 'vapor' | 'scatter' | 'wind';
+type BuiltInSound = 'dust' | 'scatter' | 'vapor' | 'wind';
 
 const sound = { src: 'wind', volume: 0.3 };
 ```
@@ -114,17 +116,19 @@ type SoundSource = BuiltInSound | string | URL | Blob | ArrayBuffer | ArrayBuffe
 字符串与 URL 会被请求；blob 与编码字节在本地解码；现成的 `AudioBuffer` 可直接复用。浏览器 `File` 属于 `Blob`，因此用户音频可以完全留在设备上：
 
 ```ts
+import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';
+
 const file = fileInput.files?.[0];
 
 if (file) {
   const effects = new Disintegrator({
-    effect: fade,
+    effect: createParticleEffect(),
     sound: { remove: { src: file }, restore: false },
   });
 }
 ```
 
-包既不会上传也不会持久化该文件。网站游乐场只把可选自定义文件存入当前浏览器的 IndexedDB，绝不会发送到服务器，也不会把音频字节放进分享链接。
+包既不会上传也不会持久化该文件。
 
 ## 播放选项
 

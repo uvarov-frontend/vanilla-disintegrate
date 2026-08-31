@@ -9,13 +9,76 @@ order: 60
 
 A custom effect is two animations: one for removing an element, one for putting it back. You write the animation and pick the sound. The library captures the element, measures it, and takes care of cancelling and cleaning up.
 
+## Configure particles with the playground
+
+The playground on the home page generates a complete custom effect with independent particle and sound settings for removal and restoration. For example, this output combines `scatter` removal with `vapor` restoration:
+
+```ts
+import Disintegrator, { createParticleEffect, type ParticleOptions } from 'vanilla-disintegrate/snapdom';
+
+const removeOptions: ParticleOptions = {
+  curve: 'burst',
+  release: 'left',
+  duration: 1100,
+  stagger: 70,
+  horizontalDrift: 42,
+  horizontalTravel: [-125, 125],
+  verticalTravel: [-105, 36],
+  convergence: 0,
+  swirl: 8,
+  endScale: 0.4,
+};
+
+const restoreOptions: ParticleOptions = {
+  curve: 'float',
+  release: 'top',
+  duration: 900,
+  stagger: 130,
+  horizontalDrift: 16,
+  horizontalTravel: [-8, 8],
+  verticalTravel: [-230, -130],
+  convergence: 1,
+  swirl: 18,
+  endScale: 1.25,
+};
+
+export const effect = createParticleEffect({
+  remove: removeOptions,
+  restore: restoreOptions,
+});
+
+export const disintegrator = new Disintegrator({
+  effect,
+  sound: {
+    remove: {
+      src: 'scatter',
+      reverse: false,
+      volume: 0.32,
+      playbackRate: 1,
+      delay: 0,
+      fadeDuration: 0.18,
+    },
+    restore: {
+      src: 'vapor',
+      reverse: true,
+      volume: 0.32,
+      playbackRate: 1,
+      delay: 0,
+      fadeDuration: 0.18,
+    },
+  },
+});
+```
+
+`createParticleEffect()` uses the built-in particle renderer. Configure both phases in the playground, copy the generated code, and use it without writing a Canvas or WebGL renderer. The next section is only needed when you want to implement the rendering itself.
+
 ## Build a particle effect from a snapshot
 
-This example reads the opaque pixels out of `snapshot`, turns them into Canvas particles, and spins them through a vortex. It needs those pixels, and a snapshot is taken by default, so there is no `needsSnapshot` in it.
+This example reads the opaque pixels out of `snapshot`, turns them into Canvas particles, and spins them through a vortex. The effect uses a snapshot, and `needsSnapshot: true` is already the default, so the option can be omitted.
 
 <ParticleVortexSource />
 
-Copy the source above into your project as `particle-vortex.ts`, then use the exact effect shown in the demo:
+Save the code above as `particle-vortex.ts`, then import `particleVortex` and pass it to the constructor:
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';
@@ -117,7 +180,7 @@ type AnimationResult =
 
 So a Web Animation, a promise, a Canvas or WebGL loop, or a wrapper around another engine all fit. `cancel()` stops playback. `dispose()` frees whatever your renderer allocated, and it runs whether the animation finished, was cancelled, or failed.
 
-## Create a reusable preset
+## Create your own preset
 
 A custom `effect` is silent by default. When animation and audio should travel together as one reusable choice, wrap them in a complete preset:
 

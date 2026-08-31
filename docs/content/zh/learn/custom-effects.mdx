@@ -9,13 +9,76 @@ order: 60
 
 自定义效果就是两段动画：一段用于删除元素，一段用于把它放回来。动画和声音由你来写。库负责捕获元素、测量位置，并处理取消和清理。
 
+## 通过游乐场配置粒子
+
+主页上的游乐场会生成完整的自定义效果，并为删除与恢复分别设置粒子和声音。例如，以下代码组合了 `scatter` 删除和 `vapor` 恢复：
+
+```ts
+import Disintegrator, { createParticleEffect, type ParticleOptions } from 'vanilla-disintegrate/snapdom';
+
+const removeOptions: ParticleOptions = {
+  curve: 'burst',
+  release: 'left',
+  duration: 1100,
+  stagger: 70,
+  horizontalDrift: 42,
+  horizontalTravel: [-125, 125],
+  verticalTravel: [-105, 36],
+  convergence: 0,
+  swirl: 8,
+  endScale: 0.4,
+};
+
+const restoreOptions: ParticleOptions = {
+  curve: 'float',
+  release: 'top',
+  duration: 900,
+  stagger: 130,
+  horizontalDrift: 16,
+  horizontalTravel: [-8, 8],
+  verticalTravel: [-230, -130],
+  convergence: 1,
+  swirl: 18,
+  endScale: 1.25,
+};
+
+export const effect = createParticleEffect({
+  remove: removeOptions,
+  restore: restoreOptions,
+});
+
+export const disintegrator = new Disintegrator({
+  effect,
+  sound: {
+    remove: {
+      src: 'scatter',
+      reverse: false,
+      volume: 0.32,
+      playbackRate: 1,
+      delay: 0,
+      fadeDuration: 0.18,
+    },
+    restore: {
+      src: 'vapor',
+      reverse: true,
+      volume: 0.32,
+      playbackRate: 1,
+      delay: 0,
+      fadeDuration: 0.18,
+    },
+  },
+});
+```
+
+`createParticleEffect()` 使用内置粒子渲染器。在游乐场中配置两个阶段并复制生成的代码，无需自行编写 Canvas 或 WebGL 渲染器。只有在需要实现渲染过程本身时，才需要阅读下一节。
+
 ## 使用快照构建粒子效果
 
-下面的示例从 `snapshot` 读取不透明像素，把它们变成 Canvas 粒子，再让粒子穿过漩涡。它需要这些像素，而快照本来就是默认拍的，所以里面没有 `needsSnapshot`。
+下面的示例从 `snapshot` 读取不透明像素，把它们变成 Canvas 粒子，再让粒子穿过漩涡。该效果会使用快照，而 `needsSnapshot: true` 已经是默认值，因此可以省略此选项。
 
 <ParticleVortexSource />
 
-将上面的源代码复制到项目中的 `particle-vortex.ts`，再使用与演示完全相同的效果：
+将上面的代码保存为 `particle-vortex.ts`，然后导入 `particleVortex` 并传给构造器：
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';
@@ -117,7 +180,7 @@ type AnimationResult =
 
 因此 Web Animation、Promise、Canvas 或 WebGL 循环以及第三方引擎包装器都适用。`cancel()` 停止播放；`dispose()` 无条件释放渲染器资源，无论动画完成、取消还是失败都会执行。
 
-## 创建可复用预设
+## 创建自己的预设
 
 自定义 `effect` 默认静音。若动画与音频应作为一个完整选项一起复用，请把它们包装成完整预设：
 
