@@ -32,10 +32,12 @@ export interface UiCopy {
     readonly title: string;
     readonly accent: string;
     readonly description: string;
+    readonly descriptionHighlight: string;
     readonly tryLabel: string;
     readonly playgroundKicker: string;
     readonly playgroundTitle: string;
     readonly playgroundDescription: string;
+    readonly playgroundDescriptionHighlight: string;
     readonly openGuide: string;
     readonly docsKicker: string;
     readonly docsTitle: string;
@@ -81,12 +83,14 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       title: 'Animate DOM removal',
       accent: 'and restoration',
       description:
-        'A lightweight TypeScript library with particle effects for removing and restoring DOM elements. Tune motion and sound, use any framework or none, and ship no library CSS.',
+        'A lightweight TypeScript library for removing and restoring DOM elements with particle animations inspired by the recognizable Thanos snap effect. It works with plain JavaScript and any framework without requiring runtime CSS.',
+      descriptionHighlight: 'Thanos snap effect',
       tryLabel: 'Build an effect in the playground',
       playgroundKicker: 'Interactive playground',
       playgroundTitle: 'Shape your particle effect',
       playgroundDescription:
         'Start from a preset, tune removal and restoration separately, preview both directions, and copy ready-to-use TypeScript.',
+      playgroundDescriptionHighlight: 'copy ready-to-use TypeScript',
       openGuide: 'Open guide',
       docsKicker: 'Documentation',
       docsTitle: 'Bring it into your project',
@@ -124,12 +128,14 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       title: 'Анимируйте удаление',
       accent: 'и восстановление DOM-элементов',
       description:
-        'Лёгкая TypeScript-библиотека с эффектами частиц для удаления и восстановления DOM-элементов. Настройте движение и звук, используйте с любым фреймворком или без него — CSS подключать не нужно.',
+        'Лёгкая TypeScript-библиотека для удаления и восстановления DOM-элементов с помощью анимаций частиц, вдохновлённых узнаваемым эффектом «щелчка Таноса». Она работает с обычным JavaScript и любым фреймворком без подключения CSS.',
+      descriptionHighlight: '«щелчка Таноса»',
       tryLabel: 'Соберите эффект в плейграунде',
       playgroundKicker: 'Интерактивный плейграунд',
       playgroundTitle: 'Настройте свой эффект частиц',
       playgroundDescription:
         'Выберите пресет, отдельно настройте удаление и восстановление, проверьте оба направления и скопируйте готовый TypeScript-код.',
+      playgroundDescriptionHighlight: 'скопируйте готовый TypeScript-код',
       openGuide: 'Открыть руководство',
       docsKicker: 'Документация',
       docsTitle: 'Подключите библиотеку к проекту',
@@ -167,11 +173,13 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       title: '为 DOM 元素制作',
       accent: '删除与恢复动画',
       description:
-        '一个轻量的 TypeScript 库，为 DOM 元素提供删除与恢复粒子效果。可分别调整运动和声音，适配任意框架，无需引入库 CSS。',
+        '一个轻量级 TypeScript 库，通过受经典灭霸响指效果启发的粒子动画来删除和恢复 DOM 元素。它适用于原生 JavaScript 和任何框架，无需运行时 CSS。',
+      descriptionHighlight: '灭霸响指效果',
       tryLabel: '在游乐场中构建效果',
       playgroundKicker: '交互式游乐场',
       playgroundTitle: '调整你的粒子效果',
       playgroundDescription: '从预设开始，分别调整删除和恢复，预览两个方向，然后复制可直接使用的 TypeScript。',
+      playgroundDescriptionHighlight: '复制可直接使用的 TypeScript',
       openGuide: '打开指南',
       docsKicker: '文档',
       docsTitle: '接入你的项目',
@@ -208,12 +216,14 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       title: 'DOM 요소의 삭제와',
       accent: '복원을 애니메이션으로',
       description:
-        'DOM 요소의 삭제와 복원을 위한 파티클 효과를 제공하는 가벼운 TypeScript 라이브러리입니다. 움직임과 사운드를 조정하고 어떤 프레임워크에서도 별도 CSS 없이 사용할 수 있습니다.',
+        '익숙한 타노스 스냅 효과에서 영감을 받은 파티클 애니메이션으로 DOM 요소를 삭제하고 복원하는 가벼운 TypeScript 라이브러리입니다. 순수 JavaScript와 모든 프레임워크에서 런타임 CSS 없이 사용할 수 있습니다.',
+      descriptionHighlight: '타노스 스냅 효과',
       tryLabel: '플레이그라운드에서 효과 만들기',
       playgroundKicker: '인터랙티브 플레이그라운드',
       playgroundTitle: '파티클 효과를 조정하세요',
       playgroundDescription:
         '프리셋에서 시작해 삭제와 복원을 각각 조정하고 두 방향을 미리 본 뒤 바로 사용할 TypeScript를 복사하세요.',
+      playgroundDescriptionHighlight: '바로 사용할 TypeScript를 복사하세요',
       openGuide: '가이드 열기',
       docsKicker: '문서',
       docsTitle: '프로젝트에 연결하세요',

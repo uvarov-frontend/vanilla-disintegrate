@@ -16,6 +16,11 @@ interface Props {
 const { locale } = Astro.props;
 const copy = ui[locale];
 const pathname = Astro.url.pathname;
+const [descriptionBeforeHighlight, descriptionAfterHighlight] = copy.home.description.split(
+  copy.home.descriptionHighlight,
+);
+const [playgroundDescriptionBeforeHighlight, playgroundDescriptionAfterHighlight] =
+  copy.home.playgroundDescription.split(copy.home.playgroundDescriptionHighlight);
 const cards = {
   en: [
     ['01', 'Built-in presets', 'Choose complete removal, restoration, and matching audio.'],
@@ -72,7 +77,9 @@ const libraryNode = {
     <section class="home-hero">
       <div class="hero-glow" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <h1>{copy.home.title}<br /><em>{copy.home.accent}</em></h1>
-      <p class="home-description">{copy.home.description}</p>
+      <p class="home-description">
+        {descriptionBeforeHighlight}<strong>{copy.home.descriptionHighlight}</strong>{descriptionAfterHighlight}
+      </p>
       <BundleSizePanel locale={locale} />
       <PackageInstall locale={locale} />
       <div class="try-divider"><span>{copy.home.tryLabel}</span></div>
@@ -81,7 +88,11 @@ const libraryNode = {
     <section class="home-playground-section" id="playground" aria-labelledby="playground-title">
       <div class="home-section-heading">
         <div><span>{copy.home.playgroundKicker}</span><h2 id="playground-title">{copy.home.playgroundTitle}</h2></div>
-        <p>{copy.home.playgroundDescription}</p>
+        <p>
+          {playgroundDescriptionBeforeHighlight}<strong>{copy.home.playgroundDescriptionHighlight}</strong>{
+            playgroundDescriptionAfterHighlight
+          }
+        </p>
       </div>
       <div data-particle-playground aria-busy="false" set:html={renderParticlePlayground(locale)} />
     </section>

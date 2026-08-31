@@ -7,7 +7,7 @@
 [![downloads](https://img.shields.io/npm/dm/vanilla-disintegrate.svg)](https://www.npmjs.com/package/vanilla-disintegrate)
 [![license](https://img.shields.io/npm/l/vanilla-disintegrate.svg)](./LICENSE)
 
-Vanilla Disintegrate is a lightweight TypeScript library for removing and restoring DOM elements with particle animations inspired by the recognizable Thanos snap effect. It works with plain JavaScript and any framework that renders DOM, needs no runtime CSS, and provides four complete visual-and-audio presets plus a clean contract for building your own effects.
+Vanilla Disintegrate is a lightweight TypeScript library for removing and restoring DOM elements with particle animations inspired by the recognizable Thanos snap effect. It works with plain JavaScript and any framework without requiring runtime CSS.
 
 **Website and interactive documentation:** [disintegrate.uvarov.tech](https://disintegrate.uvarov.tech)
 

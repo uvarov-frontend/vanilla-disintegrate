@@ -1315,6 +1315,10 @@ code {
   line-height: 1.75;
 }
 
+.home-description strong {
+  color: var(--text);
+}
+
 .hero-button {
   display: inline-flex;
   align-items: center;
@@ -1558,6 +1562,10 @@ code {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.7;
+}
+
+.home-playground-section .home-section-heading strong {
+  color: var(--text);
 }
 
 .particle-playground {
