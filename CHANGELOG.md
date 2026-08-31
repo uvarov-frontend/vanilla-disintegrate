@@ -8,7 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - A reproducible `vanilla-disintegrate-iife.zip` with a minimal local example, built-in audio, and required licenses for direct CDN download.
 - Complete visual-and-audio presets through `preset`, `definePreset()`, and `builtInPresets`.
-- A dedicated `vanilla-disintegrate/sounds` entry with stable `dust`, `vapor`, `scatter`, and `wind` source identifiers.
+- A dedicated `vanilla-disintegrate/sounds` entry with stable `dust`, `scatter`, `vapor`, and `wind` source identifiers.
 - Local `Blob`/`File` and typed-array audio sources, plus browser-only custom-audio storage in the playground.
 - Independent particle curve and geometry controls through `createParticleEffect()` and `particlePresets`.
 
@@ -17,7 +17,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Require every `Disintegrator` instance to choose exactly one complete `preset` or one object-valued custom `effect`; there is no implicit default.
 - Make built-in presets audible by default and allow them to be muted only with `sound: false`; custom effects remain silent until given an explicit remove/restore sound pair.
 - Decouple audio from visual effect phases, rename playback `gain` to `volume`, and use `sounds` for audio preparation selections.
-- Align the four built-in preset and sound identifiers as `dust`, `vapor`, `scatter`, and `wind`, and remove the obsolete `crackle`, `whoosh`, and `snap` sound names.
+- Align the four built-in preset and sound identifiers as `dust`, `scatter`, `vapor`, and `wind`, and remove the obsolete `crackle`, `whoosh`, and `snap` sound names.
 - Use idle audio preparation by default and keep encoded sound files as separate cacheable assets instead of embedding them into JavaScript.
 
 ### Fixed

@@ -43,7 +43,7 @@ if (
 if (typeof particles.createParticleAnimation !== 'function' || particles.particlePresets === undefined) {
   throw new Error('The particles entry did not expose the particle renderer and presets.');
 }
-if (Object.keys(sounds.builtInSounds ?? {}).join(',') !== 'dust,vapor,scatter,wind') {
+if (Object.keys(sounds.builtInSounds ?? {}).join(',') !== 'dust,scatter,vapor,wind') {
   throw new Error('The sounds entry did not expose the built-in audio sources.');
 }
 if (typeof snapdomEntry.Disintegrator !== 'function' || typeof snapdomEntry.createSnapdomCapture !== 'function') {
@@ -82,7 +82,7 @@ if (!packageManifest.files?.includes('vanilla-disintegrate-iife.zip')) {
 if (typeof full.defineEffect !== 'function' || 'disintegrate' in full.Disintegrator.prototype) {
   throw new Error('The public effect API does not match the remove/restore lifecycle.');
 }
-if (Object.keys(full.builtInPresets ?? {}).join(',') !== 'dust,vapor,scatter,wind') {
+if (Object.keys(full.builtInPresets ?? {}).join(',') !== 'dust,scatter,vapor,wind') {
   throw new Error('The complete built-in preset registry is incomplete.');
 }
 for (const preset of Object.values(full.builtInPresets)) {
@@ -128,10 +128,10 @@ const expectedArchiveFiles = [
   'SOUND_LICENSE.md',
   'THIRD_PARTY_NOTICES.md',
   'index.html',
-  'sounds/wind.mp3',
   'sounds/dust.mp3',
   'sounds/scatter.mp3',
   'sounds/vapor.mp3',
+  'sounds/wind.mp3',
   'vanilla-disintegrate.iife.min.js',
 ].map((file) => `${archiveRoot}${file}`);
 

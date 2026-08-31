@@ -8,8 +8,8 @@ import type { BuiltInSound } from './types';
 /** Bundled source URLs keyed by the same stable identifiers accepted by `SoundOptions.src`. */
 export const builtInSounds: Readonly<Record<BuiltInSound, string>> = Object.freeze({
   dust: dustSoundUrl,
-  vapor: vaporSoundUrl,
   scatter: scatterSoundUrl,
+  vapor: vaporSoundUrl,
   wind: windSoundUrl,
 });
 

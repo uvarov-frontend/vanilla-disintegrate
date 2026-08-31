@@ -15,7 +15,7 @@ function builtInPreset(effect: PresetDefinition['effect'], src: BuiltInSound): R
 /** Complete, immutable built-in visual-and-audio presets. */
 export const builtInPresets: Readonly<Record<BuiltInPreset, Readonly<PresetDefinition>>> = Object.freeze({
   dust: builtInPreset(builtInParticleEffects.dust, 'dust'),
-  vapor: builtInPreset(builtInParticleEffects.vapor, 'vapor'),
   scatter: builtInPreset(builtInParticleEffects.scatter, 'scatter'),
+  vapor: builtInPreset(builtInParticleEffects.vapor, 'vapor'),
   wind: builtInPreset(builtInParticleEffects.wind, 'wind'),
 });

@@ -6,7 +6,7 @@ export type EffectTargets = EffectTarget | Iterable<HTMLElement>;
 /** The content operation currently being animated. */
 export type EffectOperationKind = 'remove' | 'restore';
 /** Names of the complete visual-and-audio presets bundled with the package. */
-export type BuiltInPreset = 'dust' | 'vapor' | 'scatter' | 'wind';
+export type BuiltInPreset = 'dust' | 'scatter' | 'vapor' | 'wind';
 /** Names of the audio sources bundled independently from particle effects. */
 export type BuiltInSound = BuiltInPreset;
 /** How particles are released across the captured element. */

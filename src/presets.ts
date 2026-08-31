@@ -28,18 +28,6 @@ export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePr
     endScale: 0.7,
     release: 'left',
   }),
-  vapor: defineParticlePreset({
-    curve: 'float',
-    duration: 900,
-    stagger: 130,
-    horizontalDrift: 16,
-    horizontalTravel: [-8, 8],
-    verticalTravel: [-230, -130],
-    convergence: 1,
-    swirl: 18,
-    endScale: 1.25,
-    release: 'top',
-  }),
   scatter: defineParticlePreset({
     curve: 'burst',
     duration: 1100,
@@ -51,6 +39,18 @@ export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePr
     swirl: 8,
     endScale: 0.4,
     release: 'left',
+  }),
+  vapor: defineParticlePreset({
+    curve: 'float',
+    duration: 900,
+    stagger: 130,
+    horizontalDrift: 16,
+    horizontalTravel: [-8, 8],
+    verticalTravel: [-230, -130],
+    convergence: 1,
+    swirl: 18,
+    endScale: 1.25,
+    release: 'top',
   }),
   wind: defineParticlePreset({
     curve: 'drift',
@@ -69,7 +69,7 @@ export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePr
 /** Visual implementations used internally by the complete built-in presets. */
 export const builtInParticleEffects: Readonly<Record<BuiltInPreset, EffectDefinition>> = Object.freeze({
   dust: createParticleEffect({ remove: particlePresets.dust }),
-  vapor: createParticleEffect({ remove: particlePresets.vapor }),
   scatter: createParticleEffect({ remove: particlePresets.scatter }),
+  vapor: createParticleEffect({ remove: particlePresets.vapor }),
   wind: createParticleEffect({ remove: particlePresets.wind }),
 });

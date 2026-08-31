@@ -130,7 +130,7 @@ describe('public entries', () => {
   });
 
   it('exports immutable particle presets and a silent paired-effect factory', () => {
-    expect(Object.keys(particlePresets)).toEqual(['dust', 'vapor', 'scatter', 'wind']);
+    expect(Object.keys(particlePresets)).toEqual(['dust', 'scatter', 'vapor', 'wind']);
     expect(Object.isFrozen(particlePresets)).toBe(true);
     expect(Object.isFrozen(particlePresets.dust)).toBe(true);
     expect(Object.isFrozen(particlePresets.dust.horizontalTravel)).toBe(true);
@@ -148,13 +148,13 @@ describe('public entries', () => {
   });
 
   it('exports bundled sound URLs under stable identifiers', () => {
-    expect(Object.keys(builtInSounds)).toEqual(['dust', 'vapor', 'scatter', 'wind']);
+    expect(Object.keys(builtInSounds)).toEqual(['dust', 'scatter', 'vapor', 'wind']);
     expect(Object.isFrozen(builtInSounds)).toBe(true);
     for (const source of Object.values(builtInSounds)) expect(source).toBeTypeOf('string');
   });
 
   it('exports complete presets without putting sound back into visual phases', () => {
-    expect(Object.keys(builtInPresets)).toEqual(['dust', 'vapor', 'scatter', 'wind']);
+    expect(Object.keys(builtInPresets)).toEqual(['dust', 'scatter', 'vapor', 'wind']);
     expect(Object.isFrozen(builtInPresets)).toBe(true);
     expect(builtInPresets.vapor.effect.remove.animate).toBeTypeOf('function');
     expect(builtInPresets.vapor.effect.restore.animate).toBeTypeOf('function');
