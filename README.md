@@ -13,7 +13,7 @@ Vanilla Disintegrate is a lightweight TypeScript library for removing and restor
 
 ## Key Features
 
-- **Real DOM particles**: Turn the captured appearance of a DOM element into animated particles.
+- **Thanos snap effect**: Recreate the recognizable cinematic disintegration and restoration of real DOM elements with particles.
 - **Four complete presets**: Choose `dust`, `scatter`, `vapor`, or `wind`; every preset includes removal, restoration, and matching audio.
 - **Restore any element**: Animate a retained node back into a user-chosen location or use `restore()` as an entrance animation for a completely new element.
 - **Simple integration**: Create an instance and call `remove(element)` directly from a click handler.
