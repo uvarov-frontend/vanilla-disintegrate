@@ -140,7 +140,11 @@ if (Object.keys(archive).sort().join('\n') !== expectedArchiveFiles.sort().join(
 }
 
 const archivedHtml = strFromU8(archive[`${archiveRoot}index.html`]);
-if (!archivedHtml.includes('./vanilla-disintegrate.iife.min.js') || !archivedHtml.includes("preset: 'dust'")) {
+if (
+  !archivedHtml.includes('./vanilla-disintegrate.iife.min.js') ||
+  !archivedHtml.includes("preset: 'dust'") ||
+  !archivedHtml.includes('effects.register(card)')
+) {
   throw new Error('The archived HTML does not load and configure the local IIFE build.');
 }
 

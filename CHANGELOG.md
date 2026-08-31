@@ -20,6 +20,10 @@ All notable changes to this project are documented here. The format follows [Kee
 - Align the four built-in preset and sound identifiers as `dust`, `vapor`, `scatter`, and `wind`, and remove the obsolete `crackle`, `whoosh`, and `snap` sound names.
 - Use idle audio preparation by default and keep encoded sound files as separate cacheable assets instead of embedding them into JavaScript.
 
+### Fixed
+
+- Clip default SnapDOM captures to the measured element bounds so particle snapshots are neither stretched nor offset when CSS minimum sizes exceed the content size.
+
 ## [1.1.4] - 2026-08-30
 
 ### Fixed

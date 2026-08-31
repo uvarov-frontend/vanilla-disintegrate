@@ -81,6 +81,54 @@ describe('SnapDOM capture adapter', () => {
     );
   });
 
+  it('clips the snapshot to the measured element bounds by default', async () => {
+    const element = document.createElement('article');
+    Object.defineProperty(element, 'getBoundingClientRect', {
+      value: () => ({ height: 220, left: 40, top: 60, width: 420 }),
+    });
+    const capture = createSnapdomCapture();
+
+    await capture(element, {
+      operation: 'remove',
+      signal: new AbortController().signal,
+    });
+
+    expect(toCanvas).toHaveBeenCalledWith(
+      element,
+      expect.objectContaining({ clip: { height: 220, width: 420, x: 40, y: 60 } }),
+    );
+  });
+
+  it('preserves an application-provided SnapDOM output dimension', async () => {
+    const element = document.createElement('article');
+    Object.defineProperty(element, 'getBoundingClientRect', {
+      value: () => ({ height: 220, width: 420 }),
+    });
+    const capture = createSnapdomCapture({ width: 320 });
+
+    await capture(element, {
+      operation: 'remove',
+      signal: new AbortController().signal,
+    });
+
+    const captureOptions = toCanvas.mock.calls.at(-1)?.[1] as SnapdomOptions;
+    expect(captureOptions.width).toBe(320);
+    expect(captureOptions.height).toBeUndefined();
+  });
+
+  it('preserves an application-provided SnapDOM clip', async () => {
+    const element = document.createElement('article');
+    const capture = createSnapdomCapture({ clip: null });
+
+    await capture(element, {
+      operation: 'remove',
+      signal: new AbortController().signal,
+    });
+
+    const captureOptions = toCanvas.mock.calls.at(-1)?.[1] as SnapdomOptions;
+    expect(captureOptions.clip).toBeNull();
+  });
+
   it('allows the application to choose another capture density', async () => {
     Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 2 });
     const capture = createSnapdomCapture({ dpr: 1 });
