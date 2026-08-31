@@ -88,7 +88,11 @@ interface RenderBounds {
 
 const PARTICLE_STRIDE = 7;
 const PARTICLE_BUDGET = 180_000;
+const MAX_RENDERER_CONTEXTS = 4;
 const MAX_IDLE_CONTEXTS = 2;
+const MAX_SOURCE_PIXELS = 2_000_000;
+const MAX_SOURCE_DIMENSION = 2048;
+const MAX_RENDER_PIXELS = 4_000_000;
 const CONTEXT_IDLE_TTL = 30_000;
 const TRANSITION_WIDTH = 0.018;
 const LAYOUT_RELEASE_FRACTION = 0.6;
@@ -555,7 +559,6 @@ class RendererContextPool {
   private readonly contexts = new Set<RendererContext>();
   private readonly idle: RendererContext[] = [];
   private readonly ownerWindow: Window;
-  private cancelPrewarm: (() => void) | null = null;
 
   constructor(private readonly ownerDocument: Document) {
     const ownerWindow = ownerDocument.defaultView;
@@ -565,8 +568,6 @@ class RendererContextPool {
   }
 
   acquire() {
-    this.cancelPrewarm?.();
-    this.cancelPrewarm = null;
     while (this.idle.length > 0) {
       const context = this.idle.pop();
       if (context === undefined) break;
@@ -578,26 +579,10 @@ class RendererContextPool {
       this.destroy(context);
     }
 
+    if (this.contexts.size >= MAX_RENDERER_CONTEXTS) return null;
     const context = createRendererContext(this.ownerDocument);
     if (context !== null) this.contexts.add(context);
     return context;
-  }
-
-  prewarm() {
-    if (this.cancelPrewarm !== null || this.contexts.size > 0) return;
-    this.cancelPrewarm = scheduleIdle(this.ownerWindow, () => {
-      this.cancelPrewarm = null;
-      const context = createRendererContext(this.ownerDocument);
-      if (context === null) return;
-      this.contexts.add(context);
-      try {
-        compileParticlePrograms(context, REMOVE_PROGRAMS);
-        compileParticlePrograms(context, RESTORE_PROGRAMS);
-        this.release(context);
-      } catch {
-        this.destroy(context);
-      }
-    });
   }
 
   release(context: RendererContext) {
@@ -651,8 +636,6 @@ class RendererContextPool {
   }
 
   private readonly destroyAll = () => {
-    this.cancelPrewarm?.();
-    this.cancelPrewarm = null;
     for (const context of [...this.contexts]) this.destroy(context);
     this.ownerWindow.removeEventListener('pagehide', this.destroyAll);
     contextPools.delete(this.ownerDocument);
@@ -673,18 +656,13 @@ function acquireRendererContext(ownerDocument: Document) {
   return { context: pool.acquire(), pool };
 }
 
-function prewarmRendererContext() {
-  if (typeof document === 'undefined' || document.defaultView === null) return;
-  rendererContextPool(document).prewarm();
-}
-
 function createBounds(
-  snapshot: HTMLCanvasElement,
+  source: Pick<HTMLCanvasElement, 'width' | 'height'>,
   rect: DOMRectReadOnly,
   particles: ResolvedParticleOptions,
 ): RenderBounds {
-  const scaleX = snapshot.width / rect.width;
-  const scaleY = snapshot.height / rect.height;
+  const scaleX = source.width / rect.width;
+  const scaleY = source.height / rect.height;
   const drift = particles.horizontalDrift * 0.5;
   const convergence = rect.width * particles.convergence * CONVERGENCE_FACTOR * 0.5;
   const minX = Math.min(0, particles.horizontalTravel[0] - drift - convergence);
@@ -704,6 +682,29 @@ function createBounds(
     sourceX: -left * scaleX,
     sourceY: -top * scaleY,
   };
+}
+
+function resolveSourceSize(width: number, height: number, rect: DOMRectReadOnly, particles: ResolvedParticleOptions) {
+  let scale = Math.min(
+    1,
+    MAX_SOURCE_DIMENSION / width,
+    MAX_SOURCE_DIMENSION / height,
+    Math.sqrt(MAX_SOURCE_PIXELS / (width * height)),
+  );
+  let size = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
+  const bounds = createBounds(size, rect, particles);
+  const renderPixels = Math.ceil(bounds.cssWidth * bounds.scaleX) * Math.ceil(bounds.cssHeight * bounds.scaleY);
+  if (renderPixels > MAX_RENDER_PIXELS) {
+    scale *= Math.sqrt(MAX_RENDER_PIXELS / renderPixels);
+    size = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
+  }
+  return size;
+}
+
+function releaseReadback(canvas: HTMLCanvasElement) {
+  canvas.width = 0;
+  canvas.height = 0;
+  canvas.remove();
 }
 
 function resolveThreshold(particles: ResolvedParticleOptions, column: number, row: number, noise: number) {
@@ -828,26 +829,52 @@ function createParticleRenderer(
   programs: ParticlePrograms,
   random: () => number,
 ): ParticleRenderer | null {
-  const sourceContext = snapshot.getContext('2d', { willReadFrequently: true });
-  if (sourceContext === null || snapshot.width <= 0 || snapshot.height <= 0 || rect.width <= 0 || rect.height <= 0)
-    return null;
+  if (snapshot.width <= 0 || snapshot.height <= 0 || rect.width <= 0 || rect.height <= 0) return null;
 
-  const bounds = createBounds(snapshot, rect, particles);
-  const sourcePixels = sourceContext.getImageData(0, 0, snapshot.width, snapshot.height).data;
+  // Capture adapters may have created their 2D context without the readback hint.
+  // Reading such a reused canvas repeatedly makes Chromium switch its backing
+  // store and emit a warning. A short-lived CPU-backed canvas keeps the source
+  // snapshot reusable without retaining another full-size pixel buffer.
+  const readback = snapshot.ownerDocument.createElement('canvas');
+  const sourceSize = resolveSourceSize(snapshot.width, snapshot.height, rect, particles);
+  readback.width = sourceSize.width;
+  readback.height = sourceSize.height;
+  const readbackContext = readback.getContext('2d', { willReadFrequently: true });
+  if (readbackContext === null) {
+    releaseReadback(readback);
+    return null;
+  }
+  const sourcePixels = (() => {
+    try {
+      readbackContext.drawImage(snapshot, 0, 0, sourceSize.width, sourceSize.height);
+      return readbackContext.getImageData(0, 0, sourceSize.width, sourceSize.height).data;
+    } catch (error) {
+      releaseReadback(readback);
+      throw error;
+    }
+  })();
+
+  const bounds = createBounds(sourceSize, rect, particles);
   const field = createParticleField(
     sourcePixels,
-    snapshot.width,
-    snapshot.height,
+    sourceSize.width,
+    sourceSize.height,
     particles,
     bounds.scaleX,
     bounds.scaleY,
     random,
   );
-  if (field.data.length === 0) return null;
+  if (field.data.length === 0) {
+    releaseReadback(readback);
+    return null;
+  }
 
   const acquired = acquireRendererContext(snapshot.ownerDocument);
   const rendererContext = acquired.context;
-  if (rendererContext === null) return null;
+  if (rendererContext === null) {
+    releaseReadback(readback);
+    return null;
+  }
   const { canvas, gl } = rendererContext;
 
   try {
@@ -856,8 +883,9 @@ function createParticleRenderer(
     const maxTextureSize = Number(gl.getParameter(gl.MAX_TEXTURE_SIZE));
     const maxViewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array;
     if (
-      snapshot.width > maxTextureSize ||
-      snapshot.height > maxTextureSize ||
+      sourceSize.width > maxTextureSize ||
+      sourceSize.height > maxTextureSize ||
+      canvasWidth * canvasHeight > MAX_RENDER_PIXELS ||
       canvasWidth > (maxViewport[0] ?? maxTextureSize) ||
       canvasHeight > (maxViewport[1] ?? maxTextureSize)
     ) {
@@ -877,7 +905,8 @@ function createParticleRenderer(
 
     const compiled = compileParticlePrograms(rendererContext, programs);
     const { base, baseUniforms, baseVao, particle, particleUniforms, particleVao } = compiled;
-    const sourceTexture = createTexture(gl, snapshot);
+    const sourceTexture = createTexture(gl, readback);
+    releaseReadback(readback);
     const thresholdTexture = createThresholdTexture(
       gl,
       field.thresholdWidth,
@@ -896,7 +925,7 @@ function createParticleRenderer(
 
     const canvasSize = [canvas.width, canvas.height] as const;
     const sourceOffset = [bounds.sourceX, bounds.sourceY] as const;
-    const sourceSize = [snapshot.width, snapshot.height] as const;
+    const textureSize = [sourceSize.width, sourceSize.height] as const;
     const curve = resolveCurve(particles.curve);
 
     const bindTexture = (uniform: WebGLUniformLocation | null, texture: WebGLTexture, unit: number) => {
@@ -908,7 +937,7 @@ function createParticleRenderer(
     gl.useProgram(base);
     gl.uniform2f(baseUniforms.canvasSize, ...canvasSize);
     gl.uniform2f(baseUniforms.sourceOffset, ...sourceOffset);
-    gl.uniform2f(baseUniforms.sourceSize, ...sourceSize);
+    gl.uniform2f(baseUniforms.sourceSize, ...textureSize);
     gl.uniform1f(baseUniforms.blockSize, field.blockSize);
     gl.uniform1f(baseUniforms.transition, TRANSITION_WIDTH);
     bindTexture(baseUniforms.source, sourceTexture, 0);
@@ -917,7 +946,7 @@ function createParticleRenderer(
     gl.useProgram(particle);
     gl.uniform2f(particleUniforms.canvasSize, ...canvasSize);
     gl.uniform2f(particleUniforms.sourceOffset, ...sourceOffset);
-    gl.uniform2f(particleUniforms.textureSize, ...sourceSize);
+    gl.uniform2f(particleUniforms.textureSize, ...textureSize);
     gl.uniform1f(particleUniforms.blockSize, field.blockSize);
     gl.uniform1f(particleUniforms.endScale, particles.endScale);
     gl.uniform1f(particleUniforms.curveMix, curve.curveMix);
@@ -995,12 +1024,13 @@ function createParticleRenderer(
   } catch (error) {
     acquired.pool.discard(rendererContext);
     throw error;
+  } finally {
+    releaseReadback(readback);
   }
 }
 
 function createParticlePhase(options: ParticleOptions, programs: ParticlePrograms): AnimationFactory {
   const particles = resolveParticles(options);
-  prewarmRendererContext();
   return ({ snapshot, bounds, random }) => {
     if (snapshot === null) return null;
     return createParticleRenderer(snapshot, bounds, particles, programs, random);

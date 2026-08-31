@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { SoundPlayer } from '../src/audio';
+import type { SoundFactory } from '../src/types';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -136,6 +137,27 @@ describe('SoundPlayer', () => {
     player.destroy();
   });
 
+  it('plays an already decoded AudioBuffer without fetching or decoding it again', async () => {
+    const { decodeAudioData, start } = mockAudio();
+    const player = new SoundPlayer();
+    const prepared = await player.prepare({ src: sourceBuffer([1, 2, 3, 4]).buffer });
+
+    player.play(prepared, 0.5, soundContext(), vi.fn());
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(decodeAudioData).not.toHaveBeenCalled();
+    expect(start).toHaveBeenCalledOnce();
+    player.destroy();
+  });
+
+  it('requires native sounds to use an explicit src options object', async () => {
+    const player = new SoundPlayer();
+
+    await expect(player.prepare({ invalid: true } as never)).rejects.toThrow('requires an options object with a src');
+    await expect(player.prepare('dust' as never)).rejects.toThrow('requires an options object with a src');
+    player.destroy();
+  });
+
   it('does not start pending playback after destroy', async () => {
     const { decoded, start } = mockAudio();
     const player = new SoundPlayer();
@@ -191,7 +213,7 @@ describe('SoundPlayer', () => {
   it('fades a reversed source in rather than out', async () => {
     const { decoded, linearRampToValueAtTime, setValueAtTime } = mockAudio();
     const player = new SoundPlayer();
-    const preparation = player.prepare({ src: '/dust.mp3', reverse: true, gain: 0.5, fadeDuration: 0.1 });
+    const preparation = player.prepare({ src: '/dust.mp3', reverse: true, volume: 0.5, fadeDuration: 0.1 });
 
     decoded.resolve(sourceBuffer([1, 2, 3, 4, 5, 6, 7, 8]).buffer);
     player.play(await preparation, 1, soundContext(), vi.fn());
@@ -199,6 +221,28 @@ describe('SoundPlayer', () => {
     expect(setValueAtTime).toHaveBeenCalledWith(0, 0);
     expect(linearRampToValueAtTime).toHaveBeenCalledWith(0.5, 0.1);
     expect(linearRampToValueAtTime).not.toHaveBeenCalledWith(0, expect.anything());
+    player.destroy();
+  });
+
+  it('normalizes non-finite native playback settings before scheduling Web Audio', async () => {
+    const { decoded, setValueAtTime, source, start, stop } = mockAudio();
+    const player = new SoundPlayer();
+    const preparation = player.prepare({
+      src: '/invalid-options.mp3',
+      delay: Number.NaN,
+      duration: Number.NaN,
+      fadeDuration: Number.POSITIVE_INFINITY,
+      volume: Number.NaN,
+      playbackRate: Number.POSITIVE_INFINITY,
+    });
+
+    decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
+    player.play(await preparation, 0.4, soundContext(), vi.fn());
+
+    expect(source.playbackRate.value).toBe(1);
+    expect(start).toHaveBeenCalledWith(0, 0);
+    expect(stop).toHaveBeenCalledWith(0.4);
+    expect(setValueAtTime).toHaveBeenCalledWith(1, 0);
     player.destroy();
   });
 
@@ -236,6 +280,19 @@ describe('SoundPlayer', () => {
     expect(close).not.toHaveBeenCalled();
     second.destroy();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('deduplicates equivalent relative and absolute URL sources', async () => {
+    const { decoded } = mockAudio();
+    const player = new SoundPlayer();
+    const relative = player.prepare({ src: '/shared-url.mp3' });
+    const absolute = player.prepare({ src: new URL('/shared-url.mp3', document.baseURI) });
+
+    decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
+    await Promise.all([relative, absolute]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    player.destroy();
   });
 
   it('keeps a shared pending load alive while another player still owns it', async () => {
@@ -457,4 +514,23 @@ describe('SoundPlayer', () => {
     idle.destroy();
     vi.useRealTimers();
   });
+
+  it('does not schedule background work for custom factories or decoded forward buffers', () => {
+    mockAudio();
+    vi.useFakeTimers();
+    const player = new SoundPlayer();
+    const custom: SoundFactory = vi.fn(() => undefined);
+
+    player.schedule([custom, { src: audioBufferForSchedule() }], 'idle');
+    vi.runAllTimers();
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(AudioContext).not.toHaveBeenCalled();
+    player.destroy();
+    vi.useRealTimers();
+  });
 });
+
+function audioBufferForSchedule() {
+  return fakeBuffer([new Float32Array(4)], 4);
+}

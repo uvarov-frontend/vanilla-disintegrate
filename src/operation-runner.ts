@@ -3,6 +3,7 @@ import { resolveLayout } from './defaults';
 import { LayoutAnimator, type LayoutPlayback } from './layout';
 import { disposeSnapshot, SnapshotPreparation } from './preparation';
 import { RetainedElements } from './retained-elements';
+import { soundForOperation } from './sound-selection';
 import type {
   AnimationContext,
   AnimationPlayback,
@@ -20,6 +21,7 @@ import type {
   RemovalId,
   RemoveOptions,
   SoundDefinition,
+  SoundSelection,
 } from './types';
 
 const noop: () => void = () => undefined;
@@ -60,6 +62,7 @@ interface RunningOperation {
   readonly retain: boolean;
   readonly detach: RemoveOptions['detach'];
   readonly effect: EffectDefinition;
+  readonly soundSelection: false | SoundSelection | undefined;
   readonly sound: SoundDefinition | null;
   readonly callbacks: readonly EffectCallbacks[];
   readonly controller: AbortController;
@@ -75,6 +78,7 @@ interface RunOptions {
   readonly kind: EffectOperationKind;
   readonly element: HTMLElement;
   readonly effect: EffectDefinition;
+  readonly sound: false | SoundSelection | undefined;
   readonly overrides: OperationOptions | RemoveOptions;
 }
 
@@ -162,14 +166,14 @@ export class OperationRunner {
 
   run(options: RunOptions): EffectOperation {
     this.assertAlive();
-    const { element, effect, kind, overrides } = options;
+    const { element, effect, kind, overrides, sound: soundSelection } = options;
     const active = this.busy.get(element);
     if (active !== undefined) return this.rejectedOperation(kind, active.finished);
 
     const retain = kind === 'remove' && (overrides as RemoveOptions).retain === true;
     const removalId = retain ? this.retained.createId() : null;
     const callbacks = [this.options, overrides] as const;
-    const sound = this.resolveSound(effect[kind].sound ?? null, overrides.sound);
+    const sound = this.resolveSound(kind, soundSelection, overrides.sound);
     let resolveFinished: (result: EffectOperationResult) => void = () => undefined;
     const finished = new Promise<EffectOperationResult>((resolve) => {
       resolveFinished = resolve;
@@ -181,6 +185,7 @@ export class OperationRunner {
       retain,
       detach: kind === 'remove' ? (overrides as RemoveOptions).detach : undefined,
       effect,
+      soundSelection,
       sound,
       callbacks,
       controller: new AbortController(),
@@ -563,18 +568,21 @@ export class OperationRunner {
         this.cleanupStep(() => element.remove(), context, running.callbacks);
       }
       if (running.settled) return;
-      this.retained.associate(element, running.effect);
+      const presentation = { effect: running.effect, sound: running.soundSelection };
+      this.retained.associate(element, presentation);
       if (running.retain && running.removalId !== null) {
-        this.retained.retain(running.removalId, element, running.effect);
+        this.retained.retain(running.removalId, element, presentation);
       }
     }
   }
 
-  private resolveSound(phaseSound: SoundDefinition | null, override: OperationOptions['sound']) {
-    const selection = override ?? this.options.sound ?? false;
-    if (selection === false) return null;
-    if (selection === true) return phaseSound;
-    return selection;
+  private resolveSound(
+    operation: EffectOperationKind,
+    selection: false | SoundSelection | undefined,
+    override: OperationOptions['sound'],
+  ) {
+    if (override !== undefined) return override === false ? null : override;
+    return soundForOperation(selection, operation);
   }
 
   private createOverlay(rect: DOMRectReadOnly) {

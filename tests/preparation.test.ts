@@ -33,8 +33,8 @@ function snapshot() {
 
 function snapshotEffect() {
   return defineEffect({
-    remove: { animate: () => Promise.resolve(), sound: null },
-    restore: { animate: () => Promise.resolve(), sound: null },
+    remove: { animate: () => Promise.resolve() },
+    restore: { animate: () => Promise.resolve() },
   });
 }
 
@@ -91,6 +91,7 @@ describe('snapshot preparation', () => {
       capture,
       effect: snapshotEffect(),
       preparation: { strategy: 'immediate', observeMutations: true },
+      sound: false,
     });
 
     effects.register(target);
@@ -120,7 +121,7 @@ describe('snapshot preparation', () => {
     const capture = vi.fn().mockResolvedValue(snapshot());
     const observer = vi.fn();
     vi.stubGlobal('IntersectionObserver', observer);
-    const effect = new Disintegrator({ capture, preparation: false });
+    const effect = new Disintegrator({ capture, effect: snapshotEffect(), preparation: false, sound: false });
 
     const unregister = effect.register(element());
     await Promise.resolve();
@@ -131,15 +132,153 @@ describe('snapshot preparation', () => {
     effect.destroy();
   });
 
+  it('ignores the initial ResizeObserver notification and recaptures only after a real size change', async () => {
+    let resizeCallback: ResizeObserverCallback | undefined;
+    class ResizeObserverMock {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback;
+      }
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+    const target = element();
+    let width = 10;
+    Object.defineProperty(target, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ ...rect(), bottom: 10, right: width, width }),
+    });
+    const capture = vi.fn().mockResolvedValue(snapshot());
+    const effect = new Disintegrator({
+      capture,
+      effect: snapshotEffect(),
+      preparation: { strategy: 'immediate' },
+      sound: false,
+    });
+
+    effect.register(target);
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledOnce());
+
+    resizeCallback?.([{ target } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+    await Promise.resolve();
+    expect(capture).toHaveBeenCalledOnce();
+
+    width = 20;
+    resizeCallback?.([{ target } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledTimes(2));
+
+    effect.destroy();
+  });
+
   it('supports explicit immediate preparation even when background work is disabled', async () => {
     const target = element();
     const capture = vi.fn().mockResolvedValue(snapshot());
-    const effect = new Disintegrator({ capture, preparation: false });
+    const effect = new Disintegrator({ capture, effect: snapshotEffect(), preparation: false, sound: false });
 
     await effect.prepare(target);
 
     expect(capture).toHaveBeenCalledWith(target, expect.objectContaining({ operation: 'prepare' }));
     effect.clearPrepared();
+    effect.destroy();
+  });
+
+  it('does not start an explicit capture after the cache was cleared in the same turn', async () => {
+    const capture = vi.fn().mockResolvedValue(snapshot());
+    const effect = new Disintegrator({
+      capture,
+      effect: snapshotEffect(),
+      preparation: false,
+      sound: false,
+    });
+
+    const preparation = effect.prepare(element());
+    effect.clearPrepared();
+    await preparation;
+
+    expect(capture).not.toHaveBeenCalled();
+    effect.destroy();
+  });
+
+  it('does not start or retain an explicit capture after destroy in the same turn', async () => {
+    const capture = vi.fn().mockResolvedValue(snapshot());
+    const effect = new Disintegrator({
+      capture,
+      effect: snapshotEffect(),
+      preparation: false,
+      sound: false,
+    });
+
+    const preparation = effect.prepare(element());
+    effect.destroy();
+    await preparation;
+
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it('disposes an in-flight snapshot that resolves after the cache was cleared', async () => {
+    let resolveCapture!: (value: HTMLCanvasElement) => void;
+    const capture = vi.fn(
+      () =>
+        new Promise<HTMLCanvasElement>((resolve) => {
+          resolveCapture = resolve;
+        }),
+    );
+    const effect = new Disintegrator({
+      capture,
+      effect: snapshotEffect(),
+      preparation: false,
+      sound: false,
+    });
+    const preparation = effect.prepare(element());
+    await vi.waitFor(() => expect(capture).toHaveBeenCalledOnce());
+    const source = snapshot();
+
+    effect.clearPrepared();
+    resolveCapture(source);
+    await preparation;
+
+    expect(source.width).toBe(0);
+    expect(source.height).toBe(0);
+    effect.destroy();
+  });
+
+  it('handles a capture adapter that clears preparation reentrantly', async () => {
+    const source = snapshot();
+    const capture = vi.fn(() => {
+      effect.clearPrepared();
+      return source;
+    });
+    const effect: Disintegrator = new Disintegrator({
+      capture,
+      effect: snapshotEffect(),
+      preparation: false,
+      sound: false,
+    });
+
+    await effect.prepare(element());
+
+    expect(capture).toHaveBeenCalledOnce();
+    expect(source.width).toBe(0);
+    expect(source.height).toBe(0);
+    effect.destroy();
+  });
+
+  it('lets an explicit invalidation supersede a preparation waiting for a capture slot', async () => {
+    const capture = vi.fn().mockResolvedValue(snapshot());
+    const target = element();
+    const effect = new Disintegrator({
+      capture,
+      effect: snapshotEffect(),
+      preparation: false,
+      sound: false,
+    });
+
+    const preparation = effect.prepare(target);
+    effect.invalidate(target);
+    await preparation;
+
+    expect(capture).not.toHaveBeenCalled();
     effect.destroy();
   });
 
@@ -153,7 +292,9 @@ describe('snapshot preparation', () => {
     );
     const effect = new Disintegrator({
       capture,
+      effect: snapshotEffect(),
       preparation: { concurrency: 2, invalidateOnResize: false },
+      sound: false,
     });
     const targets = [element(), element(), element()];
 
@@ -178,7 +319,9 @@ describe('snapshot preparation', () => {
     );
     const effect = new Disintegrator({
       capture,
+      effect: snapshotEffect(),
       preparation: { strategy: 'immediate', concurrency: 2, invalidateOnResize: false },
+      sound: false,
     });
     effect.register([element(), element(), element()]);
 
@@ -195,7 +338,9 @@ describe('snapshot preparation', () => {
     const capture = vi.fn().mockResolvedValue(snapshot());
     const effect = new Disintegrator({
       capture,
+      effect: snapshotEffect(),
       preparation: { strategy: 'immediate', invalidateOnResize: false },
+      sound: false,
     });
     const target = element();
     const unregisterFirst = effect.register(target);
@@ -236,7 +381,7 @@ describe('snapshot preparation', () => {
     Object.defineProperty(window, 'cancelIdleCallback', { configurable: true, value: vi.fn() });
     const target = element();
     const capture = vi.fn().mockResolvedValue(snapshot());
-    const effect = new Disintegrator({ capture });
+    const effect = new Disintegrator({ capture, effect: snapshotEffect(), sound: false });
 
     effect.register(target);
     expect(capture).not.toHaveBeenCalled();
@@ -267,11 +412,13 @@ describe('snapshot preparation', () => {
     const capture = vi.fn().mockResolvedValue(snapshot());
     const effect = new Disintegrator({
       capture,
+      effect: snapshotEffect(),
       preparation: {
         strategy: 'idle',
         invalidateOnResize: false,
         shouldPrepare: (candidate) => candidate.dataset.prepare === 'true',
       },
+      sound: false,
     });
 
     effect.register([rejected, accepted]);
@@ -292,6 +439,7 @@ describe('snapshot preparation', () => {
     );
     const effect = new Disintegrator({
       capture,
+      effect: snapshotEffect(),
       preparation: { strategy: 'immediate', invalidateOnResize: false },
       layout: false,
       sound: false,
@@ -303,8 +451,8 @@ describe('snapshot preparation', () => {
     );
 
     const immediate = defineEffect({
-      remove: { animate: () => Promise.resolve(), sound: null },
-      restore: { animate: () => Promise.resolve(), sound: null },
+      remove: { animate: () => Promise.resolve() },
+      restore: { animate: () => Promise.resolve() },
     });
     const removal = effect.remove(target, { effect: immediate });
 
@@ -325,8 +473,8 @@ describe('snapshot preparation', () => {
       return Promise.resolve(snapshot());
     });
     const immediate = defineEffect({
-      remove: { animate: () => Promise.resolve(), sound: null },
-      restore: { animate: () => Promise.resolve(), sound: null },
+      remove: { animate: () => Promise.resolve() },
+      restore: { animate: () => Promise.resolve() },
     });
     const effect = new Disintegrator({
       capture,
@@ -352,8 +500,8 @@ describe('snapshot preparation', () => {
       return Promise.resolve(snapshot());
     });
     const immediate = defineEffect({
-      remove: { animate: () => Promise.resolve(), sound: null },
-      restore: { animate: () => Promise.resolve(), sound: null },
+      remove: { animate: () => Promise.resolve() },
+      restore: { animate: () => Promise.resolve() },
     });
     const effect = new Disintegrator({
       capture,
@@ -379,8 +527,8 @@ describe('snapshot preparation', () => {
       return Promise.resolve(snapshot());
     });
     const immediate = defineEffect({
-      remove: { animate: () => Promise.resolve(), sound: null },
-      restore: { animate: () => Promise.resolve(), sound: null },
+      remove: { animate: () => Promise.resolve() },
+      restore: { animate: () => Promise.resolve() },
     });
     const effect = new Disintegrator({ capture, effect: immediate, layout: false, sound: false });
     const target = element();
@@ -400,8 +548,8 @@ describe('snapshot preparation', () => {
       return Promise.resolve(source);
     });
     const immediate = defineEffect({
-      remove: { animate: () => Promise.resolve(), sound: null },
-      restore: { animate: () => Promise.resolve(), sound: null },
+      remove: { animate: () => Promise.resolve() },
+      restore: { animate: () => Promise.resolve() },
     });
     const effect = new Disintegrator({
       capture,
@@ -431,8 +579,8 @@ describe('snapshot preparation', () => {
       return Promise.resolve(snapshot());
     });
     const immediate = defineEffect({
-      remove: { animate: () => Promise.resolve(), sound: null },
-      restore: { animate: () => Promise.resolve(), sound: null },
+      remove: { animate: () => Promise.resolve() },
+      restore: { animate: () => Promise.resolve() },
     });
     const effect = new Disintegrator({
       capture,
@@ -463,8 +611,8 @@ describe('snapshot preparation', () => {
     const source = snapshot();
     const capture = vi.fn().mockResolvedValue(source);
     const immediate = defineEffect({
-      remove: { animate: () => Promise.resolve(), sound: null },
-      restore: { animate: () => Promise.resolve(), sound: null },
+      remove: { animate: () => Promise.resolve() },
+      restore: { animate: () => Promise.resolve() },
     });
     const effect = new Disintegrator({
       capture,
@@ -511,7 +659,9 @@ describe('snapshot preparation', () => {
     const capture = vi.fn(() => Promise.resolve(snapshot()));
     const effect = new Disintegrator({
       capture,
+      effect: snapshotEffect(),
       preparation: { strategy: 'immediate', invalidateOnResize: false },
+      sound: false,
     });
     effect.register(target);
     await vi.waitFor(() => expect(capture).toHaveBeenCalledOnce());

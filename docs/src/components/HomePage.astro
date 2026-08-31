@@ -18,25 +18,25 @@ const copy = ui[locale];
 const pathname = Astro.url.pathname;
 const cards = {
   en: [
-    ['01', 'Built-in effects', 'Choose a complete remove-and-restore particle effect.'],
+    ['01', 'Built-in presets', 'Choose complete removal, restoration, and matching audio.'],
     ['02', 'Restore and undo', 'Retain a removed node and put the same DOM element back.'],
     ['03', 'Custom effects', 'Build both phases with WAAPI, Canvas, WebGL, or your own renderer.'],
     ['04', 'Frameworks', 'Connect the lifecycle safely to React, Vue, Svelte, Solid, or Angular.'],
   ],
   ru: [
-    ['01', 'Готовые эффекты', 'Выберите полноценную пару анимаций удаления и возврата.'],
+    ['01', 'Готовые пресеты', 'Выберите анимации удаления, возврата и подходящий звук.'],
     ['02', 'Возврат и undo', 'Сохраните удалённый узел и верните тот же DOM-элемент.'],
     ['03', 'Свои эффекты', 'Создайте обе фазы через WAAPI, Canvas, WebGL или свой движок.'],
     ['04', 'Фреймворки', 'Свяжите lifecycle с React, Vue, Svelte, Solid или Angular.'],
   ],
   zh: [
-    ['01', '内置效果', '选择一组完整的删除与恢复粒子动画。'],
+    ['01', '内置预设', '选择完整的删除、恢复动画与对应音频。'],
     ['02', '恢复与撤销', '保留已删除的节点，并放回同一个 DOM 元素。'],
     ['03', '自定义效果', '使用 WAAPI、Canvas、WebGL 或自己的渲染器构建两个阶段。'],
     ['04', '框架集成', '将生命周期安全接入 React、Vue、Svelte、Solid 或 Angular。'],
   ],
   ko: [
-    ['01', '내장 효과', '삭제와 복원을 모두 포함한 파티클 효과를 선택하세요.'],
+    ['01', '내장 프리셋', '삭제, 복원 애니메이션과 맞는 오디오를 함께 선택하세요.'],
     ['02', '복원과 실행 취소', '삭제한 노드를 보관하고 같은 DOM 요소를 다시 넣으세요.'],
     ['03', '사용자 효과', 'WAAPI, Canvas, WebGL 또는 자체 렌더러로 두 단계를 만드세요.'],
     ['04', '프레임워크', 'React, Vue, Svelte, Solid 또는 Angular 수명 주기에 안전하게 연결하세요.'],
@@ -83,7 +83,7 @@ const libraryNode = {
         <div><span>{copy.home.playgroundKicker}</span><h2 id="playground-title">{copy.home.playgroundTitle}</h2></div>
         <p>{copy.home.playgroundDescription}</p>
       </div>
-      <div data-particle-playground aria-busy="false" set:html={renderParticlePlayground(locale)}></div>
+      <div data-particle-playground aria-busy="false" set:html={renderParticlePlayground(locale)} />
     </section>
 
     <section class="home-next-steps" aria-labelledby="next-steps-title">

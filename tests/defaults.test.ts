@@ -38,10 +38,10 @@ describe('option resolvers', () => {
     });
   });
 
-  it('prepares enabled audio immediately with a bounded decoded cache', () => {
+  it('prepares enabled audio during idle time with a bounded decoded cache', () => {
     expect(resolveAudioPreparation(undefined)).toMatchObject({
       enabled: true,
-      strategy: 'immediate',
+      strategy: 'idle',
       cacheByteBudget: 8 * 1024 * 1024,
     });
     expect(resolveAudioPreparation(false).enabled).toBe(false);

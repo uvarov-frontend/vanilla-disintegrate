@@ -91,7 +91,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       docsKicker: 'Documentation',
       docsTitle: 'Bring it into your project',
       docsDescription:
-        'Start with installation and a built-in effect, then add restoration, undo, background preparation, or a custom renderer.',
+        'Start with installation and a built-in preset, then add restoration, undo, background preparation, or a custom renderer.',
     },
   },
   ru: {
@@ -134,7 +134,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       docsKicker: 'Документация',
       docsTitle: 'Подключите библиотеку к проекту',
       docsDescription:
-        'Начните с установки и готового эффекта, затем добавьте возврат, undo, фоновую подготовку или собственный рендерер.',
+        'Начните с установки и готового пресета, затем добавьте возврат, undo, фоновую подготовку или собственный рендерер.',
     },
   },
   zh: {
@@ -175,7 +175,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       openGuide: '打开指南',
       docsKicker: '文档',
       docsTitle: '接入你的项目',
-      docsDescription: '从安装和内置效果开始，再添加恢复、撤销、后台准备或自定义渲染器。',
+      docsDescription: '从安装和内置预设开始，再添加恢复、撤销、后台准备或自定义渲染器。',
     },
   },
   ko: {
@@ -217,7 +217,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       openGuide: '가이드 열기',
       docsKicker: '문서',
       docsTitle: '프로젝트에 연결하세요',
-      docsDescription: '설치와 내장 효과로 시작한 뒤 복원, 실행 취소, 백그라운드 준비 또는 사용자 렌더러를 추가하세요.',
+      docsDescription:
+        '설치와 내장 프리셋으로 시작한 뒤 복원, 실행 취소, 백그라운드 준비 또는 사용자 렌더러를 추가하세요.',
     },
   },
 };

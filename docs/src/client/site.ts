@@ -1,4 +1,4 @@
-import type { BuiltInEffect, EffectDefinition, EffectOperation, RemovalId } from '../../../src/types';
+import type { BuiltInPreset, EffectDefinition, EffectOperation, RemovalId, SoundSelection } from '../../../src/types';
 import { mountParticlePlayground } from './particle-playground';
 
 type Locale = 'en' | 'ru' | 'zh' | 'ko';
@@ -10,6 +10,7 @@ const locale = (document.body.dataset.locale ?? 'en') as Locale;
 const instances = new Set<DisintegratorInstance>();
 let DisintegratorClass: DisintegratorConstructor | null = null;
 let particleVortexEffect: EffectDefinition | null = null;
+let particleVortexSounds: SoundSelection | null = null;
 
 const copy = {
   en: {
@@ -114,14 +115,12 @@ const copy = {
   },
 }[locale];
 
-const effectNames: Record<BuiltInEffect, string> = {
+const presetNames: Record<BuiltInPreset, string> = {
   dust: 'Rising dust',
   scatter: 'Fine scatter',
   vapor: 'Rising vapor',
-  wind: 'Christmas wind',
+  wind: 'Wind',
 };
-const builtInEffectNames = Object.keys(effectNames) as BuiltInEffect[];
-
 function required<T extends Element>(root: ParentNode, selector: string) {
   const element = root.querySelector<T>(selector);
   if (!element) throw new Error(`Missing documentation element: ${selector}`);
@@ -496,6 +495,8 @@ function mountPreparationDemo(root: HTMLElement) {
   const instance = track(
     createDisintegrator({
       preparation: { strategy: 'visible-idle', fallbackDelay: 120, scrollSettle: 0 },
+      preset: 'dust',
+      sound: false,
       onError: (error) => {
         operation.textContent = String(error);
       },
@@ -564,10 +565,10 @@ function mountPreparationDemo(root: HTMLElement) {
 
 function mountPairDemo(root: HTMLElement, kind: DemoKind) {
   const picker = kind === 'built-in';
-  const effectLabel = kind === 'particle-vortex' ? 'Particle vortex' : effectNames.dust;
+  const effectLabel = kind === 'particle-vortex' ? 'Particle vortex' : presetNames.dust;
   root.innerHTML = `<div class="interactive-example"><div class="example-toolbar"><div class="example-setting"><span>${copy.effectPair}</span>${
     picker
-      ? `<label class="select-control"><select data-effect>${Object.entries(effectNames)
+      ? `<label class="select-control"><select data-effect>${Object.entries(presetNames)
           .map(([value, label]) => `<option value="${value}">${label}</option>`)
           .join('')}</select><i></i></label>`
       : `<strong>${effectLabel}</strong>`
@@ -582,9 +583,16 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
   const dom = required<HTMLElement>(root, '[data-dom]');
   const pair = required<HTMLElement>(root, '[data-pair]');
   const idOutput = required<HTMLElement>(root, '[data-id]');
+  const demoSounds: SoundSelection | false = kind === 'particle-vortex' ? (particleVortexSounds ?? false) : false;
+  const instanceSelection = () => {
+    if (kind === 'built-in') return { preset: 'dust' as const };
+    if (particleVortexEffect === null) throw new Error('The particle vortex demo is not loaded.');
+    return { effect: particleVortexEffect, sound: demoSounds };
+  };
   const instance = track(
     createDisintegrator({
-      ...(kind === 'built-in' ? { audioPreparation: { effects: builtInEffectNames }, sound: true as const } : {}),
+      ...instanceSelection(),
+      ...(demoSounds === false ? {} : { audioPreparation: { sounds: demoSounds } }),
       preparation: true,
       onError: (error) => {
         state.textContent = String(error);
@@ -603,16 +611,10 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
   slot.append(card);
   registerCard(card);
 
-  const selected = (): BuiltInEffect | EffectDefinition => {
-    if (kind === 'particle-vortex') {
-      if (particleVortexEffect === null) throw new Error('The particle vortex demo is not loaded.');
-      return particleVortexEffect;
-    }
-    return (select?.value ?? 'dust') as BuiltInEffect;
-  };
   const selectedLabel = () =>
-    kind === 'particle-vortex' ? 'Particle vortex' : effectNames[(select?.value ?? 'dust') as BuiltInEffect];
-  const soundOptions = () => (sound ? { sound: sound.checked } : {});
+    kind === 'particle-vortex' ? 'Particle vortex' : presetNames[(select?.value ?? 'dust') as BuiltInPreset];
+  const selectedOptions = () => (kind === 'built-in' ? { preset: (select?.value ?? 'dust') as BuiltInPreset } : {});
+  const soundOptions = () => (sound?.checked === false ? { sound: false as const } : {});
   const update = () => {
     const connected = card?.isConnected === true;
     root.setAttribute('aria-busy', String(busy));
@@ -644,7 +646,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
     if (!card || busy) return;
     const target = card;
     remembered = selectedLabel();
-    const operation = instance.remove(target, { effect: selected(), retain: true, ...soundOptions() });
+    const operation = instance.remove(target, { ...selectedOptions(), retain: true, ...soundOptions() });
     removalId = operation.removalId;
     void settle(operation, () => {
       card = target.isConnected ? target : null;
@@ -654,7 +656,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
     if (busy) return;
     if (card?.isConnected) {
       remembered = selectedLabel();
-      void settle(instance.restore(card, { effect: selected(), ...soundOptions() }));
+      void settle(instance.restore(card, { ...selectedOptions(), ...soundOptions() }));
       return;
     }
     if (!removalId) return;
@@ -705,6 +707,7 @@ export function setupSite() {
         .then(([runtime, vortexModule]) => {
           DisintegratorClass = runtime.default;
           particleVortexEffect = vortexModule?.particleVortex ?? null;
+          particleVortexSounds = vortexModule?.particleVortexSounds ?? null;
           for (const root of demoRoots) {
             const kind = (root.dataset.demoKind ?? 'built-in') as DemoKind;
             if (kind === 'preparation') mountPreparationDemo(root);

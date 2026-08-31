@@ -58,8 +58,8 @@ function playback(finished: Promise<void> = Promise.resolve()): AnimationPlaybac
 
 function customEffect(remove: AnimationFactory = () => playback(), restore: AnimationFactory = () => playback()) {
   return defineEffect({
-    remove: { animate: remove, sound: null },
-    restore: { animate: restore, sound: null },
+    remove: { animate: remove },
+    restore: { animate: restore },
   });
 }
 
@@ -72,6 +72,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: customEffect(),
       layout: false,
+      sound: false,
     });
 
     const operation = effect.remove(target, { retain: true });
@@ -92,6 +93,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: customEffect(),
       layout: false,
+      sound: false,
     });
 
     const operation = effect.remove(target);
@@ -110,10 +112,11 @@ describe('remove and restore lifecycle', () => {
       capture: () => captured.promise,
       effect: customEffect(animate),
       layout: false,
+      sound: false,
     });
 
     const first = effect.remove(target, { retain: true });
-    const second = effect.remove(target, { effect: 'not-registered', retain: true });
+    const second = effect.remove(target, { effect: customEffect(), retain: true });
     let rejectedSettled = false;
     void second.finished.then(() => {
       rejectedSettled = true;
@@ -149,6 +152,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: effectDefinition,
       layout: false,
+      sound: false,
       onError,
     });
 
@@ -165,6 +169,7 @@ describe('remove and restore lifecycle', () => {
       capture,
       effect: customEffect(),
       layout: false,
+      sound: false,
       onTrigger: () => effect.destroy(),
     });
 
@@ -193,6 +198,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: customEffect(animate),
       layout: false,
+      sound: false,
     });
 
     const result = await effect.remove(target).finished;
@@ -213,6 +219,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: customEffect(animate),
       layout: false,
+      sound: false,
       random: () => {
         effect.destroy();
         return 0.5;
@@ -244,6 +251,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: customEffect(animate),
       layout: false,
+      sound: false,
       onError,
     });
 
@@ -264,6 +272,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: customEffect(),
       layout: false,
+      sound: false,
     });
 
     const result = await effect.remove(target, { detach }).finished;
@@ -281,6 +290,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: customEffect(),
       layout: false,
+      sound: false,
     });
     const operation = effect.remove(target, {
       detach: (element) => {
@@ -305,6 +315,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: customEffect(),
       layout: false,
+      sound: false,
       onError,
     });
 
@@ -328,6 +339,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: effectDefinition,
       layout: false,
+      sound: false,
     });
     const removal = effect.remove(target, { retain: true });
     await removal.finished;
@@ -356,6 +368,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: customEffect(undefined, pairedRestore),
       layout: false,
+      sound: false,
     });
     const removal = effect.remove(target, { retain: true });
     await removal.finished;
@@ -382,6 +395,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn(() => captured.promise),
       effect: customEffect(undefined, restore),
       layout: false,
+      sound: false,
     });
 
     const operation = effect.restore(target);
@@ -400,7 +414,12 @@ describe('remove and restore lifecycle', () => {
     Object.defineProperty(fresh, 'getBoundingClientRect', { value: () => rect(80, 110) });
     container.append(fresh);
     const restore = vi.fn<AnimationFactory>(() => playback());
-    const effect = new Disintegrator({ capture: vi.fn().mockResolvedValue(snapshot()), layout: false });
+    const effect = new Disintegrator({
+      capture: vi.fn().mockResolvedValue(snapshot()),
+      effect: customEffect(),
+      layout: false,
+      sound: false,
+    });
 
     const operation = effect.restore(fresh, { effect: customEffect(undefined, restore) });
     await operation.finished;
@@ -413,7 +432,11 @@ describe('remove and restore lifecycle', () => {
   it('rejects restoration before the user inserts the element', () => {
     const detached = document.createElement('article');
     Object.defineProperty(detached, 'getBoundingClientRect', { value: () => rect() });
-    const effect = new Disintegrator({ capture: vi.fn().mockResolvedValue(snapshot()) });
+    const effect = new Disintegrator({
+      capture: vi.fn().mockResolvedValue(snapshot()),
+      effect: customEffect(),
+      sound: false,
+    });
 
     expect(() => effect.restore(detached)).toThrow('connected element with measurable geometry');
     effect.destroy();
@@ -427,10 +450,11 @@ describe('remove and restore lifecycle', () => {
     });
     const effect = new Disintegrator({
       effect: defineEffect({
-        remove: { needsSnapshot: false, animate, sound: null },
-        restore: { needsSnapshot: false, animate, sound: null },
+        remove: { needsSnapshot: false, animate },
+        restore: { needsSnapshot: false, animate },
       }),
       layout: false,
+      sound: false,
     });
 
     const result = await effect.remove(target).finished;
@@ -451,6 +475,7 @@ describe('remove and restore lifecycle', () => {
       },
       effect: customEffect(),
       layout: false,
+      sound: false,
       onError,
     });
 
@@ -465,7 +490,12 @@ describe('remove and restore lifecycle', () => {
   it('cancels a pending visual operation but keeps the requested content result', async () => {
     const { target } = createTarget();
     const capture = deferred<HTMLCanvasElement>();
-    const effect = new Disintegrator({ capture: () => capture.promise, effect: customEffect(), layout: false });
+    const effect = new Disintegrator({
+      capture: () => capture.promise,
+      effect: customEffect(),
+      layout: false,
+      sound: false,
+    });
 
     const operation = effect.remove(target, { retain: true });
     operation.cancel();
@@ -481,7 +511,12 @@ describe('remove and restore lifecycle', () => {
   it('can discard a retained id before its pending removal finishes', async () => {
     const { target } = createTarget();
     const capture = deferred<HTMLCanvasElement>();
-    const effect = new Disintegrator({ capture: () => capture.promise, effect: customEffect(), layout: false });
+    const effect = new Disintegrator({
+      capture: () => capture.promise,
+      effect: customEffect(),
+      layout: false,
+      sound: false,
+    });
     const operation = effect.remove(target, { retain: true });
 
     expect(effect.discard(operation.removalId!)).toBe(true);
@@ -499,6 +534,7 @@ describe('remove and restore lifecycle', () => {
       capture: vi.fn().mockResolvedValue(snapshot()),
       effect: customEffect(),
       layout: false,
+      sound: false,
     });
     const firstRemoval = effect.remove(first, { retain: true });
     const secondRemoval = effect.remove(second, { retain: true });
@@ -518,7 +554,7 @@ describe('remove and restore lifecycle', () => {
     });
     const { target } = createTarget();
     const capture = vi.fn().mockResolvedValue(snapshot());
-    const effect = new Disintegrator({ capture, effect: customEffect(), layout: false });
+    const effect = new Disintegrator({ capture, effect: customEffect(), layout: false, sound: false });
 
     const result = await effect.remove(target).finished;
 

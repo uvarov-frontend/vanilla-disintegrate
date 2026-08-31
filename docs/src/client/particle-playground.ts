@@ -1,18 +1,22 @@
 import Disintegrator, {
   createParticleEffect,
-  particlePresetSounds,
   particlePresets,
-  type BuiltInEffect,
+  type BuiltInPreset,
+  type BuiltInSound,
   type EffectOperation,
   type ParticleCurve,
   type ParticleOptions,
   type ParticlePreset,
   type ParticleRelease,
   type RemovalId,
-  type SoundDefinition,
   type SoundOptions,
-  type SoundSource,
 } from '../../../src/snapdom';
+import {
+  deletePlaygroundAudio,
+  loadPlaygroundAudio,
+  savePlaygroundAudio,
+  type StoredPlaygroundAudio,
+} from './playground-audio-storage';
 
 type Locale = 'en' | 'ru' | 'zh' | 'ko';
 
@@ -30,23 +34,25 @@ interface PlaygroundState {
   swirl: number;
   endScale: number;
   soundEnabled: boolean;
-  soundGain: number;
+  soundSource: BuiltInSound | 'custom';
+  soundReverse: boolean;
+  soundVolume: number;
   soundPlaybackRate: number;
   soundDelay: number;
   soundFadeDuration: number;
 }
 
 type PlaygroundOperation = 'remove' | 'restore';
-type PlaygroundPresetSelection = BuiltInEffect | 'custom';
-type PlaygroundOperationPresets = Record<PlaygroundOperation, BuiltInEffect>;
+type PlaygroundPresetSelection = BuiltInPreset | 'custom';
 type PlaygroundPresetSelections = Record<PlaygroundOperation, PlaygroundPresetSelection>;
+type PlaygroundCustomSounds = Record<PlaygroundOperation, StoredPlaygroundAudio | null>;
 
 interface PlaygroundConfiguration {
   remove: PlaygroundState;
   restore: PlaygroundState;
 }
 
-type NumericKey = Exclude<keyof PlaygroundState, 'curve' | 'release' | 'soundEnabled'>;
+type NumericKey = Exclude<keyof PlaygroundState, 'curve' | 'release' | 'soundEnabled' | 'soundSource' | 'soundReverse'>;
 
 interface RangeDefinition {
   readonly key: NumericKey;
@@ -78,7 +84,19 @@ const copies = {
     vertical: 'Vertical',
     sound: 'Sound',
     soundEnabled: 'Enable sound',
-    soundGain: 'Volume',
+    soundSource: 'Sound source',
+    soundReverse: 'Play backwards',
+    customSound: 'Custom file',
+    chooseSound: 'Choose file',
+    changeSound: 'Replace',
+    removeSound: 'Remove',
+    localSoundNote: 'Stored only in this browser. Nothing is uploaded.',
+    customSoundMissing: 'Choose an audio file for this animation.',
+    audioTooLarge: 'Choose a file no larger than 5 MB.',
+    audioTooLong: 'Choose audio no longer than 10 seconds.',
+    audioInvalid: 'The browser could not read this audio file.',
+    audioSaving: 'Saving audio locally…',
+    soundVolume: 'Volume',
     soundPlaybackRate: 'Speed',
     soundDelay: 'Delay',
     soundFadeDuration: 'Smooth start and end',
@@ -123,7 +141,19 @@ const copies = {
     vertical: 'Вертикаль',
     sound: 'Звук',
     soundEnabled: 'Включить звук',
-    soundGain: 'Громкость',
+    soundSource: 'Источник звука',
+    soundReverse: 'Воспроизводить наоборот',
+    customSound: 'Свой файл',
+    chooseSound: 'Выбрать файл',
+    changeSound: 'Заменить',
+    removeSound: 'Удалить',
+    localSoundNote: 'Хранится только в этом браузере. Файл никуда не загружается.',
+    customSoundMissing: 'Выберите аудиофайл для этой анимации.',
+    audioTooLarge: 'Выберите файл размером не больше 5 МБ.',
+    audioTooLong: 'Выберите звук длительностью не больше 10 секунд.',
+    audioInvalid: 'Браузер не смог прочитать этот аудиофайл.',
+    audioSaving: 'Сохраняем звук в браузере…',
+    soundVolume: 'Громкость',
     soundPlaybackRate: 'Скорость',
     soundDelay: 'Задержка',
     soundFadeDuration: 'Плавное начало и конец',
@@ -168,7 +198,19 @@ const copies = {
     vertical: '垂直',
     sound: '声音',
     soundEnabled: '开启声音',
-    soundGain: '音量',
+    soundSource: '声音来源',
+    soundReverse: '反向播放',
+    customSound: '自定义文件',
+    chooseSound: '选择文件',
+    changeSound: '替换',
+    removeSound: '删除',
+    localSoundNote: '仅保存在此浏览器中，不会上传文件。',
+    customSoundMissing: '请为此动画选择音频文件。',
+    audioTooLarge: '请选择不超过 5 MB 的文件。',
+    audioTooLong: '请选择不超过 10 秒的音频。',
+    audioInvalid: '浏览器无法读取此音频文件。',
+    audioSaving: '正在本地保存音频…',
+    soundVolume: '音量',
     soundPlaybackRate: '速度',
     soundDelay: '延迟',
     soundFadeDuration: '平滑开始和结束',
@@ -213,7 +255,19 @@ const copies = {
     vertical: '세로',
     sound: '사운드',
     soundEnabled: '사운드 켜기',
-    soundGain: '볼륨',
+    soundSource: '사운드 소스',
+    soundReverse: '거꾸로 재생',
+    customSound: '사용자 파일',
+    chooseSound: '파일 선택',
+    changeSound: '교체',
+    removeSound: '삭제',
+    localSoundNote: '이 브라우저에만 저장되며 어디에도 업로드되지 않습니다.',
+    customSoundMissing: '이 애니메이션에 사용할 오디오 파일을 선택하세요.',
+    audioTooLarge: '5 MB 이하의 파일을 선택하세요.',
+    audioTooLong: '10초 이하의 오디오를 선택하세요.',
+    audioInvalid: '브라우저에서 이 오디오 파일을 읽을 수 없습니다.',
+    audioSaving: '브라우저에 오디오 저장 중…',
+    soundVolume: '볼륨',
     soundPlaybackRate: '속도',
     soundDelay: '지연',
     soundFadeDuration: '부드러운 시작과 끝',
@@ -255,7 +309,9 @@ const helps = {
     convergence: 'Pulls particles toward the element centre. Zero keeps their paths independent.',
     swirl: 'Sets the amplitude of the vertical wave along each particle path.',
     endScale: 'Particle size at the end of removal, relative to its starting size.',
-    soundGain: 'Linear output volume from silence at 0% to full gain at 100%.',
+    soundSource: 'Choose bundled audio or a file that stays on this device.',
+    soundReverse: 'Reverses the selected recording without requiring a second audio file.',
+    soundVolume: 'Linear output volume from silence at 0% to full volume at 100%.',
     soundPlaybackRate: 'Changes playback speed and pitch. 1× uses the original recording.',
     soundDelay: 'Waits this long after the visual operation starts before playing audio.',
     soundFadeDuration: 'Duration of the fade-out on removal and fade-in on restoration.',
@@ -273,7 +329,9 @@ const helps = {
     convergence: 'Насколько сильно частицы тянутся к центру элемента. При нуле притяжения нет.',
     swirl: 'Насколько сильно частицы колеблются во время движения.',
     endScale: 'Размер частицы в конце анимации. 1× — исходный размер.',
-    soundGain: 'Линейная громкость: от полной тишины при 0% до полного уровня при 100%.',
+    soundSource: 'Выберите встроенный звук или локальный файл, который останется на этом устройстве.',
+    soundReverse: 'Воспроизводит выбранную запись задом наперёд без второго аудиофайла.',
+    soundVolume: 'Линейная громкость: от полной тишины при 0% до полного уровня при 100%.',
     soundPlaybackRate: 'Меняет скорость и высоту воспроизведения. 1× соответствует оригинальной записи.',
     soundDelay: 'Задержка между запуском визуальной анимации и началом звука.',
     soundFadeDuration: 'Длительность затухания при удалении и нарастания звука при восстановлении.',
@@ -291,7 +349,9 @@ const helps = {
     convergence: '将粒子拉向元素中心；设为零时路径彼此独立。',
     swirl: '设置粒子路径上垂直波动的幅度。',
     endScale: '移除结束时粒子相对初始大小的比例。',
-    soundGain: '线性输出音量：0% 为静音，100% 为完整增益。',
+    soundSource: '选择内置音频或仅保留在此设备上的本地文件。',
+    soundReverse: '反向播放所选录音，无需第二个音频文件。',
+    soundVolume: '线性输出音量：0% 为静音，100% 为完整音量。',
     soundPlaybackRate: '改变播放速度和音高；1× 使用原始录音。',
     soundDelay: '视觉动画开始后等待多久再播放声音。',
     soundFadeDuration: '删除时淡出、恢复时淡入的持续时间。',
@@ -309,7 +369,9 @@ const helps = {
     convergence: '파티클을 요소 중앙으로 끌어당깁니다. 0이면 경로가 서로 독립적입니다.',
     swirl: '각 파티클 경로의 세로 파동 진폭을 정합니다.',
     endScale: '삭제가 끝날 때 시작 크기 대비 파티클 크기입니다.',
-    soundGain: '0% 무음부터 100% 전체 게인까지의 선형 볼륨입니다.',
+    soundSource: '내장 오디오 또는 이 기기에만 보관되는 로컬 파일을 선택합니다.',
+    soundReverse: '두 번째 파일 없이 선택한 녹음을 거꾸로 재생합니다.',
+    soundVolume: '0% 무음부터 100% 전체 볼륨까지의 선형 음량입니다.',
     soundPlaybackRate: '재생 속도와 피치를 바꿉니다. 1×는 원본 녹음입니다.',
     soundDelay: '시각 효과가 시작된 뒤 사운드를 재생하기까지의 지연입니다.',
     soundFadeDuration: '삭제 시 페이드아웃과 복원 시 페이드인의 지속 시간입니다.',
@@ -320,17 +382,33 @@ const locale = (typeof document === 'undefined' ? 'en' : (document.body.dataset.
 const copy = copies[locale];
 const help = helps[locale];
 
-const presetNames: Record<BuiltInEffect, string> = {
+const presetNames: Record<BuiltInPreset, string> = {
   dust: 'Dust',
   vapor: 'Vapor',
   scatter: 'Scatter',
   wind: 'Wind',
 };
-const presetDescriptions: Record<Locale, Record<BuiltInEffect, string>> = {
-  en: { dust: 'diagonal trail', vapor: 'rises and fades', scatter: 'spreads outward', wind: 'drifts sideways' },
-  ru: { dust: 'диагональный шлейф', vapor: 'вверх и растворяется', scatter: 'разлёт в стороны', wind: 'сносит вбок' },
+const presetDescriptions: Record<Locale, Record<BuiltInPreset, string>> = {
+  en: {
+    dust: 'diagonal trail',
+    vapor: 'rises and fades',
+    scatter: 'spreads outward',
+    wind: 'drifts sideways',
+  },
+  ru: {
+    dust: 'диагональный шлейф',
+    vapor: 'вверх и растворяется',
+    scatter: 'разлёт в стороны',
+    wind: 'сносит вбок',
+  },
   zh: { dust: '对角拖尾', vapor: '上升并消散', scatter: '向四周散开', wind: '横向飘移' },
   ko: { dust: '대각선 궤적', vapor: '상승하며 사라짐', scatter: '사방으로 확산', wind: '옆으로 이동' },
+};
+const soundOptionLabels: Record<Locale, Record<BuiltInSound, string>> = {
+  en: { dust: 'Dust', vapor: 'Vapor', scatter: 'Scatter', wind: 'Wind' },
+  ru: { dust: 'Пыль', vapor: 'Пар', scatter: 'Импульс', wind: 'Ветер' },
+  zh: { dust: '尘埃', vapor: '气流', scatter: '冲击', wind: '风声' },
+  ko: { dust: '먼지', vapor: '공기', scatter: '충격', wind: '바람' },
 };
 const curveOptionLabels: Record<Locale, Record<ParticleCurve, string>> = {
   en: {
@@ -376,84 +454,103 @@ const releaseOptionLabels: Record<Locale, Record<ParticleRelease, string>> = {
 };
 const curves: readonly ParticleCurve[] = ['settle', 'float', 'burst', 'drift'];
 const releases: readonly ParticleRelease[] = ['left', 'right', 'top', 'random'];
-const presetKeys = Object.keys(presetNames) as BuiltInEffect[];
-const soundNumericKeys: readonly NumericKey[] = ['soundGain', 'soundPlaybackRate', 'soundDelay', 'soundFadeDuration'];
+const presetKeys = Object.keys(presetNames) as BuiltInPreset[];
+const builtInSoundKeys: readonly BuiltInSound[] = ['dust', 'vapor', 'scatter', 'wind'];
+const soundNumericKeys: readonly NumericKey[] = ['soundVolume', 'soundPlaybackRate', 'soundDelay', 'soundFadeDuration'];
 function createRanges(copy: (typeof copies)[Locale], help: (typeof helps)[Locale]): readonly RangeDefinition[] {
   return [
-  { key: 'duration', label: copy.duration, min: 200, max: 3000, step: 50, unit: 'ms', description: help.duration },
-  { key: 'stagger', label: copy.stagger, min: 0, max: 800, step: 10, unit: 'ms', description: help.stagger },
-  {
-    key: 'horizontalDrift',
-    label: copy.horizontalDrift,
-    min: 0,
-    max: 240,
-    step: 5,
-    unit: 'px',
-    description: help.horizontalDrift,
-  },
-  {
-    key: 'horizontalMin',
-    label: copy.horizontalMin,
-    min: -400,
-    max: 400,
-    step: 5,
-    unit: 'px',
-    description: help.horizontalMin,
-  },
-  {
-    key: 'horizontalMax',
-    label: copy.horizontalMax,
-    min: -400,
-    max: 400,
-    step: 5,
-    unit: 'px',
-    description: help.horizontalMax,
-  },
-  {
-    key: 'verticalMin',
-    label: copy.verticalMin,
-    min: -400,
-    max: 400,
-    step: 5,
-    unit: 'px',
-    description: help.verticalMin,
-  },
-  {
-    key: 'verticalMax',
-    label: copy.verticalMax,
-    min: -400,
-    max: 400,
-    step: 5,
-    unit: 'px',
-    description: help.verticalMax,
-  },
-  { key: 'convergence', label: copy.convergence, min: 0, max: 1, step: 0.05, unit: '', description: help.convergence },
-  { key: 'swirl', label: copy.swirl, min: 0, max: 160, step: 5, unit: 'px', description: help.swirl },
-  { key: 'endScale', label: copy.endScale, min: 0.1, max: 2, step: 0.05, unit: '×', description: help.endScale },
-  { key: 'soundGain', label: copy.soundGain, min: 0, max: 1, step: 0.05, unit: '%', description: help.soundGain },
-  {
-    key: 'soundPlaybackRate',
-    label: copy.soundPlaybackRate,
-    min: 0.5,
-    max: 2,
-    step: 0.05,
-    unit: '×',
-    description: help.soundPlaybackRate,
-  },
-  { key: 'soundDelay', label: copy.soundDelay, min: 0, max: 500, step: 10, unit: 'ms', description: help.soundDelay },
-  {
-    key: 'soundFadeDuration',
-    label: copy.soundFadeDuration,
-    min: 0,
-    max: 1,
-    step: 0.05,
-    unit: 's',
-    description: help.soundFadeDuration,
-  },
+    { key: 'duration', label: copy.duration, min: 200, max: 3000, step: 50, unit: 'ms', description: help.duration },
+    { key: 'stagger', label: copy.stagger, min: 0, max: 800, step: 10, unit: 'ms', description: help.stagger },
+    {
+      key: 'horizontalDrift',
+      label: copy.horizontalDrift,
+      min: 0,
+      max: 240,
+      step: 5,
+      unit: 'px',
+      description: help.horizontalDrift,
+    },
+    {
+      key: 'horizontalMin',
+      label: copy.horizontalMin,
+      min: -400,
+      max: 400,
+      step: 5,
+      unit: 'px',
+      description: help.horizontalMin,
+    },
+    {
+      key: 'horizontalMax',
+      label: copy.horizontalMax,
+      min: -400,
+      max: 400,
+      step: 5,
+      unit: 'px',
+      description: help.horizontalMax,
+    },
+    {
+      key: 'verticalMin',
+      label: copy.verticalMin,
+      min: -400,
+      max: 400,
+      step: 5,
+      unit: 'px',
+      description: help.verticalMin,
+    },
+    {
+      key: 'verticalMax',
+      label: copy.verticalMax,
+      min: -400,
+      max: 400,
+      step: 5,
+      unit: 'px',
+      description: help.verticalMax,
+    },
+    {
+      key: 'convergence',
+      label: copy.convergence,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: '',
+      description: help.convergence,
+    },
+    { key: 'swirl', label: copy.swirl, min: 0, max: 160, step: 5, unit: 'px', description: help.swirl },
+    { key: 'endScale', label: copy.endScale, min: 0.1, max: 2, step: 0.05, unit: '×', description: help.endScale },
+    {
+      key: 'soundVolume',
+      label: copy.soundVolume,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: '%',
+      description: help.soundVolume,
+    },
+    {
+      key: 'soundPlaybackRate',
+      label: copy.soundPlaybackRate,
+      min: 0.5,
+      max: 2,
+      step: 0.05,
+      unit: '×',
+      description: help.soundPlaybackRate,
+    },
+    { key: 'soundDelay', label: copy.soundDelay, min: 0, max: 500, step: 10, unit: 'ms', description: help.soundDelay },
+    {
+      key: 'soundFadeDuration',
+      label: copy.soundFadeDuration,
+      min: 0,
+      max: 1,
+      step: 0.05,
+      unit: 's',
+      description: help.soundFadeDuration,
+    },
   ];
 }
 
 const ranges = createRanges(copy, help);
+const MAX_LOCAL_AUDIO_BYTES = 5 * 1024 * 1024;
+const MAX_LOCAL_AUDIO_SECONDS = 10;
 
 const hashKeys: Readonly<Record<NumericKey, string>> = {
   duration: 'd',
@@ -466,7 +563,7 @@ const hashKeys: Readonly<Record<NumericKey, string>> = {
   convergence: 'cv',
   swirl: 'sw',
   endScale: 'es',
-  soundGain: 'sg',
+  soundVolume: 'sg',
   soundPlaybackRate: 'sr',
   soundDelay: 'sd',
   soundFadeDuration: 'sf',
@@ -478,7 +575,59 @@ function required<T extends Element>(root: ParentNode, selector: string) {
   return element;
 }
 
-function stateFromPreset(preset: ParticlePreset): PlaygroundState {
+function localAudioStorageKey(operation: PlaygroundOperation) {
+  return `particle-playground:${operation}`;
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function audioDuration(file: Blob) {
+  return new Promise<number>((resolve, reject) => {
+    const audio = document.createElement('audio');
+    const url = URL.createObjectURL(file);
+    let settled = false;
+    let timeout = 0;
+    const release = () => {
+      if (settled) return false;
+      settled = true;
+      window.clearTimeout(timeout);
+      audio.removeEventListener('loadedmetadata', loaded);
+      audio.removeEventListener('error', failed);
+      audio.removeAttribute('src');
+      audio.load();
+      URL.revokeObjectURL(url);
+      return true;
+    };
+    const loaded = () => {
+      const duration = audio.duration;
+      if (!release()) return;
+      if (Number.isFinite(duration)) resolve(duration);
+      else reject(new Error('Invalid audio duration.'));
+    };
+    const failed = () => {
+      if (!release()) return;
+      reject(new Error('Unable to read audio metadata.'));
+    };
+    timeout = window.setTimeout(() => {
+      if (!release()) return;
+      reject(new Error('Audio metadata timeout.'));
+    }, 5000);
+    audio.preload = 'metadata';
+    audio.addEventListener('loadedmetadata', loaded, { once: true });
+    audio.addEventListener('error', failed, { once: true });
+    audio.src = url;
+  });
+}
+
+function stateFromPreset(
+  preset: ParticlePreset,
+  operation: PlaygroundOperation,
+  soundSource: BuiltInSound = 'dust',
+): PlaygroundState {
   return {
     curve: preset.curve,
     release: preset.release,
@@ -493,11 +642,17 @@ function stateFromPreset(preset: ParticlePreset): PlaygroundState {
     swirl: preset.swirl,
     endScale: preset.endScale,
     soundEnabled: true,
-    soundGain: 0.32,
+    soundSource,
+    soundReverse: operation === 'restore',
+    soundVolume: 0.32,
     soundPlaybackRate: 1,
     soundDelay: 0,
     soundFadeDuration: 0.18,
   };
+}
+
+function stateFromBuiltInPreset(preset: BuiltInPreset, operation: PlaygroundOperation): PlaygroundState {
+  return stateFromPreset(particlePresets[preset], operation, preset);
 }
 
 function particleOptions(state: PlaygroundState): ParticleOptions {
@@ -515,35 +670,29 @@ function particleOptions(state: PlaygroundState): ParticleOptions {
   };
 }
 
-function isSoundOptions(definition: SoundSource | SoundOptions): definition is SoundOptions {
-  return typeof definition === 'object' && definition !== null && 'src' in definition;
-}
-
-function configuredSound(definition: SoundDefinition | null | undefined, state: PlaygroundState) {
-  if (definition === null || definition === undefined || typeof definition === 'function') return definition ?? null;
-  const options: SoundOptions = isSoundOptions(definition) ? definition : { src: definition };
+function configuredSound(
+  operation: PlaygroundOperation,
+  state: PlaygroundState,
+  customSounds: PlaygroundCustomSounds,
+): SoundOptions | null {
+  if (!state.soundEnabled) return null;
+  const src = state.soundSource === 'custom' ? customSounds[operation]?.blob : state.soundSource;
+  if (src === undefined) return null;
   return {
-    ...options,
-    gain: state.soundGain,
+    src,
+    reverse: state.soundReverse,
+    volume: state.soundVolume,
     playbackRate: state.soundPlaybackRate,
     delay: state.soundDelay,
     fadeDuration: state.soundFadeDuration,
-  } satisfies SoundOptions;
+  };
 }
 
-function playgroundEffect(configuration: PlaygroundConfiguration, soundPresets: PlaygroundOperationPresets) {
-  const removeSounds = particlePresetSounds[soundPresets.remove];
-  const restoreSounds = particlePresetSounds[soundPresets.restore];
-  return createParticleEffect(
-    {
-      remove: particleOptions(configuration.remove),
-      restore: particleOptions(configuration.restore),
-    },
-    {
-      remove: configuration.remove.soundEnabled ? configuredSound(removeSounds.remove, configuration.remove) : null,
-      restore: configuration.restore.soundEnabled ? configuredSound(restoreSounds.restore, configuration.restore) : null,
-    },
-  );
+function playgroundEffect(configuration: PlaygroundConfiguration) {
+  return createParticleEffect({
+    remove: particleOptions(configuration.remove),
+    restore: particleOptions(configuration.restore),
+  });
 }
 
 function formatNumber(value: number) {
@@ -551,7 +700,7 @@ function formatNumber(value: number) {
 }
 
 function formatRangeValue(range: RangeDefinition, value: number) {
-  if (range.key === 'soundGain') return `${Math.round(value * 100)}%`;
+  if (range.key === 'soundVolume') return `${Math.round(value * 100)}%`;
   return `${formatNumber(value)}${range.unit}`;
 }
 
@@ -570,21 +719,33 @@ function optionsSource(state: PlaygroundState) {
 }`;
 }
 
-function playbackSource(state: PlaygroundState) {
+function playbackSource(source: string, state: PlaygroundState) {
   return `{
-  gain: ${formatNumber(state.soundGain)},
+  src: ${source},
+  reverse: ${String(state.soundReverse)},
+  volume: ${formatNumber(state.soundVolume)},
   playbackRate: ${formatNumber(state.soundPlaybackRate)},
   delay: ${formatNumber(state.soundDelay)},
   fadeDuration: ${formatNumber(state.soundFadeDuration)},
 }`;
 }
 
-function effectSource(configuration: PlaygroundConfiguration, soundPresets: PlaygroundOperationPresets) {
+function effectSource(configuration: PlaygroundConfiguration, customSounds: PlaygroundCustomSounds) {
   const removeOptions = optionsSource(configuration.remove);
   const restoreOptions = optionsSource(configuration.restore);
   const hasSound = configuration.remove.soundEnabled || configuration.restore.soundEnabled;
-  if (!hasSound) {
-    return `import { createParticleEffect } from 'vanilla-disintegrate';
+  const importSource = `import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';`;
+  const sourceFor = (operation: PlaygroundOperation) => {
+    const state = configuration[operation];
+    if (state.soundSource !== 'custom') return `'${state.soundSource}'`;
+    const fileName = customSounds[operation]?.name ?? `${operation}-sound.mp3`;
+    return `new URL(${JSON.stringify(`./${fileName}`)}, import.meta.url)`;
+  };
+  const soundEntries = (['remove', 'restore'] as const)
+    .filter((operation) => configuration[operation].soundEnabled)
+    .map((operation) => `  ${operation}: ${playbackSource(sourceFor(operation), configuration[operation])},`)
+    .join('\n');
+  return `${importSource}
 
 const removeOptions = ${removeOptions};
 const restoreOptions = ${restoreOptions};
@@ -592,44 +753,17 @@ const restoreOptions = ${restoreOptions};
 export const effect = createParticleEffect({
   remove: removeOptions,
   restore: restoreOptions,
-});`;
-  }
-  const soundEntries = [
-    configuration.remove.soundEnabled ? `  remove: { ...removeSound, ...removePlayback },` : null,
-    configuration.restore.soundEnabled ? `  restore: { ...restoreSound, ...restorePlayback },` : null,
-  ]
-    .filter(Boolean)
-    .join('\n');
-  const playbackDeclarations = [
-    configuration.remove.soundEnabled
-      ? `const removeSound = particlePresetSounds.${soundPresets.remove}.remove;`
-      : null,
-    configuration.restore.soundEnabled
-      ? `const restoreSound = particlePresetSounds.${soundPresets.restore}.restore;`
-      : null,
-    configuration.remove.soundEnabled ? `const removePlayback = ${playbackSource(configuration.remove)};` : null,
-    configuration.restore.soundEnabled ? `const restorePlayback = ${playbackSource(configuration.restore)};` : null,
-  ]
-    .filter(Boolean)
-    .join('\n');
-  return `import { createParticleEffect, particlePresetSounds } from 'vanilla-disintegrate';
+});
 
-const removeOptions = ${removeOptions};
-const restoreOptions = ${restoreOptions};
-${playbackDeclarations}
-
-export const effect = createParticleEffect({
-  remove: removeOptions,
-  restore: restoreOptions,
-}, {
-${soundEntries}
+export const disintegrator = new Disintegrator({
+  effect,${hasSound ? `\n  sound: {\n${soundEntries}\n  },` : ''}
 });`;
 }
 
-function highlightedEffectSource(configuration: PlaygroundConfiguration, soundPresets: PlaygroundOperationPresets) {
-  const source = effectSource(configuration, soundPresets);
+function highlightedEffectSource(configuration: PlaygroundConfiguration, customSounds: PlaygroundCustomSounds) {
+  const source = effectSource(configuration, customSounds);
   const pattern =
-    /('[^'\n]*')|\b(import|from|export|const|true|false)\b|(-?\d+(?:\.\d+)?)|(\b[a-zA-Z]\w*)(?=:)|\b(createParticleEffect|particlePresetSounds)\b/g;
+    /(["'][^"'\n]*["'])|\b(import|from|export|const|new|true|false)\b|(-?\d+(?:\.\d+)?)|(\b[a-zA-Z]\w*)(?=:)|\b(createParticleEffect|Disintegrator|URL)\b/g;
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   let highlighted = '';
   let previousIndex = 0;
@@ -658,19 +792,29 @@ function createPreviewCard() {
   return card;
 }
 
-function configurationFromPreset(preset: ParticlePreset): PlaygroundConfiguration {
+function configurationFromPreset(preset: BuiltInPreset): PlaygroundConfiguration {
   return {
-    remove: stateFromPreset(preset),
-    restore: stateFromPreset(preset),
+    remove: stateFromBuiltInPreset(preset, 'remove'),
+    restore: stateFromBuiltInPreset(preset, 'restore'),
   };
 }
 
-function stateFromParameters(parameters: URLSearchParams, prefix: string): PlaygroundState {
-  const state = stateFromPreset(particlePresets.dust);
+function stateFromParameters(
+  parameters: URLSearchParams,
+  prefix: string,
+  operation: PlaygroundOperation,
+): PlaygroundState {
+  const state = stateFromPreset(particlePresets.dust, operation);
   const curve = parameters.get(`${prefix}c`);
   const release = parameters.get(`${prefix}r`);
+  const soundSource = parameters.get(`${prefix}ss`);
+  const soundReverse = parameters.get(`${prefix}sv`);
   if (curves.includes(curve as ParticleCurve)) state.curve = curve as ParticleCurve;
   if (releases.includes(release as ParticleRelease)) state.release = release as ParticleRelease;
+  if (soundSource === 'custom' || builtInSoundKeys.includes(soundSource as BuiltInSound)) {
+    state.soundSource = soundSource as BuiltInSound | 'custom';
+  }
+  if (soundReverse !== null) state.soundReverse = soundReverse === '1';
   state.soundEnabled = parameters.get(`${prefix}a`) !== '0';
   for (const range of ranges) {
     const rawValue = parameters.get(`${prefix}${hashKeys[range.key]}`);
@@ -689,8 +833,8 @@ function configurationFromHash(): PlaygroundConfiguration | null {
   if (!window.location.hash.startsWith('#playground?')) return null;
   const parameters = new URLSearchParams(window.location.hash.slice('#playground?'.length));
   return {
-    remove: stateFromParameters(parameters, 'm'),
-    restore: stateFromParameters(parameters, 'r'),
+    remove: stateFromParameters(parameters, 'm', 'remove'),
+    restore: stateFromParameters(parameters, 'r', 'restore'),
   };
 }
 
@@ -700,29 +844,8 @@ function operationFromHash(): PlaygroundOperation {
   return value === 'restore' ? 'restore' : 'remove';
 }
 
-function soundPresetsFromHash(): PlaygroundOperationPresets {
-  if (!window.location.hash.startsWith('#playground?')) return { remove: 'dust', restore: 'dust' };
-  const parameters = new URLSearchParams(window.location.hash.slice('#playground?'.length));
-  const legacyPreset = parameters.get('p');
-  const fallback = presetKeys.includes(legacyPreset as BuiltInEffect) ? (legacyPreset as BuiltInEffect) : 'dust';
-  const remove = parameters.get('mp');
-  const restore = parameters.get('rp');
-  return {
-    remove: presetKeys.includes(remove as BuiltInEffect) ? (remove as BuiltInEffect) : fallback,
-    restore: presetKeys.includes(restore as BuiltInEffect) ? (restore as BuiltInEffect) : fallback,
-  };
-}
-
-function writeHash(
-  configuration: PlaygroundConfiguration,
-  soundPresets: PlaygroundOperationPresets,
-  operation: PlaygroundOperation,
-) {
-  const parameters = new URLSearchParams({
-    mp: soundPresets.remove,
-    rp: soundPresets.restore,
-    o: operation,
-  });
+function writeHash(configuration: PlaygroundConfiguration, operation: PlaygroundOperation) {
+  const parameters = new URLSearchParams({ o: operation });
   for (const [prefix, state] of [
     ['m', configuration.remove],
     ['r', configuration.restore],
@@ -730,6 +853,8 @@ function writeHash(
     parameters.set(`${prefix}c`, state.curve);
     parameters.set(`${prefix}r`, state.release);
     parameters.set(`${prefix}a`, state.soundEnabled ? '1' : '0');
+    parameters.set(`${prefix}ss`, state.soundSource);
+    parameters.set(`${prefix}sv`, state.soundReverse ? '1' : '0');
     for (const range of ranges) {
       parameters.set(`${prefix}${hashKeys[range.key]}`, formatNumber(state[range.key]));
     }
@@ -743,9 +868,9 @@ export function renderParticlePlayground(locale: Locale) {
   const copy = copies[locale];
   const help = helps[locale];
   const ranges = createRanges(copy, help);
-  const initialState = stateFromPreset(particlePresets.dust);
-  const initialConfiguration = configurationFromPreset(particlePresets.dust);
-  const initialSoundPresets: PlaygroundOperationPresets = { remove: 'dust', restore: 'dust' };
+  const initialState = stateFromBuiltInPreset('dust', 'remove');
+  const initialConfiguration = configurationFromPreset('dust');
+  const initialCustomSounds: PlaygroundCustomSounds = { remove: null, restore: null };
   const presetMarkup = presetKeys
     .map((key) => {
       return `<button type="button" data-preset="${key}" data-preset-effect="${key}" aria-pressed="${String(key === 'dust')}"><i aria-hidden="true"></i><span><b>${presetNames[key]}</b><small>${presetDescriptions[locale][key]}</small></span></button>`;
@@ -761,12 +886,7 @@ export function renderParticlePlayground(locale: Locale) {
         return `<option value="${value}">${label}</option>`;
       })
       .join('');
-  const selectMarkup = (
-    key: 'curve' | 'release',
-    label: string,
-    description: string,
-    values: readonly string[],
-  ) =>
+  const selectMarkup = (key: 'curve' | 'release', label: string, description: string, values: readonly string[]) =>
     `<div class="playground-select-field"><span class="playground-field-heading"><label for="playground-${key}">${label}</label><small>${description}</small></span><select id="playground-${key}" data-${key}>${selectOptions(key, values)}</select></div>`;
   const rangeMarkup = (keys: readonly NumericKey[]) =>
     keys
@@ -780,7 +900,27 @@ export function renderParticlePlayground(locale: Locale) {
       .join('');
   const groupPanel = (id: 'timing' | 'horizontal' | 'vertical', keys: readonly NumericKey[], hidden = false) =>
     `<section id="playground-group-panel-${id}" class="playground-settings-panel" role="tabpanel" data-group-panel="${id}" aria-labelledby="playground-group-tab-${id}"${hidden ? ' hidden' : ''}><div class="playground-control-list">${rangeMarkup(keys)}</div></section>`;
-  const soundMarkup = `<section id="playground-group-panel-sound" class="playground-settings-panel playground-sound-panel" role="tabpanel" data-group-panel="sound" aria-labelledby="playground-group-tab-sound" hidden><div class="playground-sound-enabled"><span>${copy.soundEnabled}</span><label class="playground-switch"><input type="checkbox" data-sound-enabled checked><span aria-hidden="true"></span><output data-sound-state>${copy.on}</output></label></div><div class="playground-control-list">${rangeMarkup(soundNumericKeys)}</div></section>`;
+  const soundOptions = builtInSoundKeys
+    .map((key) => `<option value="${key}">${soundOptionLabels[locale][key]}</option>`)
+    .concat(`<option value="custom">${copy.customSound}</option>`)
+    .join('');
+  const soundMarkup = `<section id="playground-group-panel-sound" class="playground-settings-panel playground-sound-panel" role="tabpanel" data-group-panel="sound" aria-labelledby="playground-group-tab-sound" hidden>
+    <div class="playground-sound-toggles">
+      <div class="playground-sound-enabled"><span>${copy.soundEnabled}</span><label class="playground-switch"><input type="checkbox" data-sound-enabled checked><span aria-hidden="true"></span><output data-sound-state>${copy.on}</output></label></div>
+      <div class="playground-sound-reverse"><b>${copy.soundReverse}</b><label class="playground-switch playground-switch-compact"><input type="checkbox" data-sound-reverse><span aria-hidden="true"></span></label></div>
+    </div>
+    <div class="playground-sound-source playground-select-field">
+      <span class="playground-field-heading"><label for="playground-sound-source">${copy.soundSource}</label><small>${help.soundSource}</small></span>
+      <select id="playground-sound-source" data-sound-source>${soundOptions}</select>
+    </div>
+    <div class="playground-local-audio" data-local-audio hidden>
+      <input id="playground-local-audio-file" type="file" accept="audio/*" data-local-audio-input hidden>
+      <div class="playground-local-audio-file"><span data-local-audio-name>${copy.customSoundMissing}</span><small data-local-audio-meta></small></div>
+      <div class="playground-local-audio-actions"><label for="playground-local-audio-file" data-local-audio-choose>${copy.chooseSound}</label><button type="button" data-local-audio-remove hidden>${copy.removeSound}</button></div>
+      <small class="playground-local-audio-note">${copy.localSoundNote}</small>
+    </div>
+    <div class="playground-control-list playground-sound-ranges">${rangeMarkup(soundNumericKeys)}</div>
+  </section>`;
   const copyIcon = `<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.25" y="5.25" width="7.5" height="7.5" rx="1.5"></rect><path d="M10.75 5.25V4.5A1.5 1.5 0 0 0 9.25 3h-4.5A1.75 1.75 0 0 0 3 4.75v4.5a1.5 1.5 0 0 0 1.5 1.5h.75"></path></svg>`;
   const linkIcon = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6.25 9.75 9.75 6.25"></path><path d="M5.25 11.75H4.5a3 3 0 0 1 0-6h2"></path><path d="M10.75 4.25h.75a3 3 0 0 1 0 6h-2"></path></svg>`;
   const copiedIcon = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.25 2.75 2.75 6.25-6.25"></path></svg>`;
@@ -811,7 +951,7 @@ export function renderParticlePlayground(locale: Locale) {
               <span>TypeScript</span>
               <div><button type="button" data-copy="effect" aria-label="${copy.copyEffect}" title="${copy.copyEffect}"><span class="playground-copy-icon playground-copy-icon-default">${copyIcon}</span><span class="playground-copy-icon playground-copy-icon-success">${copiedIcon}</span><span>${copy.copyEffectShort}</span></button><button type="button" data-copy="link" aria-label="${copy.copyLink}" title="${copy.copyLink}"><span class="playground-copy-icon playground-copy-icon-default">${linkIcon}</span><span class="playground-copy-icon playground-copy-icon-success">${copiedIcon}</span><span>${copy.copyLinkShort}</span></button></div>
             </div>
-            <pre class="language-typescript"><code data-code>${highlightedEffectSource(initialConfiguration, initialSoundPresets)}</code></pre>
+            <pre class="language-typescript"><code data-code>${highlightedEffectSource(initialConfiguration, initialCustomSounds)}</code></pre>
           </section>
           <div class="playground-commandbar">
             <output data-status aria-live="polite">${copy.ready}</output>
@@ -853,6 +993,14 @@ export function mountParticlePlayground(root: HTMLElement) {
   const releaseSelect = required<HTMLSelectElement>(root, '[data-release]');
   const soundEnabled = required<HTMLInputElement>(root, '[data-sound-enabled]');
   const soundState = required<HTMLOutputElement>(root, '[data-sound-state]');
+  const soundSource = required<HTMLSelectElement>(root, '[data-sound-source]');
+  const soundReverse = required<HTMLInputElement>(root, '[data-sound-reverse]');
+  const localAudio = required<HTMLElement>(root, '[data-local-audio]');
+  const localAudioInput = required<HTMLInputElement>(root, '[data-local-audio-input]');
+  const localAudioName = required<HTMLElement>(root, '[data-local-audio-name]');
+  const localAudioMeta = required<HTMLElement>(root, '[data-local-audio-meta]');
+  const localAudioChoose = required<HTMLElement>(root, '[data-local-audio-choose]');
+  const localAudioRemove = required<HTMLButtonElement>(root, '[data-local-audio-remove]');
   const slot = required<HTMLElement>(root, '[data-slot]');
   const status = required<HTMLOutputElement>(root, '[data-status]');
   const code = required<HTMLElement>(root, '[data-code]');
@@ -922,11 +1070,11 @@ export function mountParticlePlayground(root: HTMLElement) {
     });
   });
   const hashConfiguration = configurationFromHash();
-  let configuration = hashConfiguration ?? configurationFromPreset(particlePresets.dust);
+  let configuration = hashConfiguration ?? configurationFromPreset('dust');
   let activeOperation = operationFromHash();
   let selectedPresets: PlaygroundPresetSelections =
     hashConfiguration === null ? { remove: 'dust', restore: 'dust' } : { remove: 'custom', restore: 'custom' };
-  let soundPresets = soundPresetsFromHash();
+  let customSounds: PlaygroundCustomSounds = { remove: null, restore: null };
   let card = slot.querySelector<HTMLElement>('.playground-card') ?? createPreviewCard();
   let removalId: RemovalId | null = null;
   let unregister: () => void = () => undefined;
@@ -934,14 +1082,17 @@ export function mountParticlePlayground(root: HTMLElement) {
   let pendingPreview = false;
   let previewTimer: number | null = null;
   let hashTimer: number | null = null;
-  const preparedSounds = [...new Set([soundPresets.remove, soundPresets.restore])];
+  const initialSounds = (['remove', 'restore'] as const)
+    .map((operation) => configuredSound(operation, configuration[operation], customSounds))
+    .filter((sound): sound is SoundOptions => sound !== null);
   const instance = new Disintegrator({
-    audioPreparation:
-      configuration.remove.soundEnabled || configuration.restore.soundEnabled ? { effects: preparedSounds } : false,
+    audioPreparation: initialSounds.length > 0 ? { sounds: initialSounds } : false,
+    effect: playgroundEffect(configuration),
     layout: false,
-    preparation: { strategy: 'immediate', observeMutations: false },
+    // Explicit prepare() below owns the initial capture; idle registration only
+    // covers later invalidations without racing it with a duplicate snapshot.
+    preparation: { strategy: 'idle', observeMutations: false },
     random: () => 0.314_159_265,
-    sound: true,
     onError: (error) => {
       status.textContent = String(error);
     },
@@ -979,6 +1130,15 @@ export function mountParticlePlayground(root: HTMLElement) {
     root.dataset.soundEnabled = String(state.soundEnabled);
     soundEnabled.checked = state.soundEnabled;
     soundState.textContent = state.soundEnabled ? copy.on : copy.off;
+    soundSource.value = state.soundSource;
+    soundReverse.checked = state.soundReverse;
+    const localSound = customSounds[activeOperation];
+    localAudio.hidden = state.soundSource !== 'custom';
+    localAudioName.textContent = localSound?.name ?? copy.customSoundMissing;
+    localAudioMeta.textContent =
+      localSound === null ? '' : `${formatFileSize(localSound.size)} · ${localSound.type || 'audio'}`;
+    localAudioChoose.textContent = localSound === null ? copy.chooseSound : copy.changeSound;
+    localAudioRemove.hidden = localSound === null;
     for (const button of presetButtons) {
       button.setAttribute('aria-pressed', String(button.dataset.preset === selectedPresets[activeOperation]));
     }
@@ -1001,7 +1161,7 @@ export function mountParticlePlayground(root: HTMLElement) {
       const output = outputs.get(range.key);
       if (output) output.textContent = formatRangeValue(range, state[range.key]);
     }
-    code.innerHTML = highlightedEffectSource(configuration, soundPresets);
+    code.innerHTML = highlightedEffectSource(configuration, customSounds);
     updateActions();
   };
   const run = async (operation: EffectOperation) => {
@@ -1025,16 +1185,17 @@ export function mountParticlePlayground(root: HTMLElement) {
       return;
     }
     if (!reconnectRetainedCard()) return;
-    const effect = playgroundEffect(configuration, soundPresets);
+    const effect = playgroundEffect(configuration);
+    const sound = configuredSound(activeOperation, configuration[activeOperation], customSounds) ?? false;
     if (activeOperation === 'restore') {
-      await run(instance.restore(card, { effect, sound: configuration.restore.soundEnabled }));
+      await run(instance.restore(card, { effect, sound }));
       return;
     }
     const operation = instance.remove(card, {
       effect,
       layout: false,
       retain: true,
-      sound: configuration.remove.soundEnabled,
+      sound,
     });
     const previewRemovalId = operation.removalId;
     await run(operation);
@@ -1053,7 +1214,15 @@ export function mountParticlePlayground(root: HTMLElement) {
   }
   const scheduleHash = () => {
     if (hashTimer !== null) window.clearTimeout(hashTimer);
-    hashTimer = window.setTimeout(() => writeHash(configuration, soundPresets, activeOperation), 100);
+    hashTimer = window.setTimeout(() => {
+      hashTimer = null;
+      writeHash(configuration, activeOperation);
+    }, 100);
+  };
+  const flushHash = () => {
+    if (hashTimer !== null) window.clearTimeout(hashTimer);
+    hashTimer = null;
+    writeHash(configuration, activeOperation);
   };
   const syncFromControls = (changed?: NumericKey) => {
     const state = configuration[activeOperation];
@@ -1071,7 +1240,7 @@ export function mountParticlePlayground(root: HTMLElement) {
       if (changed === 'verticalMin') state.verticalMax = state.verticalMin;
       else state.verticalMin = state.verticalMax;
     }
-    selectedPresets[activeOperation] = 'custom';
+    if (changed === undefined || !soundNumericKeys.includes(changed)) selectedPresets[activeOperation] = 'custom';
     status.textContent = copy.updated;
     scheduleHash();
     render();
@@ -1088,19 +1257,41 @@ export function mountParticlePlayground(root: HTMLElement) {
         status.textContent = String(error);
       });
   };
+  const prepareOperationSound = (operation: PlaygroundOperation) => {
+    const sound = configuredSound(operation, configuration[operation], customSounds);
+    if (sound === null) return Promise.resolve();
+    return instance.prepareAudio(sound);
+  };
 
   slot.append(card);
   registerCard();
   render();
   prepare();
+  void Promise.all([
+    loadPlaygroundAudio(localAudioStorageKey('remove')),
+    loadPlaygroundAudio(localAudioStorageKey('restore')),
+  ])
+    .then(([removeSound, restoreSound]) => {
+      customSounds = { remove: removeSound, restore: restoreSound };
+      render();
+      return Promise.all(
+        (['remove', 'restore'] as const)
+          .filter((operation) => configuration[operation].soundSource === 'custom' && customSounds[operation] !== null)
+          .map((operation) => prepareOperationSound(operation)),
+      );
+    })
+    .catch(() => {
+      // Private browsing and storage policies may disable persistence; in-memory files still work.
+    });
 
   for (const button of presetButtons) {
     button.addEventListener('click', () => {
-      const preset = button.dataset.preset as BuiltInEffect;
+      const preset = button.dataset.preset as BuiltInPreset;
+      const previous = configuredSound(activeOperation, configuration[activeOperation], customSounds);
+      if (previous !== null) instance.discardPreparedAudio(previous);
       selectedPresets[activeOperation] = preset;
-      soundPresets[activeOperation] = preset;
-      configuration[activeOperation] = stateFromPreset(particlePresets[preset]);
-      void instance.prepareAudio(preset);
+      configuration[activeOperation] = stateFromBuiltInPreset(preset, activeOperation);
+      void prepareOperationSound(activeOperation);
       scheduleHash();
       render();
       schedulePreview();
@@ -1136,11 +1327,100 @@ export function mountParticlePlayground(root: HTMLElement) {
   soundEnabled.addEventListener('change', () => {
     const state = configuration[activeOperation];
     state.soundEnabled = soundEnabled.checked;
-    selectedPresets[activeOperation] = 'custom';
     status.textContent = copy.updated;
-    if (state.soundEnabled) void instance.prepareAudio(soundPresets[activeOperation]);
+    if (state.soundEnabled) void prepareOperationSound(activeOperation);
     scheduleHash();
     render();
+    schedulePreview();
+  });
+  soundSource.addEventListener('change', () => {
+    const operation = activeOperation;
+    const state = configuration[operation];
+    const previous = configuredSound(operation, state, customSounds);
+    if (previous !== null) instance.discardPreparedAudio(previous);
+    state.soundSource = soundSource.value as BuiltInSound | 'custom';
+    status.textContent = copy.updated;
+    scheduleHash();
+    render();
+    if (state.soundSource === 'custom' && customSounds[operation] === null) {
+      localAudioInput.click();
+      return;
+    }
+    void prepareOperationSound(operation);
+    schedulePreview();
+  });
+  soundReverse.addEventListener('change', () => {
+    const operation = activeOperation;
+    const state = configuration[operation];
+    const previous = configuredSound(operation, state, customSounds);
+    if (previous !== null) instance.discardPreparedAudio(previous);
+    state.soundReverse = soundReverse.checked;
+    status.textContent = copy.updated;
+    scheduleHash();
+    render();
+    void prepareOperationSound(operation);
+    schedulePreview();
+  });
+  localAudioInput.addEventListener('change', () => {
+    const file = localAudioInput.files?.[0];
+    localAudioInput.value = '';
+    if (file === undefined) return;
+    const operation = activeOperation;
+    if (file.size > MAX_LOCAL_AUDIO_BYTES) {
+      status.textContent = copy.audioTooLarge;
+      return;
+    }
+    if (file.type !== '' && !file.type.startsWith('audio/')) {
+      status.textContent = copy.audioInvalid;
+      return;
+    }
+    status.textContent = copy.audioSaving;
+    void audioDuration(file)
+      .then((duration) => {
+        if (duration > MAX_LOCAL_AUDIO_SECONDS) throw new RangeError(copy.audioTooLong);
+        const previous = configuredSound(operation, configuration[operation], customSounds);
+        if (previous !== null) instance.discardPreparedAudio(previous);
+        return savePlaygroundAudio(localAudioStorageKey(operation), file).catch(
+          () =>
+            ({
+              blob: file,
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              lastModified: file.lastModified,
+            }) satisfies StoredPlaygroundAudio,
+        );
+      })
+      .then((stored) => {
+        customSounds[operation] = stored;
+        configuration[operation].soundSource = 'custom';
+        configuration[operation].soundEnabled = true;
+        status.textContent = copy.updated;
+        // Persist the URL state before exposing the completed upload state so an
+        // immediate reload cannot restore the previously selected source.
+        flushHash();
+        render();
+        return prepareOperationSound(operation);
+      })
+      .then(() => {
+        if (operation === activeOperation) schedulePreview();
+      })
+      .catch((error: unknown) => {
+        status.textContent = error instanceof RangeError ? error.message : copy.audioInvalid;
+      });
+  });
+  localAudioRemove.addEventListener('click', () => {
+    const operation = activeOperation;
+    const state = configuration[operation];
+    const previous = configuredSound(operation, state, customSounds);
+    if (previous !== null) instance.discardPreparedAudio(previous);
+    customSounds[operation] = null;
+    if (state.soundSource === 'custom') state.soundSource = 'dust';
+    status.textContent = copy.updated;
+    scheduleHash();
+    render();
+    void deletePlaygroundAudio(localAudioStorageKey(operation)).catch(() => undefined);
+    void prepareOperationSound(operation);
     schedulePreview();
   });
 
@@ -1148,10 +1428,10 @@ export function mountParticlePlayground(root: HTMLElement) {
     if (busy || !card.isConnected) return;
     if (previewTimer !== null) window.clearTimeout(previewTimer);
     const operation = instance.remove(card, {
-      effect: playgroundEffect(configuration, soundPresets),
+      effect: playgroundEffect(configuration),
       layout: false,
       retain: true,
-      sound: configuration.remove.soundEnabled,
+      sound: configuredSound('remove', configuration.remove, customSounds) ?? false,
     });
     removalId = operation.removalId;
     void run(operation);
@@ -1162,8 +1442,8 @@ export function mountParticlePlayground(root: HTMLElement) {
     if (card.isConnected) {
       void run(
         instance.restore(card, {
-          effect: playgroundEffect(configuration, soundPresets),
-          sound: configuration.restore.soundEnabled,
+          effect: playgroundEffect(configuration),
+          sound: configuredSound('restore', configuration.restore, customSounds) ?? false,
         }),
       );
     }
@@ -1179,10 +1459,9 @@ export function mountParticlePlayground(root: HTMLElement) {
     slot.replaceChildren(card);
     registerCard();
     selectedPresets = { remove: 'dust', restore: 'dust' };
-    soundPresets = { remove: 'dust', restore: 'dust' };
     activeOperation = 'remove';
-    configuration = configurationFromPreset(particlePresets.dust);
-    void instance.prepareAudio('dust');
+    configuration = configurationFromPreset('dust');
+    void Promise.all([prepareOperationSound('remove'), prepareOperationSound('restore')]);
     scheduleHash();
     render();
     prepare();
@@ -1193,8 +1472,8 @@ export function mountParticlePlayground(root: HTMLElement) {
     if (!button) return;
     const target = button.dataset.copy;
     if (!target) return;
-    writeHash(configuration, soundPresets, activeOperation);
-    const text = target === 'effect' ? effectSource(configuration, soundPresets) : window.location.href;
+    flushHash();
+    const text = target === 'effect' ? effectSource(configuration, customSounds) : window.location.href;
     const originalLabel = button.getAttribute('aria-label') ?? '';
     const write = navigator.clipboard?.writeText(text) ?? Promise.reject(new Error(copy.copyFailed));
     void write
@@ -1218,7 +1497,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     'pagehide',
     () => {
       if (previewTimer !== null) window.clearTimeout(previewTimer);
-      if (hashTimer !== null) window.clearTimeout(hashTimer);
+      if (hashTimer !== null) flushHash();
       unregister();
       instance.destroy();
     },

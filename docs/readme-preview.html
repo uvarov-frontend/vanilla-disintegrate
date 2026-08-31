@@ -597,7 +597,7 @@
 
       <section class="panel effects-panel">
         <span class="panel-kicker">Built-in presets</span>
-        <strong class="panel-title">Choose an effect</strong>
+        <strong class="panel-title">Choose a preset</strong>
         <div class="effect-list">
           <div class="effect">
             <i class="effect-icon"></i>
@@ -625,7 +625,7 @@
       <section class="panel stage-panel">
         <header class="stage-toolbar">
           <div class="window-dots"><i></i><i></i><i></i></div>
-          <code>effect: 'scatter'</code>
+          <code>preset: 'scatter'</code>
           <span class="phase"><i></i> remove phase</span>
         </header>
         <div class="stage">
@@ -658,7 +658,7 @@
   <span class="syntax-string">'vanilla-disintegrate/snapdom'</span>;
 
 <span class="syntax-keyword">const</span> fx = <span class="syntax-keyword">new</span> <span class="syntax-name">Disintegrator</span>({
-  <span class="syntax-property">effect</span>: <span class="syntax-string">'scatter'</span>,
+  <span class="syntax-property">preset</span>: <span class="syntax-string">'scatter'</span>,
 });
 
 <span class="syntax-comment">// Remove with particles</span>
@@ -670,7 +670,7 @@ fx.remove(card, {
     </main>
 
     <script type="module">
-      import Disintegrator from './src/snapdom.ts';
+      import Disintegrator from '../src/snapdom.ts';
 
       const slot = document.querySelector('[data-card-slot]');
       const timeline = document.querySelector('[data-timeline]');
@@ -683,7 +683,7 @@ fx.remove(card, {
       let sequence = 0;
 
       const effects = new Disintegrator({
-        effect: 'scatter',
+        preset: 'scatter',
         preparation: false,
         sound: false,
         layout: false,
@@ -731,7 +731,7 @@ fx.remove(card, {
         restoreCard();
         status.textContent = 'Capturing the real DOM card…';
         operation = effects.remove(card, {
-          effect: 'scatter',
+          preset: 'scatter',
           layout: false,
           retain: true,
           sound: false,

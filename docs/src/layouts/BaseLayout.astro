@@ -23,7 +23,7 @@ const absoluteUrl = (href: string) => toAbsoluteUrl(Astro, href);
 // Crawlers reject relative image paths, so the preview is resolved against the
 // canonical origin. The query is bumped whenever the file changes: Facebook and
 // Telegram cache a scraped image by URL and will not refetch the same one.
-const previewImage = absoluteUrl('/readme-preview.html.png?v1');
+const previewImage = absoluteUrl('/readme-preview.html.png?v2');
 const openGraphLocales: Readonly<Record<Locale, string>> = {
   en: 'en_US',
   ko: 'ko_KR',

@@ -15,9 +15,19 @@ export const bundleBudgets = {
   'dist/core.js': 15 * 1024,
   'dist/index.js': 25 * 1024,
   'dist/particles.js': 12 * 1024,
+  'dist/sounds.js': 4 * 1024,
   'dist/snapdom.js': 25 * 1024,
   'dist/vanilla-disintegrate.iife.min.js': 90 * 1024,
 };
+
+/** Encoded audio stays external to JavaScript, so it needs an independent transfer budget. */
+export const soundAssetBudgets = {
+  total: 160 * 1024,
+  perFile: 64 * 1024,
+};
+
+/** Downloadable IIFE starter, including the library, example, licenses, and encoded audio. */
+export const iifeArchiveBudget = 256 * 1024;
 
 /**
  * Measures `file` plus every relative `.js` it imports, following the graph

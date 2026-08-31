@@ -299,6 +299,48 @@ describe('particle renderer', () => {
     expect(createParticleRestoreAnimation()({ ...context, operation: 'restore' })).toBeNull();
   });
 
+  it('downscales large snapshots before allocating readback and render surfaces', () => {
+    const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext')
+      ?.value as typeof HTMLCanvasElement.prototype.getContext;
+    const { gl } = createWebGL2Stub();
+    let readbackSize: readonly [number, number] | null = null;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (
+      this: HTMLCanvasElement,
+      contextId: string,
+      options?: unknown,
+    ) {
+      if (contextId === 'webgl2') return gl;
+      const context = originalGetContext.call(this, contextId, options as never);
+      if (contextId !== '2d' || context === null) return context;
+      const readback = context as CanvasRenderingContext2D;
+      const getImageData = readback.getImageData.bind(readback);
+      readback.getImageData = (x: number, y: number, width: number, height: number) => {
+        readbackSize = [width, height];
+        return getImageData(x, y, width, height);
+      };
+      return readback;
+    } as typeof HTMLCanvasElement.prototype.getContext);
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const snapshot = document.createElement('canvas');
+    snapshot.width = 4000;
+    snapshot.height = 3000;
+    const renderer = createParticleAnimation({ duration: 20, stagger: 0 })(
+      particleContext(snapshot),
+    ) as ParticleRenderer | null;
+
+    expect(renderer).not.toBeNull();
+    expect(readbackSize).not.toBeNull();
+    expect((readbackSize?.[0] ?? 0) * (readbackSize?.[1] ?? 0)).toBeLessThanOrEqual(2_000_000);
+    expect(readbackSize?.[0]).toBeLessThanOrEqual(2048);
+    expect(readbackSize?.[1]).toBeLessThanOrEqual(2048);
+    renderer?.dispose();
+    window.dispatchEvent(new Event('pagehide'));
+  });
+
   it('reuses compiled WebGL resources and releases them when the page is hidden', async () => {
     const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext')
       ?.value as typeof HTMLCanvasElement.prototype.getContext;
@@ -329,8 +371,7 @@ describe('particle renderer', () => {
     vi.stubGlobal('cancelIdleCallback', vi.fn());
 
     const factory = createParticleAnimation({ duration: 20, stagger: 0 });
-    expect(requestIdleCallback).toHaveBeenCalledTimes(1);
-    runIdle({ didTimeout: false, timeRemaining: () => 10 });
+    expect(requestIdleCallback).not.toHaveBeenCalled();
     for (let index = 0; index < 2; index += 1) {
       const snapshot = document.createElement('canvas');
       snapshot.width = 16;
@@ -340,6 +381,10 @@ describe('particle renderer', () => {
       if (renderer === null) continue;
       await renderer.finished;
       renderer.dispose();
+      if (index === 0) {
+        expect(requestIdleCallback).toHaveBeenCalledTimes(1);
+        runIdle({ didTimeout: false, timeRemaining: () => 10 });
+      }
     }
 
     expect(webglRequests).toHaveBeenCalledTimes(1);

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vanilla Disintegrate — IIFE example</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        display: grid;
+        min-height: 100vh;
+        margin: 0;
+        place-items: center;
+        color: #f7f7fb;
+        background: #111116;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+      }
+
+      main {
+        display: grid;
+        width: min(420px, calc(100% - 32px));
+        gap: 20px;
+      }
+
+      .stage {
+        min-height: 220px;
+      }
+
+      .card {
+        min-height: 220px;
+        padding: 28px;
+        border: 1px solid #343441;
+        border-radius: 20px;
+        background: linear-gradient(145deg, #272734, #191920);
+        box-shadow: 0 24px 64px rgb(0 0 0 / 35%);
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: 28px;
+      }
+
+      p {
+        margin: 0;
+        color: #b8b8c5;
+      }
+
+      button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 12px;
+        color: #161119;
+        background: #f47cff;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.65;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="stage">
+        <article class="card">
+          <h1>Vanilla Disintegrate</h1>
+          <p>A minimal IIFE example with a complete particle and audio preset.</p>
+        </article>
+      </div>
+      <button type="button">Remove card</button>
+    </main>
+
+    <script src="./vanilla-disintegrate.iife.min.js"></script>
+    <script>
+      const stage = document.querySelector('.stage');
+      const button = document.querySelector('button');
+      let card = document.querySelector('.card');
+      let removalId = null;
+
+      const effects = new VanillaDisintegrate.Disintegrator({
+        preset: 'dust',
+        onError: (error) => console.error(error),
+      });
+
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+
+        try {
+          if (card.isConnected) {
+            const removal = effects.remove(card, { retain: true });
+            await removal.finished;
+            removalId = removal.removalId;
+            button.textContent = 'Restore card';
+            return;
+          }
+
+          const retained = removalId ? effects.take(removalId) : null;
+          if (!retained) return;
+
+          card = retained;
+          removalId = null;
+          stage.append(card);
+          await effects.restore(card).finished;
+          button.textContent = 'Remove card';
+        } finally {
+          button.disabled = false;
+        }
+      });
+
+      window.addEventListener('pagehide', () => effects.destroy(), { once: true });
+    </script>
+  </body>
+</html>

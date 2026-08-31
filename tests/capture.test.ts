@@ -120,7 +120,7 @@ describe('entry points', () => {
 
   it('wires SnapDOM as the default capture on the ./snapdom entry', async () => {
     const element = target();
-    const effect = new SnapdomDisintegrator({ effect: 'dust', layout: false });
+    const effect = new SnapdomDisintegrator({ preset: 'dust', layout: false, sound: false });
 
     await effect.remove(element).finished;
 
@@ -131,7 +131,7 @@ describe('entry points', () => {
   it('leaves the default built-in entry without a capture adapter', async () => {
     const element = target();
     const onError = vi.fn();
-    const effect = new BuiltInDisintegrator({ effect: 'dust', layout: false, onError });
+    const effect = new BuiltInDisintegrator({ preset: 'dust', layout: false, onError, sound: false });
 
     const result = await effect.remove(element).finished;
 

@@ -1,16 +1,5 @@
-import christmasSoundUrl from './sounds/christmas-wind.mp3?url&no-inline';
-import dustSoundUrl from './sounds/dust.mp3?url&no-inline';
-import scatterSoundUrl from './sounds/scatter.mp3?url&no-inline';
-import vaporSoundUrl from './sounds/vapor.mp3?url&no-inline';
-
 import { createParticleEffect } from './particle-effect';
-import type { BuiltInEffect, EffectDefinition, ParticlePreset, SoundOptions } from './types';
-
-/** Native playback definitions used by one built-in particle preset. */
-export interface ParticlePresetSounds {
-  readonly remove: Readonly<SoundOptions>;
-  readonly restore: Readonly<SoundOptions>;
-}
+import type { BuiltInPreset, EffectDefinition, ParticlePreset } from './types';
 
 function freezeRange(range: readonly [number, number]): readonly [number, number] {
   const copy: [number, number] = [range[0], range[1]];
@@ -25,15 +14,8 @@ function defineParticlePreset(options: ParticlePreset): Readonly<ParticlePreset>
   });
 }
 
-function defineParticlePresetSounds(src: string): Readonly<ParticlePresetSounds> {
-  return Object.freeze({
-    remove: Object.freeze({ src }),
-    restore: Object.freeze({ src, reverse: true }),
-  });
-}
-
 /** Deeply frozen particle configurations used by the four built-in effects. */
-export const particlePresets: Readonly<Record<BuiltInEffect, Readonly<ParticlePreset>>> = Object.freeze({
+export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePreset>>> = Object.freeze({
   dust: defineParticlePreset({
     curve: 'settle',
     duration: 1400,
@@ -84,18 +66,10 @@ export const particlePresets: Readonly<Record<BuiltInEffect, Readonly<ParticlePr
   }),
 });
 
-/** Deeply frozen native sounds used by the four built-in particle presets. */
-export const particlePresetSounds: Readonly<Record<BuiltInEffect, Readonly<ParticlePresetSounds>>> = Object.freeze({
-  dust: defineParticlePresetSounds(dustSoundUrl),
-  vapor: defineParticlePresetSounds(vaporSoundUrl),
-  scatter: defineParticlePresetSounds(scatterSoundUrl),
-  wind: defineParticlePresetSounds(christmasSoundUrl),
-});
-
-/** The four built-in paired effects: `dust`, `vapor`, `scatter` and `wind`. */
-export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> = Object.freeze({
-  dust: createParticleEffect({ remove: particlePresets.dust }, particlePresetSounds.dust),
-  vapor: createParticleEffect({ remove: particlePresets.vapor }, particlePresetSounds.vapor),
-  scatter: createParticleEffect({ remove: particlePresets.scatter }, particlePresetSounds.scatter),
-  wind: createParticleEffect({ remove: particlePresets.wind }, particlePresetSounds.wind),
+/** Visual implementations used internally by the complete built-in presets. */
+export const builtInParticleEffects: Readonly<Record<BuiltInPreset, EffectDefinition>> = Object.freeze({
+  dust: createParticleEffect({ remove: particlePresets.dust }),
+  vapor: createParticleEffect({ remove: particlePresets.vapor }),
+  scatter: createParticleEffect({ remove: particlePresets.scatter }),
+  wind: createParticleEffect({ remove: particlePresets.wind }),
 });

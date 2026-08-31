@@ -1,10 +1,10 @@
 import type {
   AudioPreparationOptions,
   AudioPreparationStrategy,
-  EffectSelection,
   LayoutOptions,
   ParticleOptions,
   PreparationOptions,
+  SoundPreparationSelection,
 } from './types';
 
 export interface ResolvedParticleOptions {
@@ -48,7 +48,7 @@ export interface ResolvedPreparationOptions {
 export interface ResolvedAudioPreparationOptions {
   readonly enabled: boolean;
   readonly strategy: AudioPreparationStrategy;
-  readonly effects?: EffectSelection | readonly EffectSelection[];
+  readonly sounds?: SoundPreparationSelection;
   readonly cacheByteBudget: number;
 }
 
@@ -91,7 +91,7 @@ export const DEFAULT_PREPARATION: ResolvedPreparationOptions = {
 
 export const DEFAULT_AUDIO_PREPARATION: ResolvedAudioPreparationOptions = {
   enabled: true,
-  strategy: 'immediate',
+  strategy: 'idle',
   cacheByteBudget: 8 * 1024 * 1024,
 };
 
@@ -172,7 +172,7 @@ export function resolveAudioPreparation(
   return {
     enabled: true,
     strategy: options.strategy ?? DEFAULT_AUDIO_PREPARATION.strategy,
-    ...(options.effects === undefined ? {} : { effects: options.effects }),
+    ...(options.sounds === undefined ? {} : { sounds: options.sounds }),
     cacheByteBudget: finiteNumber(options.cacheByteBudget, DEFAULT_AUDIO_PREPARATION.cacheByteBudget, 0),
   };
 }

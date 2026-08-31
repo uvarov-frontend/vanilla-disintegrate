@@ -10,8 +10,8 @@ test('runs the snapshotless remove and restore lifecycle', async ({ page }) => {
     const animate = ({ layer }: { layer: HTMLElement }) =>
       layer.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 20 });
     const paired = defineEffect({
-      remove: { needsSnapshot: false, animate, sound: null },
-      restore: { needsSnapshot: false, animate, sound: null },
+      remove: { needsSnapshot: false, animate },
+      restore: { needsSnapshot: false, animate },
     });
     const target = document.createElement('article');
     Object.assign(target.style, { height: '40px', width: '80px' });
@@ -42,6 +42,24 @@ test('runs the snapshotless remove and restore lifecycle', async ({ page }) => {
   expect(result).toEqual({ connected: true, overlayCount: 0, removed: 'completed', restored: 'completed' });
 });
 
+test('does not allocate WebGL merely because the particle entry is imported', async ({ page }) => {
+  const requests = await page.evaluate(async () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    let webglRequests = 0;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, contextId: string, options?: unknown) {
+      if (contextId === 'webgl2') webglRequests += 1;
+      return originalGetContext.call(this, contextId, options as never);
+    } as typeof HTMLCanvasElement.prototype.getContext;
+
+    await import('../../src/particles');
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+    return webglRequests;
+  });
+
+  expect(requests).toBe(0);
+});
+
 test('configures and runs the home-page particle playground', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   await page.goto('http://localhost:4321/');
@@ -53,16 +71,37 @@ test('configures and runs the home-page particle playground', async ({ page, bro
   await expect(root.locator('[data-operation="restore"]')).toHaveAttribute('aria-selected', 'false');
   await expect(root.locator('[data-curve]')).toHaveValue('settle');
   await expect(root.locator('[data-sound-enabled]')).toBeChecked();
+  await expect(root.locator('[data-sound-source]')).toHaveValue('dust');
+  await expect(root.locator('[data-sound-reverse]')).not.toBeChecked();
   await expect(root.locator('[data-group-panel="sound"] input[type="range"]')).toHaveCount(4);
   await expect(root.locator('[data-group-panel="sound"]')).toBeHidden();
   await expect(root.locator('.playground-field-heading').first().locator('small')).toBeVisible();
   await root.locator('[data-group-tab="sound"]').click();
   await expect(root.locator('[data-group-panel="sound"]')).toBeVisible();
+  await root.locator('[data-sound-source]').selectOption('scatter');
+  await root.locator('[data-preset="vapor"]').click();
+  await expect(root.locator('[data-sound-source]')).toHaveValue('vapor');
+  await root.locator('[data-operation="restore"]').click();
+  await expect(root.locator('[data-sound-source]')).toHaveValue('dust');
+  await expect(root.locator('[data-sound-reverse]')).toBeChecked();
+  await root.locator('[data-operation="remove"]').click();
+  await expect(root.locator('[data-sound-source]')).toHaveValue('vapor');
+
+  await root.locator('[data-sound-source]').selectOption('custom');
+  await root.locator('[data-local-audio-input]').setInputFiles('src/sounds/dust.mp3');
+  await expect(root.locator('[data-local-audio-name]')).toHaveText('dust.mp3');
+  await expect(root.locator('[data-code]')).toContainText('new URL("./dust.mp3", import.meta.url)');
+  await page.reload();
+  await expect(root.locator('[data-sound-source]')).toHaveValue('custom');
+  await expect(root.locator('[data-local-audio-name]')).toHaveText('dust.mp3');
+  await root.locator('[data-group-tab="sound"]').click();
+  await root.locator('[data-sound-source]').selectOption('vapor');
   await root.locator('[data-group-tab="timing"]').click();
   await expect(root.locator('[data-view-panel="preview"]')).toBeVisible();
   await expect(root.locator('[data-view-panel="code"]')).toBeHidden();
   await root.locator('[data-view-tab="code"]').click();
   await expect(root.locator('[data-view-panel="code"]')).toBeVisible();
+  await expect(root.locator('[data-code]')).toContainText("from 'vanilla-disintegrate/snapdom'");
   await expect(root.locator('[data-code]')).toContainText('createParticleEffect');
   await root.locator('[data-view-tab="preview"]').click();
 
@@ -76,10 +115,10 @@ test('configures and runs the home-page particle playground', async ({ page, bro
   await setRange('duration', '200');
   await setRange('stagger', '0');
   await setRange('verticalMin', '-180');
-  await setRange('soundGain', '0.5');
+  await setRange('soundVolume', '0.5');
   await expect(root.locator('[data-preset][aria-pressed="true"]')).toHaveCount(0);
-  await expect(root.locator('[data-code]')).toContainText('verticalTravel: [-180, -30]');
-  await expect(root.locator('[data-code]')).toContainText('gain: 0.5');
+  await expect(root.locator('[data-code]')).toContainText('verticalTravel: [-180, -130]');
+  await expect(root.locator('[data-code]')).toContainText('volume: 0.5');
   await expect(page).toHaveURL(/#playground\?/);
   await expect(root.locator('[data-status]')).toContainText('remove · completed', { timeout: 15_000 });
 
@@ -146,10 +185,16 @@ test('runs, reuses and releases a real WebGL2 particle renderer', async ({ page,
       return snapshot;
     };
     const particle = defineEffect({
-      remove: { animate: createParticleAnimation({ duration: 40, stagger: 0 }), sound: null },
-      restore: { animate: createParticleRestoreAnimation({ duration: 40, stagger: 0 }), sound: null },
+      remove: { animate: createParticleAnimation({ duration: 40, stagger: 0 }) },
+      restore: { animate: createParticleRestoreAnimation({ duration: 40, stagger: 0 }) },
     });
-    const disintegrator = new Disintegrator({ capture, effect: particle, layout: false, preparation: false });
+    const disintegrator = new Disintegrator({
+      capture,
+      effect: particle,
+      layout: false,
+      preparation: false,
+      sound: false,
+    });
     const statuses = [];
     const activeCanvases = [];
     for (const target of targets) {
@@ -171,7 +216,7 @@ test('runs, reuses and releases a real WebGL2 particle renderer', async ({ page,
   expect(result.released).toBe(result.created);
 });
 
-test('retains at most two idle WebGL2 contexts', async ({ page, browserName }) => {
+test('caps active WebGL2 contexts and retains at most two while idle', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   const result = await page.evaluate(async () => {
     const { createParticleAnimation } = await import('../../src/particles');
@@ -198,7 +243,7 @@ test('retains at most two idle WebGL2 contexts', async ({ page, browserName }) =
     } as typeof HTMLCanvasElement.prototype.getContext;
 
     const factory = createParticleAnimation({ duration: 20, stagger: 0 });
-    const playbacks = Array.from({ length: 3 }, () => {
+    const playbacks = Array.from({ length: 5 }, () => {
       const snapshot = document.createElement('canvas');
       snapshot.width = 16;
       snapshot.height = 16;
@@ -216,10 +261,10 @@ test('retains at most two idle WebGL2 contexts', async ({ page, browserName }) =
         reducedMotion: false,
         random: () => 0.5,
         addCleanup: () => undefined,
-      }) as import('../../src/particle-renderer').ParticleRenderer;
-      document.body.append(playback.element);
+      }) as import('../../src/particle-renderer').ParticleRenderer | null;
+      if (playback !== null) document.body.append(playback.element);
       return playback;
-    });
+    }).filter((playback): playback is import('../../src/particle-renderer').ParticleRenderer => playback !== null);
 
     await Promise.all(playbacks.map((playback) => playback.finished));
     for (const playback of playbacks) {
@@ -232,7 +277,7 @@ test('retains at most two idle WebGL2 contexts', async ({ page, browserName }) =
     return { created, releasedAfterDispose, releasedAfterPagehide: released };
   });
 
-  expect(result).toEqual({ created: 3, releasedAfterDispose: 1, releasedAfterPagehide: 3 });
+  expect(result).toEqual({ created: 4, releasedAfterDispose: 2, releasedAfterPagehide: 4 });
 });
 
 test('uses a synchronized WebGL surface and hides it after context loss', async ({ page, browserName }) => {
@@ -296,19 +341,18 @@ test('does not allocate WebGL before snapshot pixels are readable', async ({ pag
     const snapshot = document.createElement('canvas');
     snapshot.width = 4;
     snapshot.height = 4;
-    const sourceGetContext = snapshot.getContext.bind(snapshot);
-    snapshot.getContext = ((contextId: string, options?: unknown) => {
-      if (contextId !== '2d') return sourceGetContext(contextId as never, options as never);
-      return {
-        getImageData: () => {
-          throw new DOMException('The canvas is tainted.', 'SecurityError');
-        },
-      } as unknown as CanvasRenderingContext2D;
-    }) as typeof snapshot.getContext;
     const originalGetContext = HTMLCanvasElement.prototype.getContext;
     let webglRequests = 0;
     HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, contextId: string, options?: unknown) {
       if (contextId === 'webgl2') webglRequests += 1;
+      if (contextId === '2d' && this !== snapshot) {
+        return {
+          drawImage: () => undefined,
+          getImageData: () => {
+            throw new DOMException('The canvas is tainted.', 'SecurityError');
+          },
+        } as unknown as CanvasRenderingContext2D;
+      }
       return originalGetContext.call(this, contextId, options as never);
     } as typeof HTMLCanvasElement.prototype.getContext;
 

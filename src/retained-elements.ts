@@ -1,14 +1,19 @@
-import type { EffectDefinition, RemovalId } from './types';
+import type { EffectDefinition, RemovalId, SoundSelection } from './types';
+
+export interface ElementPresentation {
+  readonly effect: EffectDefinition;
+  readonly sound: false | SoundSelection | undefined;
+}
 
 interface RetainedElement {
   readonly element: HTMLElement;
-  readonly effect: EffectDefinition;
+  readonly presentation: ElementPresentation;
 }
 
 export class RetainedElements {
   private readonly entries = new Map<RemovalId, RetainedElement>();
   private readonly pending = new Map<RemovalId, boolean>();
-  private readonly effects = new WeakMap<HTMLElement, EffectDefinition>();
+  private readonly presentations = new WeakMap<HTMLElement, ElementPresentation>();
   private nextId = 0;
 
   createId(): RemovalId {
@@ -18,23 +23,23 @@ export class RetainedElements {
     return id;
   }
 
-  associate(element: HTMLElement, effect: EffectDefinition) {
-    this.effects.set(element, effect);
+  associate(element: HTMLElement, presentation: ElementPresentation) {
+    this.presentations.set(element, presentation);
   }
 
-  effectFor(element: HTMLElement) {
-    return this.effects.get(element);
+  presentationFor(element: HTMLElement) {
+    return this.presentations.get(element);
   }
 
-  retain(id: RemovalId, element: HTMLElement, effect: EffectDefinition) {
+  retain(id: RemovalId, element: HTMLElement, presentation: ElementPresentation) {
     const shouldRetain = this.pending.get(id);
     this.pending.delete(id);
     if (shouldRetain !== true) {
-      this.effects.delete(element);
+      this.presentations.delete(element);
       return;
     }
-    this.effects.set(element, effect);
-    this.entries.set(id, { element, effect });
+    this.presentations.set(element, presentation);
+    this.entries.set(id, { element, presentation });
   }
 
   take(id: RemovalId) {
@@ -60,7 +65,7 @@ export class RetainedElements {
     const retained = this.entries.get(id);
     if (retained !== undefined) {
       this.entries.delete(id);
-      this.effects.delete(retained.element);
+      this.presentations.delete(retained.element);
       return true;
     }
     if (this.pending.get(id) !== true) return false;
@@ -70,7 +75,7 @@ export class RetainedElements {
 
   discardAll() {
     let count = this.entries.size;
-    for (const { element } of this.entries.values()) this.effects.delete(element);
+    for (const { element } of this.entries.values()) this.presentations.delete(element);
     this.entries.clear();
     for (const [id, retained] of this.pending) {
       if (retained) count += 1;

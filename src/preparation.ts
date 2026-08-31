@@ -56,12 +56,14 @@ export class SnapshotPreparation {
   private readonly queued = new Set<HTMLElement>();
   private readonly captureWaiters: CaptureWaiter[] = [];
   private readonly mutationWatchers = new Map<HTMLElement, MutationWatcher>();
+  private readonly revisions = new WeakMap<HTMLElement, number>();
   private intersectionObserver: IntersectionObserver | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private cancelScheduled: (() => void) | null = null;
   private activeCaptures = 0;
   private cachedPixels = 0;
   private lastScrollAt = Number.NEGATIVE_INFINITY;
+  private generation = 0;
   private destroyed = false;
 
   constructor(
@@ -87,9 +89,12 @@ export class SnapshotPreparation {
     await Promise.all(
       elements.map(async (element) => {
         const resume = this.suspend(element);
+        const generation = this.generation;
+        const revision = this.revision(element);
         let release: (() => void) | null = null;
         try {
           release = await this.acquireCaptureSlot();
+          this.assertCurrent(generation, element, revision);
           this.invalidateElement(element, false);
           const prepared = this.createPreparation(element);
           await prepared.promise;
@@ -105,10 +110,14 @@ export class SnapshotPreparation {
 
   invalidate(elements: readonly HTMLElement[]) {
     this.assertAlive();
-    for (const element of elements) this.invalidateElement(element, true);
+    for (const element of elements) {
+      this.bumpRevision(element);
+      this.invalidateElement(element, true);
+    }
   }
 
   clear() {
+    this.generation += 1;
     for (const element of [...this.prepared.keys()]) this.invalidateElement(element, false);
     this.queue.length = 0;
     this.queued.clear();
@@ -123,6 +132,7 @@ export class SnapshotPreparation {
    */
   suspend(element: HTMLElement) {
     this.assertAlive();
+    this.bumpRevision(element);
     const count = this.suspended.get(element) ?? 0;
     this.suspended.set(element, count + 1);
     if (count === 0) {
@@ -220,7 +230,16 @@ export class SnapshotPreparation {
     if (this.options.invalidateOnResize && typeof ResizeObserver !== 'undefined') {
       this.resizeObserver ??= new ResizeObserver((entries) => {
         for (const entry of entries) {
-          if (entry.target instanceof HTMLElement) this.invalidateElement(entry.target, true);
+          if (!(entry.target instanceof HTMLElement)) continue;
+          const prepared = this.prepared.get(entry.target);
+          if (prepared !== undefined) {
+            const bounds = entry.target.getBoundingClientRect();
+            const sameWidth = Math.abs(prepared.width - bounds.width) < 0.5;
+            const sameHeight = Math.abs(prepared.height - bounds.height) < 0.5;
+            if (sameWidth && sameHeight) continue;
+          }
+          this.bumpRevision(entry.target);
+          this.invalidateElement(entry.target, true);
         }
       });
       this.resizeObserver.observe(element);
@@ -254,6 +273,7 @@ export class SnapshotPreparation {
     watcher?.observer.disconnect();
     if (watcher !== undefined) element.removeEventListener('load', watcher.onLoad, true);
     this.mutationWatchers.delete(element);
+    this.bumpRevision(element);
     this.invalidateElement(element, false, true);
     if (this.registered.size === 0) {
       document.removeEventListener('scroll', this.handleScroll, true);
@@ -281,7 +301,10 @@ export class SnapshotPreparation {
   }
 
   private watchMutations(element: HTMLElement) {
-    const invalidate = () => this.invalidateElement(element, true);
+    const invalidate = () => {
+      this.bumpRevision(element);
+      this.invalidateElement(element, true);
+    };
     const observer = new MutationObserver((records) => {
       if (hasNonStyleMutation(records)) {
         invalidate();
@@ -290,6 +313,7 @@ export class SnapshotPreparation {
       // Inline animation styles make a prepared snapshot stale, but scheduling
       // another capture here would create a capture loop on every frame.
       this.dequeue(element);
+      this.bumpRevision(element);
       this.invalidateElement(element, false);
     });
     observer.observe(element, MUTATION_OPTIONS);
@@ -350,10 +374,14 @@ export class SnapshotPreparation {
       if (element === undefined) break;
       this.queued.delete(element);
       if (!this.isEligible(element) || this.prepared.has(element)) continue;
+      const generation = this.generation;
+      const revision = this.revision(element);
       void this.acquireCaptureSlot()
         .then(async (release) => {
           try {
+            this.assertCurrent(generation, element, revision);
             await this.afterAnimations(element);
+            this.assertCurrent(generation, element, revision);
             if (!this.isEligible(element) || this.prepared.has(element)) return;
             await this.createPreparation(element).promise;
           } finally {
@@ -370,6 +398,8 @@ export class SnapshotPreparation {
     const capture = this.requireCapture();
     const rect = element.getBoundingClientRect();
     const controller = new AbortController();
+    const generation = this.generation;
+    const revision = this.revision(element);
     const prepared: PreparedSnapshot = {
       element,
       controller,
@@ -382,9 +412,22 @@ export class SnapshotPreparation {
       cancelled: false,
       claimed: false,
     };
-    prepared.promise = Promise.resolve(capture(element, { operation: 'prepare', signal: controller.signal }))
+    this.prepared.set(element, prepared);
+    let result: HTMLCanvasElement | Promise<HTMLCanvasElement>;
+    try {
+      result = capture(element, { operation: 'prepare', signal: controller.signal });
+    } catch (error) {
+      if (this.prepared.get(element) === prepared) this.prepared.delete(element);
+      throw error;
+    }
+    prepared.promise = Promise.resolve(result)
       .then((snapshot) => {
-        if (prepared.cancelled) {
+        if (
+          prepared.cancelled ||
+          this.destroyed ||
+          generation !== this.generation ||
+          revision !== this.revision(element)
+        ) {
           disposeSnapshot(snapshot);
           throw new DOMException('Snapshot preparation was cancelled.', 'AbortError');
         }
@@ -401,7 +444,6 @@ export class SnapshotPreparation {
         if (this.prepared.get(element) === prepared) this.prepared.delete(element);
         throw error;
       });
-    this.prepared.set(element, prepared);
     return prepared;
   }
 
@@ -518,6 +560,19 @@ export class SnapshotPreparation {
   private readonly handleScroll = () => {
     this.lastScrollAt = performance.now();
   };
+
+  private revision(element: HTMLElement) {
+    return this.revisions.get(element) ?? 0;
+  }
+
+  private bumpRevision(element: HTMLElement) {
+    this.revisions.set(element, this.revision(element) + 1);
+  }
+
+  private assertCurrent(generation: number, element: HTMLElement, revision: number) {
+    if (!this.destroyed && generation === this.generation && revision === this.revision(element)) return;
+    throw new DOMException('Snapshot preparation was cancelled.', 'AbortError');
+  }
 
   private assertAlive() {
     if (this.destroyed) throw new Error('This Disintegrator instance has been destroyed.');
