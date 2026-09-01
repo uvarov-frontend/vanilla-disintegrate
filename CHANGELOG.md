@@ -22,6 +22,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Rasterize high-density SnapDOM captures at their physical size on Safari so WebKit does not enlarge a low-resolution `foreignObject` image and blur particle frames.
 - Upload particle records in reverse source order to avoid Safari's order-dependent WebGL artifact that drew a vertical strip along the element's left edge.
 - Clip default SnapDOM captures to the measured element bounds so particle snapshots are neither stretched nor offset when CSS minimum sizes exceed the content size.
 - Read particle dissolve thresholds through a texel-centre sample instead of `texelFetch`, so Firefox no longer fades blocks that should still be intact and leaves dark gaps across the element during removal and restoration.
