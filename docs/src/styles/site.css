@@ -3785,6 +3785,12 @@ code {
   background: var(--border-light);
 }
 
+.playground-range input[type='range']::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
 .playground-range input[type='range']::-webkit-slider-thumb {
   width: 14px;
   height: 14px;
