@@ -714,8 +714,8 @@
     display: none;
   }
 
-  /* Навигация скрыта вместе со своим margin-left: auto, поэтому свободное место
-     забирает первый из пары — тема и язык уезжают к правому краю вместе. */
+  /* The navigation is hidden along with its own margin-left: auto, so the free space
+     falls to the first of the pair and both controls travel to the right edge. */
   .theme-switcher {
     margin-left: auto;
   }

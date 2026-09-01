@@ -50,7 +50,7 @@
   --stage-grid: rgb(var(--tint-rgb) / 2.5%);
 
   --inset: rgb(var(--shadow-rgb) / 25%);
-  /* Обложка карточки — насыщенный градиент в любой теме, её блики всегда светлые. */
+  /* The card cover is a saturated gradient in every theme, so its highlights stay light. */
   --on-cover-rgb: 255 255 255;
   --demo-card-sheet: #17171f;
 
@@ -1524,8 +1524,8 @@ code {
 .package-manager-switcher::before {
   position: absolute;
   z-index: 0;
-  /* Сброс box-sizing по `*` не задевает псевдоэлементы, а translateX(100%) отмеряет
-     шаг по бордер-боксу: без этого рамка добавляла бы 2px к каждому шагу. */
+  /* The `*` box-sizing reset does not reach pseudo-elements, and translateX(100%)
+     steps by the border box: without this the border adds 2px to every step. */
   box-sizing: border-box;
   top: 4px;
   bottom: 4px;
@@ -1895,7 +1895,7 @@ code {
   transition: 160ms ease;
 }
 
-.playground-presets button:not([aria-pressed='true']):hover {
+.playground-presets button:not([aria-pressed='true']):not(:disabled):hover {
   border-color: var(--border-light);
   color: var(--text);
   background: rgb(var(--tint-rgb) / 4%);
@@ -3464,10 +3464,11 @@ code {
   cursor: pointer;
   transition:
     border-color 160ms ease,
-    background 160ms ease;
+    background 160ms ease,
+    opacity 160ms ease;
 }
 
-.playground-presets button:not([aria-pressed='true']):hover {
+.playground-presets button:not([aria-pressed='true']):not(:disabled):hover {
   border-color: var(--border-light);
   color: var(--text);
   background: var(--surface-raised);

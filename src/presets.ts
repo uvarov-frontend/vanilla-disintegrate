@@ -18,14 +18,14 @@ function defineParticlePreset(options: ParticlePreset): Readonly<ParticlePreset>
 export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePreset>>> = Object.freeze({
   dust: defineParticlePreset({
     curve: 'settle',
-    duration: 1400,
-    stagger: 260,
+    duration: 850,
+    stagger: 130,
     horizontalDrift: 70,
     horizontalTravel: [40, 190],
     verticalTravel: [-210, -30],
     convergence: 0,
     swirl: 34,
-    endScale: 0.7,
+    endScale: 0.55,
     release: 'left',
   }),
   scatter: defineParticlePreset({

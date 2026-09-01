@@ -1492,6 +1492,12 @@ export function mountParticlePlayground(root: HTMLElement) {
   };
   const updateActions = () => {
     root.setAttribute('aria-busy', String(busy));
+    // A queued preview counts as running here: the wait before it starts is still a
+    // window where a second preset would swap the configuration out from under it.
+    // The selected preset stays live so the current choice keeps its full contrast.
+    const presetsLocked = busy || previewTimer !== null;
+    for (const button of presetButtons)
+      button.disabled = presetsLocked && button.getAttribute('aria-pressed') !== 'true';
     for (const button of widthButtons) button.disabled = busy || !card.isConnected;
     remove.disabled = busy || !card.isConnected;
     restore.disabled = busy || (!card.isConnected && removalId === null);
@@ -1619,7 +1625,12 @@ export function mountParticlePlayground(root: HTMLElement) {
   function schedulePreview() {
     pendingPreview = false;
     if (previewTimer !== null) window.clearTimeout(previewTimer);
-    previewTimer = window.setTimeout(() => void preview(), 240);
+    previewTimer = window.setTimeout(() => {
+      previewTimer = null;
+      // run() flips `busy` before its first await, so the lock never lifts in between.
+      void preview().finally(() => updateActions());
+    }, 240);
+    updateActions();
   }
   const scheduleHash = () => {
     if (hashTimer !== null) window.clearTimeout(hashTimer);
@@ -1722,6 +1733,9 @@ export function mountParticlePlayground(root: HTMLElement) {
 
   for (const button of presetButtons) {
     button.addEventListener('click', () => {
+      // Switching rebuilds the configuration and discards the prepared audio, which
+      // would pull the ground out from under a run that is already playing.
+      if (busy) return;
       const preset = button.dataset.preset as BuiltInPreset;
       for (const operation of ['remove', 'restore'] as const) {
         const previous = configuredSound(configuration[operation], customSounds);

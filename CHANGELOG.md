@@ -14,6 +14,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Retime the `dust` preset to a shorter, tighter fall: 850 ms with 130 ms of stagger and a 0.55 end scale.
 - Require every `Disintegrator` instance to choose exactly one complete `preset` or one object-valued custom `effect`; there is no implicit default.
 - Make built-in presets audible by default and allow them to be muted only with `sound: false`; custom effects remain silent until given an explicit remove/restore sound pair.
 - Decouple audio from visual effect phases, rename playback `gain` to `volume`, and use `sounds` for audio preparation selections.

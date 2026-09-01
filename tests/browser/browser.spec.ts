@@ -375,11 +375,11 @@ test('recognizes preset values after edits and keeps audio toggles independent',
   await expect(code).toContainText("preset: 'dust'");
   await expect(code).not.toContainText('createParticleEffect');
 
-  await setRange('duration', '1450');
+  await setRange('duration', '900');
   await expect(dust).toHaveAttribute('aria-pressed', 'false');
   await expect(code).toContainText('createParticleEffect');
 
-  await setRange('duration', '1400');
+  await setRange('duration', '850');
   expect(
     await root.evaluate((element) => ({
       curve: (element.querySelector('[data-curve]') as HTMLSelectElement).value,
@@ -398,8 +398,8 @@ test('recognizes preset values after edits and keeps audio toggles independent',
   ).toEqual({
     curve: 'settle',
     release: 'left',
-    duration: '1400',
-    stagger: '260',
+    duration: '850',
+    stagger: '130',
     horizontalDrift: '70',
     horizontalMin: '40',
     horizontalMax: '190',
@@ -407,7 +407,7 @@ test('recognizes preset values after edits and keeps audio toggles independent',
     verticalMax: '-30',
     convergence: '0',
     swirl: '34',
-    endScale: '0.7',
+    endScale: '0.55',
   });
   await expect(dust).toHaveAttribute('aria-pressed', 'true');
   await expect(code).toContainText("preset: 'dust'");
