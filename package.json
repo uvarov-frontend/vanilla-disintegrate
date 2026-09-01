@@ -1,6 +1,6 @@
 {
   "name": "vanilla-disintegrate",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "description": "Lightweight, framework-agnostic DOM removal and restoration animations with pluggable snapshot capture.",
   "keywords": [
     "animation",
