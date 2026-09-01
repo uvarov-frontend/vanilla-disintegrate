@@ -67,6 +67,8 @@ const jsonLd = JSON.stringify({
     <meta name="generator" content={Astro.generator} />
     {noindex && <meta name="robots" content="noindex, nofollow" />}
     <link rel="icon" type="image/svg+xml" href={favicon} />
+    {/* Render-blocking on purpose: it stamps the resolved theme before the first paint. */}
+    <script is:inline src="/theme.js"></script>
     {fontUrls.map((href) => <link rel="preload" href={href} as="font" type="font/woff2" crossorigin="anonymous" />)}
     {!noindex && <link rel="canonical" href={absoluteUrl(pathname)} />}
     {

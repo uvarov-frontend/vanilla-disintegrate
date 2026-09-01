@@ -1,3 +1,4 @@
+import { setupThemeSwitcher } from './theme';
 import Disintegrator from '../../../src/snapdom';
 import type { BuiltInPreset, EffectDefinition, EffectOperation, RemovalId, SoundSelection } from '../../../src/types';
 import { createDemoCard } from './demo-card';
@@ -528,6 +529,7 @@ function mountPairDemo(root: HTMLElement, kind: DemoKind) {
 }
 
 export function setupSite() {
+  setupThemeSwitcher();
   setupNavigation();
   setupAnalytics();
   setupGitHubStarPrompt();

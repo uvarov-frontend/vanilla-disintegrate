@@ -1,0 +1,48 @@
+---
+import { ui, type Locale } from '../i18n';
+
+interface Props {
+  locale: Locale;
+}
+
+const { locale } = Astro.props;
+const copy = ui[locale].theme;
+
+// The order matches the visual order; `system` leads because it is the default.
+const options = [
+  { id: 'system', label: copy.system },
+  { id: 'light', label: copy.light },
+  { id: 'dark', label: copy.dark },
+] as const;
+---
+
+<div class="theme-switcher" role="group" aria-label={copy.label} data-theme-switcher>
+  {
+    options.map(({ id, label }) => (
+      <button type="button" data-theme-option={id} aria-pressed="false" title={label} aria-label={label}>
+        <span class="theme-switcher-icon" aria-hidden="true">
+          {id === 'system' && (
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+              <rect x="1.7" y="2.6" width="12.6" height="8.4" rx="1.6" />
+              <path d="M5.5 13.4h5" stroke-linecap="round" />
+            </svg>
+          )}
+          {id === 'light' && (
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+              <circle cx="8" cy="8" r="3.1" />
+              <path
+                d="M8 1.4v1.5M8 13.1v1.5M14.6 8h-1.5M2.9 8H1.4M12.66 3.34l-1.06 1.06M4.4 11.6l-1.06 1.06M12.66 12.66L11.6 11.6M4.4 4.4L3.34 3.34"
+                stroke-linecap="round"
+              />
+            </svg>
+          )}
+          {id === 'dark' && (
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+              <path d="M13.4 9.6A5.9 5.9 0 0 1 6.4 2.6a5.9 5.9 0 1 0 7 7Z" stroke-linejoin="round" />
+            </svg>
+          )}
+        </span>
+      </button>
+    ))
+  }
+</div>

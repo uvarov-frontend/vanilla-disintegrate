@@ -1689,6 +1689,20 @@ export function mountParticlePlayground(root: HTMLElement) {
   applyCardWidth(false);
   render();
   prepare();
+
+  // A prepared snapshot is a picture of the card under the palette that was active when
+  // it was taken, so a theme switch leaves the effect tearing apart the previous look.
+  // Watching the attribute keeps this independent of whatever flips the theme.
+  let appliedTheme = document.documentElement.dataset.theme;
+  new MutationObserver(() => {
+    const theme = document.documentElement.dataset.theme;
+    if (theme === appliedTheme) return;
+    appliedTheme = theme;
+    // One frame lets the new palette paint before the capture reads the card.
+    requestAnimationFrame(() => {
+      if (!busy) prepare();
+    });
+  }).observe(document.documentElement, { attributeFilter: ['data-theme'] });
   void listPlaygroundAudio()
     .then((stored) => {
       customSounds = stored;

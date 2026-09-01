@@ -11,6 +11,7 @@ export interface UiCopy {
   readonly menu: string;
   readonly githubStarPrompt: string;
   readonly sponsor: string;
+  readonly theme: Readonly<Record<'label' | 'system' | 'light' | 'dark', string>>;
   readonly close: string;
   readonly onThisPage: string;
   readonly previous: string;
@@ -63,6 +64,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     menu: 'Open navigation',
     githubStarPrompt: 'If you like Vanilla Disintegrate, please give it a 🌟 star on GitHub.',
     sponsor: 'Sponsor',
+    theme: { label: 'Theme', system: 'System', light: 'Light', dark: 'Dark' },
     close: 'Close',
     onThisPage: 'On this page',
     previous: 'Previous',
@@ -109,6 +111,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     menu: 'Открыть навигацию',
     githubStarPrompt: 'Если вам нравится Vanilla Disintegrate, пожалуйста, поставьте ему 🌟 звёздочку на GitHub.',
     sponsor: 'Спонсор',
+    theme: { label: 'Тема', system: 'Системная', light: 'Светлая', dark: 'Тёмная' },
     close: 'Закрыть',
     onThisPage: 'На этой странице',
     previous: 'Назад',
@@ -155,6 +158,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     menu: '打开导航',
     githubStarPrompt: '如果你喜欢 Vanilla Disintegrate，请在 GitHub 上点个 🌟 星标。',
     sponsor: '赞助',
+    theme: { label: '主题', system: '跟随系统', light: '浅色', dark: '深色' },
     close: '关闭',
     onThisPage: '本页内容',
     previous: '上一页',
@@ -199,6 +203,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     menu: '탐색 열기',
     githubStarPrompt: 'Vanilla Disintegrate가 마음에 드신다면 GitHub에 🌟 스타를 눌러 주세요.',
     sponsor: '후원',
+    theme: { label: '테마', system: '시스템', light: '라이트', dark: '다크' },
     close: '닫기',
     onThisPage: '이 페이지에서',
     previous: '이전',

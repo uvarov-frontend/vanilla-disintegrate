@@ -3,6 +3,7 @@ import packageJson from '../../../package.json';
 
 import { docsHref, homeHref, ui, type Locale } from '../i18n';
 import LanguageSwitcher from './LanguageSwitcher.astro';
+import ThemeSwitcher from './ThemeSwitcher.astro';
 import Logo from './Logo.astro';
 
 interface Props {
@@ -78,6 +79,7 @@ const sponsorHref = 'https://buymeacoffee.com/uvarov';
         </aside>
       </div>
     </nav>
+    <ThemeSwitcher locale={locale} />
     <LanguageSwitcher locale={locale} pathname={pathname} />
   </div>
 </header>
