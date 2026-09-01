@@ -897,10 +897,25 @@ ${lines.join('\n')}
     }`;
 }
 
+function customSoundFileName(source: PlaygroundSoundSource, customSounds: PlaygroundCustomSounds) {
+  const sound = findCustomSound(source, customSounds);
+  if (sound === null || sound.name.trim() === '') return 'custom-sound.mp3';
+  // Two stored files may carry the same name. Without the id the two phases would emit
+  // an identical `src`, which the shared-option split then hoists into one constant —
+  // silently giving both phases the same recording.
+  const collides = customSounds.some((other) => other.id !== sound.id && other.name === sound.name);
+  if (!collides) return sound.name;
+  const extension = sound.name.lastIndexOf('.');
+  return extension <= 0
+    ? `${sound.name}-${sound.id}`
+    : `${sound.name.slice(0, extension)}-${sound.id}${sound.name.slice(extension)}`;
+}
+
 function soundSourceExpression(state: PlaygroundState, customSounds: PlaygroundCustomSounds) {
   if (customSoundId(state.soundSource) === null) return `'${state.soundSource}'`;
-  const fileName = findCustomSound(state.soundSource, customSounds)?.name ?? 'custom-sound.mp3';
-  return `new URL(${JSON.stringify(`./${fileName}`)}, import.meta.url)`;
+  // A file name is one path segment, and spaces or a `#` in it would truncate the URL.
+  const path = `./${encodeURIComponent(customSoundFileName(state.soundSource, customSounds))}`;
+  return `new URL(${JSON.stringify(path)}, import.meta.url)`;
 }
 
 function soundCodeSource(
@@ -931,7 +946,13 @@ function soundCodeSource(
   return {
     declaration,
     entries: operationOptions
-      .map(({ operation, options }) => `    ${operation}: ${playbackSource(options, spread)},`)
+      .map(({ operation, options }) =>
+        // Both phases fully shared: point them at the constant instead of wrapping it
+        // in an object whose only member is the spread.
+        spread !== undefined && options.length === 0
+          ? `    ${operation}: ${spread},`
+          : `    ${operation}: ${playbackSource(options, spread)},`,
+      )
       .join('\n'),
   };
 }
@@ -995,15 +1016,18 @@ function effectSource(configuration: PlaygroundConfiguration, customSounds: Play
   const restoreOptionSources = particleOptionSources(configuration.restore);
   const splitOptions = splitSharedOptions(removeOptionSources, restoreOptionSources);
   const identicalParticleOptions = splitOptions.remove.length === 0 && splitOptions.restore.length === 0;
-  const sharedOptionsName =
-    splitOptions.shared.length > 0 && !identicalParticleOptions ? 'sharedParticleOptions' : undefined;
+  const sharedOptionsName = splitOptions.shared.length > 0 ? 'sharedParticleOptions' : undefined;
   const sharedParticleOptionsDeclaration =
     sharedOptionsName === undefined
       ? ''
       : `const ${sharedOptionsName}: ParticleOptions = ${optionsSource(splitOptions.shared)};\n\n`;
-  const particleEffectOptions = identicalParticleOptions
-    ? `    remove: ${optionsSource(splitOptions.shared, undefined, 3)},`
-    : `    remove: ${optionsSource(splitOptions.remove, sharedOptionsName, 3)},
+  // Matching phases still need both keys: the shared constant is what they point at,
+  // otherwise the copied snippet animates removal and leaves restore undefined.
+  const particleEffectOptions =
+    identicalParticleOptions && sharedOptionsName !== undefined
+      ? `    remove: ${sharedOptionsName},
+    restore: ${sharedOptionsName},`
+      : `    remove: ${optionsSource(splitOptions.remove, sharedOptionsName, 3)},
     restore: ${optionsSource(splitOptions.restore, sharedOptionsName, 3)},`;
   const enabledOperations = (['remove', 'restore'] as const).filter(
     (operation) => configuration[operation].soundEnabled,

@@ -23,6 +23,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Point both phases at the shared particle constant in the playground's generated code when removal and restoration match, instead of emitting `remove` alone and leaning on its implicit fallback.
+- Keep two stored playground sounds that share a file name distinct in generated code, and percent-encode the name so spaces or a `#` cannot truncate the `new URL()` path.
 - Split large particle fields across bounded vertex buffers so Safari renders the full element height instead of truncating horizontal trails after the first GPU buffer segment.
 - Rasterize high-density SnapDOM captures at their physical size on Safari so WebKit does not enlarge a low-resolution `foreignObject` image and blur particle frames.
 - Upload particle records in reverse source order to avoid Safari's order-dependent WebGL artifact that drew a vertical strip along the element's left edge.

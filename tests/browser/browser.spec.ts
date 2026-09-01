@@ -179,7 +179,7 @@ test('accepts exact numeric input for every playground range', async ({ page, br
   ).toEqual({ flex: true, sameRow: true, unitOnRight: true });
 
   await expect(root.locator('[data-value="convergence"]')).toHaveValue('0.00');
-  await expect(root.locator('[data-value="endScale"]')).toHaveValue('0.70');
+  await expect(root.locator('[data-value="endScale"]')).toHaveValue('0.55');
   await expect(root.locator('[data-value="soundPlaybackRate"]')).toHaveValue('1.00');
   await expect(root.locator('[data-value="soundFadeDuration"]')).toHaveValue('0.18');
   await expect(root.locator('[data-value="soundVolume"]')).toHaveValue('32');
@@ -347,8 +347,11 @@ test('deduplicates shared custom particle options in generated code', async ({ p
   await setRange('duration', '925');
   await expectOccurrences(/duration: 925/g, 1);
   await expectOccurrences(/duration: 900/g, 0);
-  await expectOccurrences(/sharedParticleOptions/g, 0);
-  expect(await generatedEffect()).not.toContain('restore:');
+  await expect(code).toContainText('const sharedParticleOptions: ParticleOptions');
+  await expectOccurrences(/sharedParticleOptions/g, 3);
+  await expectOccurrences(/\.\.\.sharedParticleOptions/g, 0);
+  expect(await generatedEffect()).toContain('remove: sharedParticleOptions,');
+  expect(await generatedEffect()).toContain('restore: sharedParticleOptions,');
 
   await setRange('swirl', '19');
   await expectOccurrences(/swirl: 18/g, 1);
