@@ -83,7 +83,7 @@
   --accent-rgb: 226 74 62;
   --accent-bright-rgb: 201 59 48;
 
-  --surface-sunken: #ecebf2;
+  --surface-sunken: #f1f0f7;
   --background: #efedf5;
   --surface-low: #f2f1f7;
   --surface: #ffffff;
@@ -111,13 +111,12 @@
   --page-glow: rgb(116 78 130 / 20%);
   --hero-glow: rgb(var(--accent-rgb) / 11%);
   --hero-ring: rgb(var(--tint-rgb) / 7%);
-  --stage-bg: #e1dcee;
+  --stage-bg: #f0eef7;
   --stage-glow: rgb(var(--accent-rgb) / 12%);
   --stage-grid: rgb(var(--tint-rgb) / 7%);
 
   --inset: #e5e3ec;
-  /* Белый лист рассыпается в бесцветную крошку, поэтому светлый лист тонирован. */
-  --demo-card-sheet: #ece7f6;
+  --demo-card-sheet: #ffffff;
 
   --code-text: #b0392f;
   --hero-gradient-mid: #c2417a;
@@ -1006,8 +1005,8 @@ code {
 
 .select-control select {
   min-width: 155px;
-  min-height: 38px;
-  padding: 7px 30px 7px 10px;
+  min-height: 34px;
+  padding: 5px 30px 5px 10px;
   border: 1px solid var(--border-light);
   border-radius: 8px;
   color: var(--text);
@@ -2741,6 +2740,10 @@ code {
   box-shadow: none;
 }
 
+:root[data-theme='light'] .playground-code {
+  background: var(--surface-raised);
+}
+
 .playground-code-heading {
   display: flex;
   align-items: stretch;
@@ -3387,7 +3390,7 @@ code {
   padding: 3px;
   border: 1px solid var(--border);
   border-radius: 9px;
-  background: var(--inset);
+  background: var(--surface-sunken);
 }
 
 .playground-operation-tabs button,
@@ -3741,9 +3744,9 @@ code {
 
 .playground-selectors select {
   grid-column: auto;
-  min-height: 42px;
+  min-height: 38px;
   margin: 0;
-  padding: 9px 32px 9px 11px;
+  padding: 6px 32px 6px 11px;
   border: 1px solid var(--border-light);
   border-radius: 9px;
   background: var(--surface-raised);
