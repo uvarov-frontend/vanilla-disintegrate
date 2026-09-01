@@ -23,6 +23,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 
 - Clip default SnapDOM captures to the measured element bounds so particle snapshots are neither stretched nor offset when CSS minimum sizes exceed the content size.
+- Resume the shared `AudioContext` on the first user gesture and wait for it to leave `suspended` before a sound counts as prepared, so Safari no longer plays a silent first animation or drops audio for operations started from a timer, an observer, or after an `await`.
 
 ## [1.1.4] - 2026-08-30
 

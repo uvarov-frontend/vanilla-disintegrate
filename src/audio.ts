@@ -135,14 +135,61 @@ function reverseBuffer(buffer: AudioBuffer, context: BaseAudioContext) {
   return reversed;
 }
 
+/** Waits for a resume to take effect without letting a refused one stall playback. */
+function settleResume(context: AudioContext, timeoutMs = 250) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      context.removeEventListener('statechange', finish);
+      resolve();
+    }
+    context.addEventListener('statechange', finish);
+    context.resume().then(finish, finish);
+  });
+}
+
+/** Gestures browsers accept as consent to start audio. */
+const UNLOCK_EVENTS = ['pointerdown', 'keydown', 'touchend'] as const;
+
 class SharedAudioEngine {
   private context: AudioContext | null = null;
   private contextError: unknown = null;
   private contextUnavailable = false;
   private readonly sources = new Map<SourceKey, SourceBuffers>();
   private readonly clients = new Set<AudioClient>();
+  private disarmUnlock: (() => void) | null = null;
 
   constructor(private readonly ownerWindow: Window) {}
+
+  /**
+   * Safari refuses to resume a suspended context outside a user gesture, so an
+   * application that animates from a timer, an observer, or after an `await` would
+   * play silence. The context owns its own consent: it listens for the next gesture
+   * once, resumes there, and re-arms if the browser suspends it again.
+   */
+  private armUnlock(context: AudioContext) {
+    if (this.disarmUnlock !== null || typeof this.ownerWindow.document === 'undefined') return;
+    const onGesture = () => {
+      if (context.state === 'suspended') void context.resume().catch(noop);
+      // Resuming is asynchronous; `statechange` disarms once it actually runs.
+      if (context.state === 'running') disarm();
+    };
+    const onStateChange = () => {
+      if (context.state === 'running' || context.state === 'closed') disarm();
+    };
+    const disarm = () => {
+      if (this.disarmUnlock === null) return;
+      this.disarmUnlock = null;
+      for (const type of UNLOCK_EVENTS) this.ownerWindow.document.removeEventListener(type, onGesture, true);
+      context.removeEventListener('statechange', onStateChange);
+    };
+    this.disarmUnlock = disarm;
+    for (const type of UNLOCK_EVENTS) {
+      this.ownerWindow.document.addEventListener(type, onGesture, { capture: true, passive: true });
+    }
+    context.addEventListener('statechange', onStateChange);
+  }
 
   acquire(client: AudioClient) {
     this.clients.add(client);
@@ -163,6 +210,7 @@ class SharedAudioEngine {
       this.contextUnavailable = true;
       throw error;
     }
+    if (this.context.state === 'suspended') this.armUnlock(this.context);
     return this.context;
   }
 
@@ -265,6 +313,7 @@ class SharedAudioEngine {
       if (pair.reverse !== undefined) this.deleteEntry(pair.reverse);
     }
     this.sources.clear();
+    this.disarmUnlock?.();
     const context = this.context;
     this.context = null;
     if (context !== null && context.state !== 'closed') void context.close().catch(noop);
@@ -421,6 +470,10 @@ export class SoundPlayer {
     if (this.destroyed || generation !== this.generation) {
       throw new DOMException('Audio preparation was cancelled.', 'AbortError');
     }
+    // `resume()` settles asynchronously, so a cached buffer could otherwise reach
+    // playback first and start against a context that is still suspended. A blocked
+    // resume never settles, so the visual waits only briefly for it.
+    if (context.state === 'suspended') await settleResume(context);
     return { type: 'native', options, buffer };
   }
 

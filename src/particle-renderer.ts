@@ -135,7 +135,9 @@ uniform highp vec2 u_source_size;
 uniform highp float u_block_size;
 uniform float u_progress;
 uniform float u_transition;
-in vec2 v_uv;
+// The vertex stage produces this at highp; mediump here would round the scaled
+// coordinate by up to a pixel and pick the neighbouring threshold block.
+in highp vec2 v_uv;
 out vec4 out_color;
 
 void main() {
@@ -199,7 +201,9 @@ uniform highp vec2 u_source_size;
 uniform highp float u_block_size;
 uniform float u_progress;
 uniform float u_transition;
-in vec2 v_uv;
+// The vertex stage produces this at highp; mediump here would round the scaled
+// coordinate by up to a pixel and pick the neighbouring threshold block.
+in highp vec2 v_uv;
 out vec4 out_color;
 
 void main() {
@@ -261,8 +265,8 @@ void main() {
 const PARTICLE_FRAGMENT_SHADER = `#version 300 es
 precision mediump float;
 uniform sampler2D u_source;
-in vec2 v_uv_origin;
-in vec2 v_uv_size;
+in highp vec2 v_uv_origin;
+in highp vec2 v_uv_size;
 in float v_alpha;
 out vec4 out_color;
 
@@ -344,12 +348,15 @@ function createTexture(gl: WebGL2RenderingContext, source: HTMLCanvasElement) {
   const texture = gl.createTexture();
   if (texture === null) throw new Error('Unable to create the snapshot texture.');
   gl.bindTexture(gl.TEXTURE_2D, texture);
+  // Global unpack state: it is reset after this upload so the threshold texture,
+  // which is raw bytes rather than a DOM element, is not unpacked through it.
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
   return texture;
 }
 
@@ -358,6 +365,7 @@ function createThresholdTexture(gl: WebGL2RenderingContext, width: number, heigh
   if (texture === null) throw new Error('Unable to create the particle threshold texture.');
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);

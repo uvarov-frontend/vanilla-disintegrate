@@ -53,7 +53,10 @@ function mockAudio() {
     disconnect: gainDisconnect,
     gain: { linearRampToValueAtTime, setValueAtTime },
   } as unknown as GainNode;
+  const contextListeners = new Map<string, EventListener>();
   const context = {
+    addEventListener: vi.fn((type: string, listener: EventListener) => contextListeners.set(type, listener)),
+    removeEventListener: vi.fn((type: string) => contextListeners.delete(type)),
     close,
     createBuffer: vi.fn((numberOfChannels: number, length: number, sampleRate: number) =>
       fakeBuffer(
@@ -87,6 +90,7 @@ function mockAudio() {
   return {
     close,
     context,
+    contextListeners,
     decodeAudioData,
     decoded,
     gainDisconnect,
@@ -119,6 +123,80 @@ describe('SoundPlayer', () => {
 
     expect(() => player.unlock({ src: '/dust.mp3' }, onError)).not.toThrow();
     expect(onError).toHaveBeenCalledWith(error);
+    player.destroy();
+  });
+
+  it('resumes a suspended context on the first user gesture', () => {
+    const listeners = new Map<string, EventListener>();
+    const resume = vi.fn().mockResolvedValue(undefined);
+    const context = {
+      addEventListener: vi.fn((type: string, listener: EventListener) => listeners.set(type, listener)),
+      removeEventListener: vi.fn((type: string) => listeners.delete(type)),
+      close: vi.fn().mockResolvedValue(undefined),
+      currentTime: 0,
+      decodeAudioData: vi.fn(),
+      destination: {},
+      resume,
+      state: 'suspended',
+    } as unknown as AudioContext;
+    vi.stubGlobal(
+      'AudioContext',
+      vi.fn(function AudioContextMock() {
+        return context;
+      }),
+    );
+    const player = new SoundPlayer();
+
+    // Creating the context arms the listener; nothing resumes on its own.
+    player.unlock({ src: '/dust.mp3' }, vi.fn());
+    resume.mockClear();
+    expect(listeners.has('statechange')).toBe(true);
+
+    document.dispatchEvent(new Event('pointerdown'));
+    expect(resume).toHaveBeenCalled();
+
+    // Once the browser reports the context running, the listener retires.
+    (context as { state: string }).state = 'running';
+    listeners.get('statechange')?.(new Event('statechange'));
+    resume.mockClear();
+    document.dispatchEvent(new Event('pointerdown'));
+    expect(resume).not.toHaveBeenCalled();
+
+    player.destroy();
+  });
+
+  it('waits for a suspended context to resume before reporting a sound ready', async () => {
+    const decoded = deferred<AudioBuffer>();
+    const resume = vi.fn().mockResolvedValue(undefined);
+    const context = {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      close: vi.fn().mockResolvedValue(undefined),
+      currentTime: 0,
+      decodeAudioData: vi.fn(() => decoded.promise),
+      destination: {},
+      resume,
+      state: 'suspended',
+    } as unknown as AudioContext;
+    vi.stubGlobal(
+      'AudioContext',
+      vi.fn(function AudioContextMock() {
+        return context;
+      }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)), ok: true }),
+    );
+    const player = new SoundPlayer();
+
+    const preparation = player.prepare({ src: '/dust.mp3' });
+    decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
+    const prepared = await preparation;
+
+    // Readiness now includes the context actually leaving `suspended`.
+    expect(resume).toHaveBeenCalled();
+    expect(prepared).not.toBeNull();
     player.destroy();
   });
 
