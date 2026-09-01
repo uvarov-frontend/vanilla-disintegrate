@@ -126,7 +126,7 @@ test('configures and runs the home-page particle playground', async ({ page, bro
   await expect(root.locator('[data-status]')).toContainText('remove · completed', { timeout: 15_000 });
 
   await root.locator('[data-operation="restore"]').click();
-  await expect(root.locator('[data-option="verticalMin"]')).toHaveValue('-230');
+  await expect(root.locator('[data-option="verticalMin"]')).toHaveValue('-255');
   await setRange('verticalMin', '-120');
   await expect(root.locator('[data-code]')).toContainText('verticalTravel: [-120, -120]');
   await root.locator('[data-operation="remove"]').click();
