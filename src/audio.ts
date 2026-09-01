@@ -135,8 +135,12 @@ function reverseBuffer(buffer: AudioBuffer, context: BaseAudioContext) {
   return reversed;
 }
 
-/** Waits for a resume to take effect without letting a refused one stall playback. */
-function settleResume(context: AudioContext, timeoutMs = 250) {
+/**
+ * Waits for a pending resume to take effect without asking for one: the gesture
+ * listener owns resuming, and requesting it here would be refused outside a user
+ * gesture and logged as a warning. A refusal never settles, hence the timeout.
+ */
+function awaitRunning(context: AudioContext, timeoutMs = 250) {
   return new Promise<void>((resolve) => {
     const timer = setTimeout(finish, timeoutMs);
     function finish() {
@@ -145,7 +149,6 @@ function settleResume(context: AudioContext, timeoutMs = 250) {
       resolve();
     }
     context.addEventListener('statechange', finish);
-    context.resume().then(finish, finish);
   });
 }
 
@@ -158,7 +161,9 @@ class SharedAudioEngine {
   private contextUnavailable = false;
   private readonly sources = new Map<SourceKey, SourceBuffers>();
   private readonly clients = new Set<AudioClient>();
+  private decodeContext: BaseAudioContext | null = null;
   private disarmUnlock: (() => void) | null = null;
+  private gestureSeen = false;
 
   constructor(private readonly ownerWindow: Window) {}
 
@@ -171,6 +176,7 @@ class SharedAudioEngine {
   private armUnlock(context: AudioContext) {
     if (this.disarmUnlock !== null || typeof this.ownerWindow.document === 'undefined') return;
     const onGesture = () => {
+      this.gestureSeen = true;
       if (context.state === 'suspended') void context.resume().catch(noop);
       // Resuming is asynchronous; `statechange` disarms once it actually runs.
       if (context.state === 'running') disarm();
@@ -195,6 +201,26 @@ class SharedAudioEngine {
     this.clients.add(client);
   }
 
+  /**
+   * Decoding needs any BaseAudioContext, and constructing a playback one before a
+   * user gesture is refused and logged by Firefox. An offline context carries no
+   * such gate, so preparation uses it until a real context exists.
+   */
+  getDecodeContext(): BaseAudioContext | null {
+    if (this.context !== null && this.context.state !== 'closed') return this.context;
+    if (this.decodeContext !== null) return this.decodeContext;
+    const audioWindow = this.ownerWindow as Window &
+      typeof globalThis & { webkitOfflineAudioContext?: typeof OfflineAudioContext };
+    const Offline = audioWindow.OfflineAudioContext ?? audioWindow.webkitOfflineAudioContext;
+    if (Offline === undefined) return this.getContext();
+    try {
+      this.decodeContext = new Offline(1, 1, 44_100);
+    } catch {
+      return this.getContext();
+    }
+    return this.decodeContext;
+  }
+
   getContext() {
     if (this.context !== null && this.context.state !== 'closed') return this.context;
     if (this.contextUnavailable) return null;
@@ -214,6 +240,11 @@ class SharedAudioEngine {
     return this.context;
   }
 
+  /** True once a resume has been requested but the context has not started yet. */
+  resumePending() {
+    return this.gestureSeen && this.context?.state === 'suspended';
+  }
+
   getContextError() {
     return this.contextError;
   }
@@ -222,7 +253,7 @@ class SharedAudioEngine {
     return this.context?.state === 'closed' ? null : this.context;
   }
 
-  load(client: AudioClient, source: SoundSource, reverse: boolean, context: AudioContext) {
+  load(client: AudioClient, source: SoundSource, reverse: boolean, context: BaseAudioContext) {
     if (!reverse && isAudioBuffer(source)) return Promise.resolve(source);
 
     const entry = this.entryFor(source, reverse, context);
@@ -232,7 +263,7 @@ class SharedAudioEngine {
     return entry.promise;
   }
 
-  private entryFor(source: SoundSource, reverse: boolean, context: AudioContext) {
+  private entryFor(source: SoundSource, reverse: boolean, context: BaseAudioContext) {
     const key = sourceKey(source, this.ownerWindow.document.baseURI);
     const pair = this.sources.get(key) ?? {};
     this.sources.set(key, pair);
@@ -320,7 +351,7 @@ class SharedAudioEngine {
     sharedEngines.delete(this.ownerWindow);
   }
 
-  private async loadSource(source: Exclude<SoundSource, AudioBuffer>, context: AudioContext, signal: AbortSignal) {
+  private async loadSource(source: Exclude<SoundSource, AudioBuffer>, context: BaseAudioContext, signal: AbortSignal) {
     let data: ArrayBuffer;
     if (isArrayBuffer(source)) {
       data = source.slice(0);
@@ -463,17 +494,17 @@ export class SoundPlayer {
     const source = this.resolveSource(selectedOptions.src);
     const options = source === selectedOptions.src ? selectedOptions : { ...selectedOptions, src: source };
     const engine = this.getEngine();
-    const context = engine?.getContext() ?? null;
+    const context = engine?.getDecodeContext() ?? null;
     if (engine === null || context === null) return null;
     const generation = this.generation;
     const buffer = await engine.load(this.client, options.src, options.reverse === true, context);
     if (this.destroyed || generation !== this.generation) {
       throw new DOMException('Audio preparation was cancelled.', 'AbortError');
     }
-    // `resume()` settles asynchronously, so a cached buffer could otherwise reach
-    // playback first and start against a context that is still suspended. A blocked
-    // resume never settles, so the visual waits only briefly for it.
-    if (context.state === 'suspended') await settleResume(context);
+    // A resume settles asynchronously, so a cached buffer could otherwise reach
+    // playback first and start against a context that is still suspended.
+    const playback = engine.currentContext();
+    if (playback !== null && engine.resumePending()) await awaitRunning(playback);
     return { type: 'native', options, buffer };
   }
 

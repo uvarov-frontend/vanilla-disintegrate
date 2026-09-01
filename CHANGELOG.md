@@ -23,7 +23,9 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 
 - Clip default SnapDOM captures to the measured element bounds so particle snapshots are neither stretched nor offset when CSS minimum sizes exceed the content size.
-- Resume the shared `AudioContext` on the first user gesture and wait for it to leave `suspended` before a sound counts as prepared, so Safari no longer plays a silent first animation or drops audio for operations started from a timer, an observer, or after an `await`.
+- Read particle dissolve thresholds through a texel-centre sample instead of `texelFetch`, so Firefox no longer fades blocks that should still be intact and leaves dark gaps across the element during removal and restoration.
+- Resume the shared `AudioContext` on the first user gesture, so Safari no longer plays a silent first animation or drops audio for operations started from a timer, an observer, or after an `await`.
+- Decode prepared audio through an `OfflineAudioContext`, so background preparation no longer constructs a playback context before the page has been interacted with. The playback context is created during the gesture instead, which browsers start in `running`.
 
 ## [1.1.4] - 2026-08-30
 

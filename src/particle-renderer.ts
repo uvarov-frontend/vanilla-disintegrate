@@ -144,8 +144,11 @@ void main() {
   vec4 color = texture(u_source, v_uv);
   ivec2 threshold_size = textureSize(u_thresholds, 0);
   vec2 source_pixel = min(floor(v_uv * u_source_size), u_source_size - vec2(1.0));
-  ivec2 threshold_pixel = min(ivec2(source_pixel / u_block_size), threshold_size - ivec2(1));
-  float threshold = texelFetch(u_thresholds, threshold_pixel, 0).r;
+  ivec2 threshold_pixel = clamp(ivec2(source_pixel / u_block_size), ivec2(0), threshold_size - ivec2(1));
+  // Sampled at a texel centre rather than with texelFetch: Gecko returns 0 for some
+  // texels of this texture, which fades blocks that should still be intact. The
+  // sampler is NEAREST, so this reads exactly the same texel on every engine.
+  float threshold = texture(u_thresholds, (vec2(threshold_pixel) + 0.5) / vec2(threshold_size)).r;
   float intact = smoothstep(u_progress - u_transition, u_progress + u_transition, threshold);
   out_color = color * intact;
 }
@@ -210,8 +213,11 @@ void main() {
   vec4 color = texture(u_source, v_uv);
   ivec2 threshold_size = textureSize(u_thresholds, 0);
   vec2 source_pixel = min(floor(v_uv * u_source_size), u_source_size - vec2(1.0));
-  ivec2 threshold_pixel = min(ivec2(source_pixel / u_block_size), threshold_size - ivec2(1));
-  float threshold = texelFetch(u_thresholds, threshold_pixel, 0).r;
+  ivec2 threshold_pixel = clamp(ivec2(source_pixel / u_block_size), ivec2(0), threshold_size - ivec2(1));
+  // Sampled at a texel centre rather than with texelFetch: Gecko returns 0 for some
+  // texels of this texture, which fades blocks that should still be intact. The
+  // sampler is NEAREST, so this reads exactly the same texel on every engine.
+  float threshold = texture(u_thresholds, (vec2(threshold_pixel) + 0.5) / vec2(threshold_size)).r;
   float arrival = 1.0 - threshold;
   float assembled = smoothstep(arrival - u_transition, arrival + u_transition, u_progress);
   out_color = color * assembled;

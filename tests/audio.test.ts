@@ -165,7 +165,7 @@ describe('SoundPlayer', () => {
     player.destroy();
   });
 
-  it('waits for a suspended context to resume before reporting a sound ready', async () => {
+  it('does not request a resume while preparing, leaving that to the gesture listener', async () => {
     const decoded = deferred<AudioBuffer>();
     const resume = vi.fn().mockResolvedValue(undefined);
     const context = {
@@ -194,8 +194,8 @@ describe('SoundPlayer', () => {
     decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
     const prepared = await preparation;
 
-    // Readiness now includes the context actually leaving `suspended`.
-    expect(resume).toHaveBeenCalled();
+    // Asking outside a user gesture is refused and logged, so preparation must not ask.
+    expect(resume).not.toHaveBeenCalled();
     expect(prepared).not.toBeNull();
     player.destroy();
   });
