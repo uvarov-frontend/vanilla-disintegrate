@@ -15,7 +15,7 @@ function bridge(): ThemeBridge | null {
 function currentPreference(): ThemePreference {
   const attribute = document.documentElement.dataset.themePreference;
   if (attribute === 'light' || attribute === 'dark' || attribute === 'system') return attribute;
-  return 'system';
+  return 'dark';
 }
 
 /**
@@ -47,7 +47,7 @@ export function setupThemeSwitcher() {
 
   for (const button of buttons) {
     button.addEventListener('click', () => {
-      select((button.dataset.themeOption as ThemePreference | undefined) ?? 'system', true);
+      select((button.dataset.themeOption as ThemePreference | undefined) ?? 'dark', true);
     });
   }
 

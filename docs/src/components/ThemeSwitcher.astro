@@ -8,7 +8,7 @@ interface Props {
 const { locale } = Astro.props;
 const copy = ui[locale].theme;
 
-// The order matches the visual order; `system` leads because it is the default.
+// Keep the automatic option first, followed by the two explicit themes.
 const options = [
   { id: 'system', label: copy.system },
   { id: 'light', label: copy.light },
