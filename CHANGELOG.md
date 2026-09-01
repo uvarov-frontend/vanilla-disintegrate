@@ -23,6 +23,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Release the playground's queued preset lock when a pending preview is cancelled by a back/forward-cache navigation.
 - Write the playground's URL state immediately for a discrete change — a click, an Enter, a select — instead of debouncing it, so reloading right after an edit no longer restores the previous value.
 - Replace `AbortSignal.throwIfAborted()` in the audio loader with a check that works on the documented browser baseline, so local `Blob`/`File` sources load below Chrome 100, Firefox 97, and Safari 15.4.
 - Point both phases at the shared particle constant in the playground's generated code when removal and restoration match, instead of emitting `remove` alone and leaning on its implicit fallback.

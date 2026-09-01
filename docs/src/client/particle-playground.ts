@@ -2005,9 +2005,10 @@ export function mountParticlePlayground(root: HTMLElement) {
     }
     if (hashTimer !== null) flushHash();
     // A page frozen for the back/forward cache returns with this DOM and these
-    // listeners intact, so the instance has to come back with them. Clearing the
-    // preview timer above is what makes the preset lock release on the way back.
+    // listeners intact, so the instance has to come back with them. Cancelling a
+    // preset preview also bypasses its `finally`, so release that lock explicitly.
     if (event.persisted) {
+      presetSwitchPending = false;
       updateActions();
       return;
     }

@@ -146,6 +146,26 @@ test('configures and runs the home-page particle playground', async ({ page, bro
   await expect(root.locator('.playground-card')).toHaveCount(1);
 });
 
+test('releases a queued preset lock when the playground enters the back-forward cache', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium');
+  await page.goto('http://localhost:4321/');
+
+  const root = page.locator('[data-particle-playground]');
+  await root.scrollIntoViewIfNeeded();
+  await root.evaluate((element) => {
+    element.querySelector<HTMLButtonElement>('[data-preset="vapor"]')?.click();
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+  });
+
+  await expect(root.locator('[data-preset]:disabled')).toHaveCount(0);
+  await root.locator('[data-preset="dust"]').click();
+  await expect(root.locator('[data-preset="dust"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('accepts exact numeric input for every playground range', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   await page.goto('http://localhost:4321/');
