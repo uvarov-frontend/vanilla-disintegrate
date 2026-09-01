@@ -205,7 +205,7 @@ function setupNavigation() {
       (element) => !element.inert && element.getClientRects().length > 0,
     );
     const first = focusable[0];
-    const last = focusable.at(-1);
+    const last = focusable[focusable.length - 1];
     if (!first || !last) return;
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
@@ -552,14 +552,13 @@ export function setupSite() {
             const kind = (root.dataset.demoKind ?? 'built-in') as DemoKind;
             mountPairDemo(root, kind);
           }
-          window.addEventListener(
-            'pagehide',
-            () => {
-              instances.forEach((instance) => instance.destroy());
-              instances.clear();
-            },
-            { once: true },
-          );
+          // Skipping the persisted case keeps the demos alive across a back/forward
+          // cache restore, which reuses this DOM rather than mounting it again.
+          window.addEventListener('pagehide', (event) => {
+            if (event.persisted) return;
+            instances.forEach((instance) => instance.destroy());
+            instances.clear();
+          });
         })
         .catch((error: unknown) => {
           for (const root of demoRoots) {

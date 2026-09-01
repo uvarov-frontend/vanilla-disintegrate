@@ -1487,6 +1487,12 @@ export function mountParticlePlayground(root: HTMLElement) {
   // The store is read asynchronously; until it answers, a `custom:` source from the
   // URL is unresolved rather than unknown, so it must not be replaced yet.
   let customSoundsLoaded = false;
+  // Never derived from the list length: a deletion would let the next fallback entry
+  // reuse a live id, and both options would then address the same file.
+  let sessionAudioCount = 0;
+  // Set only by a preset click, so a slider drag does not grey the presets out during
+  // its own queued preview while an actual switch is still locked out on the spot.
+  let presetSwitchPending = false;
   let card = slot.querySelector<HTMLElement>('.playground-card') ?? createPreviewCard();
   let removalId: RemovalId | null = null;
   let unregister: () => void = () => undefined;
@@ -1516,10 +1522,10 @@ export function mountParticlePlayground(root: HTMLElement) {
   };
   const updateActions = () => {
     root.setAttribute('aria-busy', String(busy));
-    // A queued preview counts as running here: the wait before it starts is still a
-    // window where a second preset would swap the configuration out from under it.
+    // The wait before a switch's preview starts is still a window where a second
+    // preset would swap the configuration out from under it, so it locks too.
     // The selected preset stays live so the current choice keeps its full contrast.
-    const presetsLocked = busy || previewTimer !== null;
+    const presetsLocked = busy || presetSwitchPending;
     for (const button of presetButtons)
       button.disabled = presetsLocked && button.getAttribute('aria-pressed') !== 'true';
     for (const button of widthButtons) button.disabled = busy || !card.isConnected;
@@ -1646,13 +1652,17 @@ export function mountParticlePlayground(root: HTMLElement) {
     registerCard();
     updateActions();
   };
-  function schedulePreview() {
+  function schedulePreview(fromPreset = false) {
     pendingPreview = false;
+    presetSwitchPending = fromPreset;
     if (previewTimer !== null) window.clearTimeout(previewTimer);
     previewTimer = window.setTimeout(() => {
       previewTimer = null;
       // run() flips `busy` before its first await, so the lock never lifts in between.
-      void preview().finally(() => updateActions());
+      void preview().finally(() => {
+        presetSwitchPending = false;
+        updateActions();
+      });
     }, 240);
     updateActions();
   }
@@ -1769,7 +1779,7 @@ export function mountParticlePlayground(root: HTMLElement) {
       void Promise.all([prepareOperationSound('remove'), prepareOperationSound('restore')]);
       scheduleHash();
       render();
-      schedulePreview();
+      schedulePreview(true);
     });
   }
   curveSelect.addEventListener('change', () => syncFromControls());
@@ -1870,7 +1880,7 @@ export function mountParticlePlayground(root: HTMLElement) {
       const stored = await savePlaygroundAudio(file).catch(
         () =>
           ({
-            id: `session-${String(customSounds.length)}`,
+            id: `session-${String((sessionAudioCount += 1))}`,
             blob: file,
             name: file.name,
             type: file.type,
@@ -1984,14 +1994,20 @@ export function mountParticlePlayground(root: HTMLElement) {
       });
   });
 
-  window.addEventListener(
-    'pagehide',
-    () => {
-      if (previewTimer !== null) window.clearTimeout(previewTimer);
-      if (hashTimer !== null) flushHash();
-      unregister();
-      instance.destroy();
-    },
-    { once: true },
-  );
+  window.addEventListener('pagehide', (event) => {
+    if (previewTimer !== null) {
+      window.clearTimeout(previewTimer);
+      previewTimer = null;
+    }
+    if (hashTimer !== null) flushHash();
+    // A page frozen for the back/forward cache returns with this DOM and these
+    // listeners intact, so the instance has to come back with them. Clearing the
+    // preview timer above is what makes the preset lock release on the way back.
+    if (event.persisted) {
+      updateActions();
+      return;
+    }
+    unregister();
+    instance.destroy();
+  });
 }

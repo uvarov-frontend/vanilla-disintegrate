@@ -82,6 +82,18 @@ function isUrl(source: SoundSource): source is URL {
   return (typeof URL !== 'undefined' && source instanceof URL) || hasTag(source, '[object URL]');
 }
 
+/**
+ * Stands in for `AbortSignal.throwIfAborted()`, which arrived well after the
+ * documented browser baseline; `reason` landed with it, so it is read defensively.
+ */
+function throwIfAborted(signal: AbortSignal) {
+  if (!signal.aborted) return;
+  // `reason` shipped alongside `throwIfAborted()`, so an engine below the baseline
+  // has neither and falls back to the standard abort error.
+  const reason: unknown = (signal as { reason?: unknown }).reason;
+  throw reason instanceof Error ? reason : new DOMException('The operation was aborted.', 'AbortError');
+}
+
 function sourceKey(source: SoundSource, baseUrl: string): SourceKey {
   if (isUrl(source)) return source.href;
   if (typeof source !== 'string') return source;
@@ -358,9 +370,9 @@ class SharedAudioEngine {
     } else if (isArrayBufferView(source)) {
       data = new Uint8Array(source.buffer, source.byteOffset, source.byteLength).slice().buffer;
     } else if (isBlob(source)) {
-      signal.throwIfAborted();
+      throwIfAborted(signal);
       data = await source.arrayBuffer();
-      signal.throwIfAborted();
+      throwIfAborted(signal);
     } else {
       data = await fetch(isUrl(source) ? source.href : source, { signal }).then((response) => {
         if (!response.ok) throw new Error(`Unable to load disintegration sound: ${response.status}`);

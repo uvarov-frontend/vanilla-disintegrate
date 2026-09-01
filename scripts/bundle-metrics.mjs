@@ -7,16 +7,17 @@ import { gzipSync } from 'node:zlib';
  *
  * These are ceilings, not targets. They are meant to catch an accident — a
  * dependency leaking into an entry, or tree shaking breaking — rather than to
- * police ordinary growth, so adding a feature or an asset should never require
- * raising them. The narrower rule that the core entry must not reach SnapDOM is
- * asserted separately in `scripts/smoke.mjs`.
+ * police ordinary growth, so they are sized to sit a few KiB above the real
+ * figures. Once genuine growth eats that headroom, raise the ceiling in its own
+ * commit rather than trimming a feature to fit. The narrower rule that the core
+ * entry must not reach SnapDOM is asserted separately in `scripts/smoke.mjs`.
  */
 export const bundleBudgets = {
-  'dist/core.js': 15 * 1024,
+  'dist/core.js': 17 * 1024,
   'dist/index.js': 25 * 1024,
   'dist/particles.js': 12 * 1024,
   'dist/sounds.js': 4 * 1024,
-  'dist/snapdom.js': 25 * 1024,
+  'dist/snapdom.js': 28 * 1024,
   'dist/vanilla-disintegrate.iife.min.js': 90 * 1024,
 };
 

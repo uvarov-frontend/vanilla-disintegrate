@@ -23,6 +23,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Replace `AbortSignal.throwIfAborted()` in the audio loader with a check that works on the documented browser baseline, so local `Blob`/`File` sources load below Chrome 100, Firefox 97, and Safari 15.4.
 - Point both phases at the shared particle constant in the playground's generated code when removal and restoration match, instead of emitting `remove` alone and leaning on its implicit fallback.
 - Keep two stored playground sounds that share a file name distinct in generated code, and percent-encode the name so spaces or a `#` cannot truncate the `new URL()` path.
 - Split large particle fields across bounded vertex buffers so Safari renders the full element height instead of truncating horizontal trails after the first GPU buffer segment.
