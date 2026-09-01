@@ -45,9 +45,12 @@ function createWebGL2Stub() {
   } as const;
   let attribute = 0;
   const loseContext = vi.fn();
+  const bufferData = vi.fn<(target: number, data: ArrayBufferView | number, usage: number) => void>();
+  const createBuffer = vi.fn(() => ({}));
   const createProgram = vi.fn(() => ({}));
+  const deleteBuffer = vi.fn();
   const deleteProgram = vi.fn();
-  const drawArrays = vi.fn();
+  const drawArrays = vi.fn<(mode: number, first: number, count: number) => void>();
   const gl = {
     ...constants,
     activeTexture: vi.fn(),
@@ -56,16 +59,16 @@ function createWebGL2Stub() {
     bindTexture: vi.fn(),
     bindVertexArray: vi.fn(),
     blendFunc: vi.fn(),
-    bufferData: vi.fn(),
+    bufferData,
     clear: vi.fn(),
     clearColor: vi.fn(),
     compileShader: vi.fn(),
-    createBuffer: vi.fn(() => ({})),
+    createBuffer,
     createProgram,
     createShader: vi.fn(() => ({})),
     createTexture: vi.fn(() => ({})),
     createVertexArray: vi.fn(() => ({})),
-    deleteBuffer: vi.fn(),
+    deleteBuffer,
     deleteProgram,
     deleteShader: vi.fn(),
     deleteTexture: vi.fn(),
@@ -95,7 +98,7 @@ function createWebGL2Stub() {
     vertexAttribPointer: vi.fn(),
     viewport: vi.fn(),
   } as unknown as WebGL2RenderingContext;
-  return { createProgram, deleteProgram, drawArrays, gl, loseContext };
+  return { bufferData, createBuffer, createProgram, deleteBuffer, deleteProgram, drawArrays, gl, loseContext };
 }
 
 function particleContext(snapshot: HTMLCanvasElement): AnimationContext {
@@ -353,6 +356,44 @@ describe('particle renderer', () => {
     expect(readbackSize?.[0]).toBeLessThanOrEqual(2048);
     expect(readbackSize?.[1]).toBeLessThanOrEqual(2048);
     renderer?.dispose();
+    window.dispatchEvent(new Event('pagehide'));
+  });
+
+  it('splits large particle fields into Safari-safe vertex buffers without dropping particles', () => {
+    const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext')
+      ?.value as typeof HTMLCanvasElement.prototype.getContext;
+    const { bufferData, deleteBuffer, drawArrays, gl } = createWebGL2Stub();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (
+      this: HTMLCanvasElement,
+      contextId: string,
+      options?: unknown,
+    ) {
+      if (contextId === 'webgl2') return gl;
+      return originalGetContext.call(this, contextId, options as never);
+    } as typeof HTMLCanvasElement.prototype.getContext);
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const snapshot = document.createElement('canvas');
+    snapshot.width = 400;
+    snapshot.height = 100;
+
+    const renderer = createParticleAnimation({ duration: 20, stagger: 0 })(
+      particleContext(snapshot),
+    ) as ParticleRenderer | null;
+    const particleUploads = bufferData.mock.calls
+      .map((call) => call[1])
+      .filter((data): data is Float32Array => data instanceof Float32Array && data.length > 12);
+    const particleDraws = drawArrays.mock.calls.filter((call) => call[0] === gl.POINTS);
+
+    expect(renderer).not.toBeNull();
+    expect(particleUploads.map((data) => data.length / 7)).toEqual([32_768, 7_232]);
+    expect(particleDraws.map((call) => call[2])).toEqual([32_768, 7_232]);
+
+    renderer?.dispose();
+    expect(deleteBuffer).toHaveBeenCalledTimes(1);
     window.dispatchEvent(new Event('pagehide'));
   });
 

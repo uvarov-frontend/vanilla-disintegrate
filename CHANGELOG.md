@@ -22,6 +22,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Split large particle fields across bounded vertex buffers so Safari renders the full element height instead of truncating horizontal trails after the first GPU buffer segment.
 - Rasterize high-density SnapDOM captures at their physical size on Safari so WebKit does not enlarge a low-resolution `foreignObject` image and blur particle frames.
 - Upload particle records in reverse source order to avoid Safari's order-dependent WebGL artifact that drew a vertical strip along the element's left edge.
 - Clip default SnapDOM captures to the measured element bounds so particle snapshots are neither stretched nor offset when CSS minimum sizes exceed the content size.

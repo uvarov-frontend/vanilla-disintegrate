@@ -39,9 +39,14 @@ interface CompiledParticlePrograms {
   readonly baseUniforms: BaseUniforms;
   readonly baseVao: WebGLVertexArrayObject;
   readonly particle: WebGLProgram;
+  readonly particleAttributes: readonly ParticleAttribute[];
   readonly particleUniforms: ParticleUniforms;
   readonly particleVao: WebGLVertexArrayObject;
 }
+
+type ParticleAttribute = readonly [location: number, size: number, offset: number];
+
+type ParticleDraw = readonly [buffer: WebGLBuffer | null, count: number, vao: WebGLVertexArrayObject];
 
 interface RendererContext {
   readonly canvas: HTMLCanvasElement;
@@ -88,6 +93,9 @@ interface RenderBounds {
 
 const PARTICLE_STRIDE = 7;
 const PARTICLE_BUDGET = 180_000;
+// Safari's Metal-backed POINTS path silently stops consuming interleaved
+// attributes beyond this many records in one vertex buffer.
+const PARTICLES_PER_BUFFER = 32_768;
 const MAX_RENDERER_CONTEXTS = 4;
 const MAX_IDLE_CONTEXTS = 2;
 const MAX_SOURCE_PIXELS = 2_000_000;
@@ -404,6 +412,21 @@ function deleteCompiledPrograms(gl: WebGL2RenderingContext, programs: CompiledPa
   gl.deleteProgram(programs.particle);
 }
 
+function bindParticleAttributes(gl: WebGL2RenderingContext, attributes: readonly ParticleAttribute[]) {
+  const stride = PARTICLE_STRIDE * Float32Array.BYTES_PER_ELEMENT;
+  for (const attribute of attributes) {
+    gl.enableVertexAttribArray(attribute[0]);
+    gl.vertexAttribPointer(
+      attribute[0],
+      attribute[1],
+      gl.FLOAT,
+      false,
+      stride,
+      attribute[2] * Float32Array.BYTES_PER_ELEMENT,
+    );
+  }
+}
+
 function compileParticlePrograms(context: RendererContext, sources: ParticlePrograms) {
   const cached = context.programs.get(sources.key);
   if (cached !== undefined) return cached;
@@ -428,7 +451,6 @@ function compileParticlePrograms(context: RendererContext, sources: ParticleProg
 
     gl.bindVertexArray(particleVao);
     gl.bindBuffer(gl.ARRAY_BUFFER, context.particleBuffer);
-    const stride = PARTICLE_STRIDE * Float32Array.BYTES_PER_ELEMENT;
     const attributes = [
       [attributeLocation(gl, particle, 'a_source'), 2, 0],
       [attributeLocation(gl, particle, 'a_threshold'), 1, 2],
@@ -436,10 +458,7 @@ function compileParticlePrograms(context: RendererContext, sources: ParticleProg
       [attributeLocation(gl, particle, 'a_swirl'), 1, 5],
       [attributeLocation(gl, particle, 'a_phase'), 1, 6],
     ] as const;
-    for (const [location, size, offset] of attributes) {
-      gl.enableVertexAttribArray(location);
-      gl.vertexAttribPointer(location, size, gl.FLOAT, false, stride, offset * Float32Array.BYTES_PER_ELEMENT);
-    }
+    bindParticleAttributes(gl, attributes);
     gl.bindVertexArray(null);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
@@ -457,6 +476,7 @@ function compileParticlePrograms(context: RendererContext, sources: ParticleProg
         transition: gl.getUniformLocation(base, 'u_transition'),
       },
       particle,
+      particleAttributes: attributes,
       particleVao,
       particleUniforms: {
         blockSize: gl.getUniformLocation(particle, 'u_block_size'),
@@ -485,6 +505,37 @@ function compileParticlePrograms(context: RendererContext, sources: ParticleProg
     gl.bindVertexArray(null);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
   }
+}
+
+function createParticleDraws(
+  gl: WebGL2RenderingContext,
+  sharedBuffer: WebGLBuffer,
+  sharedVao: WebGLVertexArrayObject,
+  attributes: readonly ParticleAttribute[],
+  data: Float32Array,
+): ParticleDraw[] {
+  const particleCount = data.length / PARTICLE_STRIDE;
+  const draws: ParticleDraw[] = [];
+  for (let offset = 0; offset < particleCount; offset += PARTICLES_PER_BUFFER) {
+    const buffer = offset === 0 ? sharedBuffer : gl.createBuffer();
+    const vao = offset === 0 ? sharedVao : gl.createVertexArray();
+    if (buffer === null || vao === null) throw new Error('Unable to create WebGL particle buffers.');
+    const count = Math.min(PARTICLES_PER_BUFFER, particleCount - offset);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      data.subarray(offset * PARTICLE_STRIDE, (offset + count) * PARTICLE_STRIDE),
+      gl.STATIC_DRAW,
+    );
+    if (offset !== 0) {
+      gl.bindVertexArray(vao);
+      bindParticleAttributes(gl, attributes);
+    }
+    draws.push([offset === 0 ? null : buffer, count, vao]);
+  }
+  gl.bindVertexArray(null);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  return draws;
 }
 
 function createRendererContext(ownerDocument: Document): RendererContext | null {
@@ -920,7 +971,14 @@ function createParticleRenderer(
     });
 
     const compiled = compileParticlePrograms(rendererContext, programs);
-    const { base, baseUniforms, baseVao, particle, particleUniforms, particleVao } = compiled;
+    const { base, baseUniforms, baseVao, particle, particleAttributes, particleUniforms, particleVao } = compiled;
+    const particleDraws = createParticleDraws(
+      gl,
+      rendererContext.particleBuffer,
+      particleVao,
+      particleAttributes,
+      field.data,
+    );
     const sourceTexture = createTexture(gl, readback);
     releaseReadback(readback);
     const thresholdTexture = createThresholdTexture(
@@ -930,9 +988,6 @@ function createParticleRenderer(
       field.thresholdMap,
     );
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, rendererContext.particleBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, field.data, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -982,9 +1037,11 @@ function createParticleRenderer(
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
       gl.useProgram(particle);
-      gl.bindVertexArray(particleVao);
       gl.uniform1f(particleUniforms.progress, progress);
-      gl.drawArrays(gl.POINTS, 0, field.data.length / PARTICLE_STRIDE);
+      for (const draw of particleDraws) {
+        gl.bindVertexArray(draw[2]);
+        gl.drawArrays(gl.POINTS, 0, draw[1]);
+      }
       gl.bindVertexArray(null);
     };
 
@@ -1009,6 +1066,10 @@ function createParticleRenderer(
       }
       gl.deleteTexture(sourceTexture);
       gl.deleteTexture(thresholdTexture);
+      for (const draw of particleDraws.slice(1)) {
+        gl.deleteVertexArray(draw[2]);
+        gl.deleteBuffer(draw[0]);
+      }
       acquired.pool.release(rendererContext);
     };
     const tick = () => {
