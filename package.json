@@ -45,6 +45,11 @@
       "import": "./dist/particles.js",
       "default": "./dist/particles.js"
     },
+    "./sounds": {
+      "types": "./dist/sounds.d.ts",
+      "import": "./dist/sounds.js",
+      "default": "./dist/sounds.js"
+    },
     "./snapdom": {
       "types": "./dist/snapdom.d.ts",
       "import": "./dist/snapdom.js",
@@ -55,6 +60,7 @@
   "files": [
     "dist",
     "src/*.ts",
+    "vanilla-disintegrate-iife.zip",
     "README.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
@@ -68,7 +74,8 @@
   "packageManager": "pnpm@10.18.2",
   "scripts": {
     "dev": "pnpm run build && astro dev",
-    "build": "vite build --config vite.lib.config.ts && vite build --config vite.iife.config.ts && node scripts/write-bundle-size.mjs",
+    "build": "pnpm run build:library && node scripts/write-bundle-size.mjs",
+    "build:library": "vite build --config vite.lib.config.ts && vite build --config vite.iife.config.ts && node scripts/build-iife-package.mjs",
     "build:reproducible": "node scripts/reproducible-build.mjs",
     "build:demo": "pnpm run build && astro build",
     "check": "pnpm run check:library && pnpm run test:browser && pnpm run check:docs",
@@ -90,7 +97,7 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && astro check",
-    "typecheck:library": "tsc --noEmit",
+    "typecheck:library": "tsc --noEmit -p tsconfig.library.json",
     "prepublishOnly": "pnpm run check"
   },
   "peerDependencies": {
@@ -103,17 +110,18 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
-    "@astrojs/markdown-remark": "^7.2.4",
+    "@astrojs/markdown-remark": "^7.3.0",
     "@astrojs/mdx": "^7.0.8",
-    "@astrojs/node": "^11.1.4",
+    "@astrojs/node": "^11.1.5",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@types/node": "^22.18.0",
     "@vitest/coverage-v8": "^4.1.11",
-    "@zumer/snapdom": "^2.24.12",
-    "astro": "^7.2.9",
+    "@zumer/snapdom": "^2.24.15",
+    "astro": "^7.2.10",
     "esbuild": "^0.28.2",
     "eslint": "^10.0.2",
+    "fflate": "^0.8.3",
     "globals": "^16.3.0",
     "jsdom": "^29.0.1",
     "prettier": "^3.6.2",

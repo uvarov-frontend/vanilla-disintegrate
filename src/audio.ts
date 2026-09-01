@@ -11,7 +11,7 @@ import type {
 const noop = () => undefined;
 
 type AudioContextConstructor = typeof AudioContext;
-type SourceKey = string | ArrayBuffer | AudioBuffer;
+type SourceKey = string | Blob | ArrayBuffer | ArrayBufferView | AudioBuffer;
 
 interface AudioClient {
   readonly cacheByteBudget: number;
@@ -42,6 +42,11 @@ export type PreparedSound =
   | null;
 
 const sharedEngines = new WeakMap<Window, SharedAudioEngine>();
+const objectTag = (value: unknown) => Object.prototype.toString.call(value);
+
+function hasTag(value: unknown, ...tags: readonly string[]) {
+  return typeof value === 'object' && value !== null && tags.includes(objectTag(value));
+}
 
 function getAudioContextConstructor(ownerWindow: Window): AudioContextConstructor | null {
   const audioWindow = ownerWindow as Window & typeof globalThis & { webkitAudioContext?: AudioContextConstructor };
@@ -49,19 +54,87 @@ function getAudioContextConstructor(ownerWindow: Window): AudioContextConstructo
 }
 
 function isAudioBuffer(source: SoundSource): source is AudioBuffer {
-  return typeof AudioBuffer !== 'undefined' && source instanceof AudioBuffer;
+  if (typeof AudioBuffer !== 'undefined' && source instanceof AudioBuffer) return true;
+  return (
+    typeof source === 'object' &&
+    source !== null &&
+    typeof (source as AudioBuffer).duration === 'number' &&
+    typeof (source as AudioBuffer).length === 'number' &&
+    typeof (source as AudioBuffer).numberOfChannels === 'number' &&
+    typeof (source as AudioBuffer).sampleRate === 'number' &&
+    typeof (source as AudioBuffer).getChannelData === 'function'
+  );
 }
 
-function sourceKey(source: SoundSource): SourceKey {
-  return source instanceof URL ? source.href : source;
+function isArrayBuffer(source: SoundSource): source is ArrayBuffer {
+  return source instanceof ArrayBuffer || hasTag(source, '[object ArrayBuffer]');
+}
+
+function isArrayBufferView(source: SoundSource): source is ArrayBufferView {
+  return ArrayBuffer.isView(source);
+}
+
+function isBlob(source: SoundSource): source is Blob {
+  return (typeof Blob !== 'undefined' && source instanceof Blob) || hasTag(source, '[object Blob]', '[object File]');
+}
+
+function isUrl(source: SoundSource): source is URL {
+  return (typeof URL !== 'undefined' && source instanceof URL) || hasTag(source, '[object URL]');
+}
+
+/**
+ * Stands in for `AbortSignal.throwIfAborted()`, which arrived well after the
+ * documented browser baseline; `reason` landed with it, so it is read defensively.
+ */
+function throwIfAborted(signal: AbortSignal) {
+  if (!signal.aborted) return;
+  // `reason` shipped alongside `throwIfAborted()`, so an engine below the baseline
+  // has neither and falls back to the standard abort error.
+  const reason: unknown = (signal as { reason?: unknown }).reason;
+  throw reason instanceof Error ? reason : new DOMException('The operation was aborted.', 'AbortError');
+}
+
+function sourceKey(source: SoundSource, baseUrl: string): SourceKey {
+  if (isUrl(source)) return source.href;
+  if (typeof source !== 'string') return source;
+  try {
+    return new URL(source, baseUrl).href;
+  } catch {
+    return source;
+  }
+}
+
+function isSoundSource(source: unknown): source is SoundSource {
+  return (
+    typeof source === 'string' ||
+    isUrl(source as SoundSource) ||
+    isBlob(source as SoundSource) ||
+    isArrayBuffer(source as SoundSource) ||
+    isArrayBufferView(source as SoundSource) ||
+    isAudioBuffer(source as SoundSource)
+  );
 }
 
 function soundOptions(definition: Exclude<SoundDefinition, SoundFactory>): SoundOptions {
-  return typeof definition === 'object' && 'src' in definition ? definition : { src: definition };
+  if (typeof definition === 'object' && definition !== null && 'src' in definition) {
+    if (!isSoundSource(definition.src)) throw new TypeError('Unsupported disintegration sound source.');
+    return definition;
+  }
+  throw new TypeError('A native disintegration sound requires an options object with a src property.');
 }
 
 function bufferBytes(buffer: AudioBuffer) {
   return buffer.length * buffer.numberOfChannels * Float32Array.BYTES_PER_ELEMENT;
+}
+
+function finiteNumber(
+  value: number | undefined,
+  fallback: number,
+  minimum = Number.NEGATIVE_INFINITY,
+  maximum = Number.POSITIVE_INFINITY,
+) {
+  const normalized = typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  return Math.min(maximum, Math.max(minimum, normalized));
 }
 
 function reverseBuffer(buffer: AudioBuffer, context: BaseAudioContext) {
@@ -74,17 +147,90 @@ function reverseBuffer(buffer: AudioBuffer, context: BaseAudioContext) {
   return reversed;
 }
 
+/**
+ * Waits for a pending resume to take effect without asking for one: the gesture
+ * listener owns resuming, and requesting it here would be refused outside a user
+ * gesture and logged as a warning. A refusal never settles, hence the timeout.
+ */
+function awaitRunning(context: AudioContext, timeoutMs = 250) {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      context.removeEventListener('statechange', finish);
+      resolve();
+    }
+    context.addEventListener('statechange', finish);
+  });
+}
+
+/** Gestures browsers accept as consent to start audio. */
+const UNLOCK_EVENTS = ['pointerdown', 'keydown', 'touchend'] as const;
+
 class SharedAudioEngine {
   private context: AudioContext | null = null;
   private contextError: unknown = null;
   private contextUnavailable = false;
   private readonly sources = new Map<SourceKey, SourceBuffers>();
   private readonly clients = new Set<AudioClient>();
+  private decodeContext: BaseAudioContext | null = null;
+  private disarmUnlock: (() => void) | null = null;
+  private gestureSeen = false;
 
   constructor(private readonly ownerWindow: Window) {}
 
+  /**
+   * Safari refuses to resume a suspended context outside a user gesture, so an
+   * application that animates from a timer, an observer, or after an `await` would
+   * play silence. The context owns its own consent: it listens for the next gesture
+   * once, resumes there, and re-arms if the browser suspends it again.
+   */
+  private armUnlock(context: AudioContext) {
+    if (this.disarmUnlock !== null || typeof this.ownerWindow.document === 'undefined') return;
+    const onGesture = () => {
+      this.gestureSeen = true;
+      if (context.state === 'suspended') void context.resume().catch(noop);
+      // Resuming is asynchronous; `statechange` disarms once it actually runs.
+      if (context.state === 'running') disarm();
+    };
+    const onStateChange = () => {
+      if (context.state === 'running' || context.state === 'closed') disarm();
+    };
+    const disarm = () => {
+      if (this.disarmUnlock === null) return;
+      this.disarmUnlock = null;
+      for (const type of UNLOCK_EVENTS) this.ownerWindow.document.removeEventListener(type, onGesture, true);
+      context.removeEventListener('statechange', onStateChange);
+    };
+    this.disarmUnlock = disarm;
+    for (const type of UNLOCK_EVENTS) {
+      this.ownerWindow.document.addEventListener(type, onGesture, { capture: true, passive: true });
+    }
+    context.addEventListener('statechange', onStateChange);
+  }
+
   acquire(client: AudioClient) {
     this.clients.add(client);
+  }
+
+  /**
+   * Decoding needs any BaseAudioContext, and constructing a playback one before a
+   * user gesture is refused and logged by Firefox. An offline context carries no
+   * such gate, so preparation uses it until a real context exists.
+   */
+  getDecodeContext(): BaseAudioContext | null {
+    if (this.context !== null && this.context.state !== 'closed') return this.context;
+    if (this.decodeContext !== null) return this.decodeContext;
+    const audioWindow = this.ownerWindow as Window &
+      typeof globalThis & { webkitOfflineAudioContext?: typeof OfflineAudioContext };
+    const Offline = audioWindow.OfflineAudioContext ?? audioWindow.webkitOfflineAudioContext;
+    if (Offline === undefined) return this.getContext();
+    try {
+      this.decodeContext = new Offline(1, 1, 44_100);
+    } catch {
+      return this.getContext();
+    }
+    return this.decodeContext;
   }
 
   getContext() {
@@ -102,7 +248,13 @@ class SharedAudioEngine {
       this.contextUnavailable = true;
       throw error;
     }
+    if (this.context.state === 'suspended') this.armUnlock(this.context);
     return this.context;
+  }
+
+  /** True once a resume has been requested but the context has not started yet. */
+  resumePending() {
+    return this.gestureSeen && this.context?.state === 'suspended';
   }
 
   getContextError() {
@@ -113,7 +265,7 @@ class SharedAudioEngine {
     return this.context?.state === 'closed' ? null : this.context;
   }
 
-  load(client: AudioClient, source: SoundSource, reverse: boolean, context: AudioContext) {
+  load(client: AudioClient, source: SoundSource, reverse: boolean, context: BaseAudioContext) {
     if (!reverse && isAudioBuffer(source)) return Promise.resolve(source);
 
     const entry = this.entryFor(source, reverse, context);
@@ -123,8 +275,8 @@ class SharedAudioEngine {
     return entry.promise;
   }
 
-  private entryFor(source: SoundSource, reverse: boolean, context: AudioContext) {
-    const key = sourceKey(source);
+  private entryFor(source: SoundSource, reverse: boolean, context: BaseAudioContext) {
+    const key = sourceKey(source, this.ownerWindow.document.baseURI);
     const pair = this.sources.get(key) ?? {};
     this.sources.set(key, pair);
     const cached = reverse ? pair.reverse : pair.forward;
@@ -178,7 +330,7 @@ class SharedAudioEngine {
   }
 
   discard(client: AudioClient, source: SoundSource, reverse: boolean) {
-    const pair = this.sources.get(sourceKey(source));
+    const pair = this.sources.get(sourceKey(source, this.ownerWindow.document.baseURI));
     const entries = reverse ? [pair?.reverse] : [pair?.forward];
     let discarded = 0;
     for (const entry of entries) {
@@ -204,20 +356,29 @@ class SharedAudioEngine {
       if (pair.reverse !== undefined) this.deleteEntry(pair.reverse);
     }
     this.sources.clear();
+    this.disarmUnlock?.();
     const context = this.context;
     this.context = null;
     if (context !== null && context.state !== 'closed') void context.close().catch(noop);
     sharedEngines.delete(this.ownerWindow);
   }
 
-  private async loadSource(source: Exclude<SoundSource, AudioBuffer>, context: AudioContext, signal: AbortSignal) {
-    const data =
-      source instanceof ArrayBuffer
-        ? source.slice(0)
-        : await fetch(source instanceof URL ? source.href : source, { signal }).then((response) => {
-            if (!response.ok) throw new Error(`Unable to load disintegration sound: ${response.status}`);
-            return response.arrayBuffer();
-          });
+  private async loadSource(source: Exclude<SoundSource, AudioBuffer>, context: BaseAudioContext, signal: AbortSignal) {
+    let data: ArrayBuffer;
+    if (isArrayBuffer(source)) {
+      data = source.slice(0);
+    } else if (isArrayBufferView(source)) {
+      data = new Uint8Array(source.buffer, source.byteOffset, source.byteLength).slice().buffer;
+    } else if (isBlob(source)) {
+      throwIfAborted(signal);
+      data = await source.arrayBuffer();
+      throwIfAborted(signal);
+    } else {
+      data = await fetch(isUrl(source) ? source.href : source, { signal }).then((response) => {
+        if (!response.ok) throw new Error(`Unable to load disintegration sound: ${response.status}`);
+        return response.arrayBuffer();
+      });
+    }
     return context.decodeAudioData(data);
   }
 
@@ -298,17 +459,25 @@ export class SoundPlayer {
   private generation = 0;
   private destroyed = false;
 
-  constructor(cacheByteBudget = 8 * 1024 * 1024) {
+  constructor(
+    cacheByteBudget = 8 * 1024 * 1024,
+    private readonly resolveSource: (source: SoundSource) => SoundSource = (source) => source,
+  ) {
     this.client = { cacheByteBudget, entries: new Map() };
   }
 
   /** Starts fetching and decoding without blocking the caller. */
   schedule(definitions: readonly (SoundDefinition | null)[], strategy: AudioPreparationStrategy) {
-    if (this.destroyed || definitions.length === 0 || typeof window === 'undefined') return;
+    const pending = definitions.filter((definition) => {
+      if (definition === null || typeof definition === 'function') return false;
+      const options = soundOptions(definition);
+      return options.reverse === true || !isAudioBuffer(this.resolveSource(options.src));
+    });
+    if (this.destroyed || pending.length === 0 || typeof window === 'undefined') return;
     let cancel: () => void = noop;
     const prepare = () => {
       this.scheduled.delete(cancel);
-      void this.prepareAll(definitions).catch(noop);
+      void this.prepareAll(pending).catch(noop);
     };
     if (strategy === 'immediate') {
       prepare();
@@ -333,15 +502,21 @@ export class SoundPlayer {
     this.assertAlive();
     if (definition === null) return null;
     if (typeof definition === 'function') return { type: 'custom', factory: definition };
-    const options = soundOptions(definition);
+    const selectedOptions = soundOptions(definition);
+    const source = this.resolveSource(selectedOptions.src);
+    const options = source === selectedOptions.src ? selectedOptions : { ...selectedOptions, src: source };
     const engine = this.getEngine();
-    const context = engine?.getContext() ?? null;
+    const context = engine?.getDecodeContext() ?? null;
     if (engine === null || context === null) return null;
     const generation = this.generation;
     const buffer = await engine.load(this.client, options.src, options.reverse === true, context);
     if (this.destroyed || generation !== this.generation) {
       throw new DOMException('Audio preparation was cancelled.', 'AbortError');
     }
+    // A resume settles asynchronously, so a cached buffer could otherwise reach
+    // playback first and start against a context that is still suspended.
+    const playback = engine.currentContext();
+    if (playback !== null && engine.resumePending()) await awaitRunning(playback);
     return { type: 'native', options, buffer };
   }
 
@@ -374,15 +549,14 @@ export class SoundPlayer {
       const context = this.engine?.currentContext() ?? null;
       if (context === null) return noop;
       const { buffer, options } = prepared;
-      const playbackRate = Math.max(0.01, options.playbackRate ?? 1);
+      const playbackRate = finiteNumber(options.playbackRate, 1, 0.01);
       const availableDuration = buffer.duration / playbackRate;
-      const requestedDuration =
-        options.duration ?? (fallbackDurationSeconds > 0 ? fallbackDurationSeconds : availableDuration);
-      const duration = Math.max(0, Math.min(requestedDuration, availableDuration));
-      if (duration === 0) return noop;
-      const fadeDuration = Math.max(0, Math.min(options.fadeDuration ?? 0.18, duration));
-      const gainValue = Math.max(0, Math.min(options.gain ?? 0.32, 1));
-      const startedAt = context.currentTime + Math.max(0, options.delay ?? 0) / 1000;
+      const fallbackDuration = finiteNumber(fallbackDurationSeconds, availableDuration, 0, availableDuration);
+      const duration = finiteNumber(options.duration, fallbackDuration || availableDuration, 0, availableDuration);
+      if (duration <= 0) return noop;
+      const fadeDuration = finiteNumber(options.fadeDuration, 0, 0, duration);
+      const volume = finiteNumber(options.volume, 1, 0, 1);
+      const startedAt = context.currentTime + finiteNumber(options.delay, 0, 0) / 1000;
       const endsAt = startedAt + duration;
       gain = context.createGain();
       const source = context.createBufferSource();
@@ -391,13 +565,15 @@ export class SoundPlayer {
       source.buffer = buffer;
       source.playbackRate.value = playbackRate;
       const offset = options.reverse === true ? Math.max(0, buffer.duration - duration * playbackRate) : 0;
-      if (options.reverse === true) {
+      if (fadeDuration <= 0) {
+        gain.gain.setValueAtTime(volume, startedAt);
+      } else if (options.reverse === true) {
         gain.gain.setValueAtTime(0, startedAt);
-        gain.gain.linearRampToValueAtTime(gainValue, startedAt + fadeDuration);
-        gain.gain.setValueAtTime(gainValue, endsAt);
+        gain.gain.linearRampToValueAtTime(volume, startedAt + fadeDuration);
+        gain.gain.setValueAtTime(volume, endsAt);
       } else {
-        gain.gain.setValueAtTime(gainValue, startedAt);
-        gain.gain.setValueAtTime(gainValue, endsAt - fadeDuration);
+        gain.gain.setValueAtTime(volume, startedAt);
+        gain.gain.setValueAtTime(volume, endsAt - fadeDuration);
         gain.gain.linearRampToValueAtTime(0, endsAt);
       }
       source.connect(gain);
@@ -433,7 +609,7 @@ export class SoundPlayer {
     for (const definition of definitions) {
       if (definition === null || typeof definition === 'function') continue;
       const options = soundOptions(definition);
-      discarded += this.engine.discard(this.client, options.src, options.reverse === true);
+      discarded += this.engine.discard(this.client, this.resolveSource(options.src), options.reverse === true);
     }
     return discarded;
   }

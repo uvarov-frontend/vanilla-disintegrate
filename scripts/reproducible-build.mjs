@@ -6,9 +6,13 @@ const root = new URL('../', import.meta.url);
 const output = new URL('dist/', root);
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 
-function build() {
+function build(timezone) {
   return new Promise((resolve, reject) => {
-    const child = spawn(pnpm, ['run', 'build'], { cwd: root, stdio: 'inherit' });
+    const child = spawn(pnpm, ['run', 'build:library'], {
+      cwd: root,
+      env: { ...process.env, TZ: timezone },
+      stdio: 'inherit',
+    });
     child.once('error', reject);
     child.once('exit', (code) => {
       if (code === 0) resolve();
@@ -29,19 +33,22 @@ async function files(directory, prefix = '') {
 }
 
 async function checksums() {
+  const builtFiles = (await files(output)).map((file) => [`dist/${file}`, new URL(file, output)]);
+  builtFiles.push(['vanilla-disintegrate-iife.zip', new URL('vanilla-disintegrate-iife.zip', root)]);
+
   return new Map(
     await Promise.all(
-      (await files(output)).map(async (file) => {
-        const contents = await readFile(new URL(file, output));
-        return [file, createHash('sha256').update(contents).digest('hex')];
+      builtFiles.map(async ([name, url]) => {
+        const contents = await readFile(url);
+        return [name, createHash('sha256').update(contents).digest('hex')];
       }),
     ),
   );
 }
 
-await build();
+await build('UTC');
 const first = await checksums();
-await build();
+await build('Pacific/Honolulu');
 const second = await checksums();
 
 const changed = [...new Set([...first.keys(), ...second.keys()])].filter(

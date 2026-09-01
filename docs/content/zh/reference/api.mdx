@@ -1,81 +1,116 @@
 ---
 title: API 参考
-description: 在一个页面查看构造参数、操作、节点保留、快照准备与生命周期。
+description: 在一页中查看构造器契约、操作、保留、准备与生命周期。
 locale: zh
 section: reference
 navTitle: API
 order: 70
 ---
 
-默认导出就是一个类。它把捕获、动画、声音、相邻元素的位移、后台准备以及保留节点的存储串在一起。
+`Disintegrator` 把一套完整视觉配置、可选音频、捕获、布局动画、后台准备与保留节点存储组合在一起。
 
-根入口和 `/snapdom` 会预先注册四种内置效果，并默认使用 `dust`；只有 `/snapdom` 还提供捕获适配器。`/core` 提供相同的生命周期 API，但不带默认效果、粒子和内置声音。`/particles` 提供工厂与效果定义，而不是 `Disintegrator` 类。
+根入口与 `/snapdom` 注册四个完整内置预设；只有 `/snapdom` 提供捕获适配器。`/core` 只提供生命周期，不包含内置预设、粒子、声音或捕获。任何入口都不会选择默认预设。
 
-## 构造函数
+## 构造器
 
 ```ts
-import Disintegrator from 'vanilla-disintegrate/snapdom';
+import Disintegrator, { createParticleEffect } from 'vanilla-disintegrate/snapdom';
 
-const effects = new Disintegrator(options);
+const ready = new Disintegrator({ preset: 'dust' });
+const custom = new Disintegrator({ effect: createParticleEffect() });
 ```
+
+必须且只能提供 `preset` 与 `effect` 中的一个：
+
+```ts
+type DisintegratorOptions =
+  | { preset: PresetSelection; effect?: never; sound?: false }
+  | { preset?: never; effect: EffectDefinition; sound?: false | SoundSelection };
+```
+
+预设是不可拆分的视觉与音频选择。可以用 `sound: false` 静音，但不能与替换视觉或音频组合。自定义效果是包含完整 `remove` 与 `restore` 阶段的对象；未提供声音对时保持静音。
+
+共享选项：
 
 | 选项                   | 类型                                                        | 默认值          | 作用                                             |
 | ---------------------- | ----------------------------------------------------------- | --------------- | ------------------------------------------------ |
-| `effect`               | `EffectSelection`                                           | `'dust'`¹       | 操作未指定时使用的效果                           |
-| `effects`              | `Record<string, EffectDefinition>`                          | `{}`            | 自定义效果，之后可按名称选用                     |
-| `sound`                | `boolean \| SoundDefinition`                                | `false`         | `true` 播放各阶段的声音；传定义则替换它们        |
+| `presets`              | `Record<string, PresetDefinition>`                          | `{}`            | 添加可通过 `preset` 寻址的完整自定义预设         |
 | `layout`               | `boolean \| LayoutOptions`                                  | `true`          | 删除后把相邻元素移动到新位置                     |
-| `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | 在后台准备已注册元素                             |
-| `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'immediate'`   | 只准备已启用的声音；`sound: false` 时不执行工作  |
-| `respectReducedMotion` | `boolean`                                                   | `true`          | 用户要求减少动效时跳过动画                       |
-| `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | 把元素变成画布                                   |
-| `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | 动画覆盖层挂载到哪里                             |
-| `zIndex`               | `number`                                                    | `2147483646`    | 该覆盖层的层级                                   |
-| `random`               | `() => number`                                              | `Math.random`   | 种子来源，每次操作调用一次                       |
-| `snapdom`              | `SnapdomOptions`                                            | —               | 传给 SnapDOM 的 `toCanvas()`，仅 `/snapdom` 入口 |
-| `onTrigger`            | `(context) => void`                                         | —               | 校验之后、开始捕获之前                           |
-| `onStart`              | `(context) => void`                                         | —               | DOM 变更之后，播放开始时                         |
-| `onComplete`           | `(context) => void`                                         | —               | 视觉阶段正常结束后                               |
-| `onError`              | `(error, context) => void`                                  | —               | 捕获、动画、声音与回调的错误                     |
+| `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | 为已注册元素准备快照                             |
+| `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'idle'`        | 控制准备与解码音频所有权预算                     |
+| `respectReducedMotion` | `boolean`                                                   | `true`          | 用户请求减少动态效果时跳过动画                   |
+| `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | 为需要快照的效果把元素转换成 canvas              |
+| `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | 接收固定定位的动画覆盖层                         |
+| `zIndex`               | `number`                                                    | `2147483646`    | 设置覆盖层层级                                   |
+| `random`               | `() => number`                                              | `Math.random`   | 为每次操作初始化可复现的伪随机流                 |
+| `snapdom`              | `SnapdomOptions`                                            | —               | 配置 SnapDOM 的 `toCanvas()`；仅 `/snapdom` 可用 |
+| `onTrigger`            | `(context) => void`                                         | —               | 验证后、捕获前调用                               |
+| `onStart`              | `(context) => void`                                         | —               | DOM 变更后、播放开始时调用                       |
+| `onComplete`           | `(context) => void`                                         | —               | 视觉阶段正常完成后调用                           |
+| `onError`              | `(error, context) => void`                                  | —               | 接收隔离的捕获、动画、声音与回调错误             |
 
-¹ `dust` 与 SnapDOM 默认值一起适用于 `/snapdom`；根入口提供 `dust`，但不提供捕获。`/core` 两者都不提供。
+¹ SnapDOM 仅在 `/snapdom` 中作为默认值。若所选效果需要快照，根入口与 `/core` 必须提供 `capture`。
 
-操作失败时，`context.operation` 为 `remove` 或 `restore`。后台快照准备失败会报告 `prepare`，不会被误标为内容操作。
+后台快照错误报告 `context.operation === 'prepare'`；操作错误报告 `remove` 或 `restore`。
 
-传入固定的 `random` 可让效果复现：相同种子每次都会生成相同粒子布局，适合视觉回归测试。
+## 完整预设
+
+```ts
+import Disintegrator, { createParticleEffect, definePreset } from 'vanilla-disintegrate/snapdom';
+
+const dissolve = definePreset({
+  effect: createParticleEffect({
+    remove: { curve: 'float' },
+    restore: { curve: 'settle' },
+  }),
+  sound: {
+    remove: { src: '/audio/out.ogg', volume: 0.4 },
+    restore: { src: '/audio/in.ogg', volume: 0.4 },
+  },
+});
+
+const effects = new Disintegrator({
+  preset: 'dissolve',
+  presets: { dissolve },
+});
+```
+
+`definePreset()` 会冻结预设、视觉阶段和原生声音选项对象，但不会冻结调用方拥有的二进制音频数据。
 
 ## remove(target, options?)
 
-测量并分离元素，同步返回 `EffectOperation`。
+分离解析后的元素，并同步返回 `EffectOperation`。
 
 ```ts
 const operation = effects.remove('.card', {
-  effect: 'scatter',
+  preset: 'scatter',
+  sound: false,
   retain: true,
-  sound: true,
   layout: { duration: 260 },
   detach: (element) => element.remove(),
 });
 ```
 
-`detach` 会替换默认的 `element.remove()` 提交，适合让响应式渲染器通过自身状态移除节点。若回调抛出错误，错误会传给 `onError`，库会回退到原生移除。
+`target` 可以是 `HTMLElement` 或选择器字符串。找不到选择器时会在操作开始前抛错。
 
-`target` 可为 `HTMLElement` 或选择器。找不到选择器时会在操作开始前抛出错误。
+`detach` 替换默认的 `element.remove()` 提交。响应式渲染器需要通过自身状态删除节点时使用它。若回调抛错，错误会发送给 `onError`，并安全回退到原生删除。
 
 ## restore(target, options?)
 
-在当前几何位置动画显示已连接、可测量的元素。
+在元素当前几何位置动画显示已连接、可测量的元素。
 
 ```ts
 const operation = effects.restore(element, {
-  effect: 'scatter',
-  sound: true,
+  preset: 'scatter',
+  sound: false,
 });
 ```
 
-分离节点或零尺寸会同步抛出错误。
+元素未连接或宽高为零时，该方法会抛错。
 
-## 节点存储
+任一操作都可传入一个完整 `preset`、一个自定义 `effect` 加该阶段可选声音定义，或不传以继承实例或保留节点的展示配置。继承音频与预设音频只能通过 `sound: false` 静音。
+
+## 保留元素
 
 ```ts
 const element = effects.take(removalId); // HTMLElement | null
@@ -83,7 +118,7 @@ const discarded = effects.discard(removalId); // boolean
 const count = effects.discardAll(); // number
 ```
 
-`take()` 会消费存储中的条目。`discard()` 与 `discardAll()` 只释放引用，不会插入内容。
+`take()` 会消费存储项。`discard()` 与 `discardAll()` 释放引用但不插入内容。
 
 ## 快照准备
 
@@ -94,19 +129,20 @@ effects.invalidate(elements);
 effects.clearPrepared();
 ```
 
-`register()` 遵循你配置的策略。`prepare()` 会立即捕获，即使后台准备是关闭的；全部元素完成后它不返回任何值。
-
-同一元素的重复注册采用引用计数：每个注销函数只释放自己的注册，最后一个注册释放后才停止观察。
+`register()` 遵循配置的策略。即使后台准备已关闭，`prepare()` 也会立即捕获。同一元素的重复注册采用引用计数；每个返回的取消函数只释放自己的注册。
 
 ## 音频准备
 
 ```ts
-await effects.prepareAudio(['dust', 'wind']);
-effects.discardPreparedAudio('dust');
+await effects.prepareAudio({
+  remove: { src: 'dust' },
+  restore: { src: 'dust', reverse: true },
+});
+effects.discardPreparedAudio();
 effects.clearPreparedAudio();
 ```
 
-实例设置 `sound: true` 后会自动准备默认效果。声音关闭时显式方法仍可使用。解码缓冲区存放在有界 LRU 缓存中。
+无参数时，`prepareAudio()` 与 `discardPreparedAudio()` 使用实例配置的声音对。即使自动准备关闭，显式方法仍然有效。解码缓冲区使用有界的实例所有权 LRU，而请求、缓冲区和 `AudioContext` 在实例间共享。
 
 ## destroy()
 
@@ -114,7 +150,7 @@ effects.clearPreparedAudio();
 effects.destroy();
 ```
 
-取消活动操作，停止观察器与后台任务，释放快照和解码音频的所有权，并清除保留节点。最后一个 `Disintegrator` 所有者销毁时，共享播放上下文才会关闭。重复调用 `destroy()` 是安全的；销毁后不能开始新操作。
+取消活动操作，停止观察器与后台工作，释放快照和解码音频所有权，并清空保留节点。最后一个所有者销毁后，共享播放上下文会关闭。重复调用 `destroy()` 是安全的；之后启动新工作会抛错。
 
 ## EffectOperation
 
@@ -131,15 +167,15 @@ interface EffectOperation {
 }
 ```
 
-操作对象不会暴露 `element`，并在结束后释放元素引用。
+句柄不暴露元素，并在结束后释放其引用。
 
-| 状态        | 内容操作                       | `finished` 完成时间 |
+| 状态        | 内容操作                       | `finished` 何时完成 |
 | ----------- | ------------------------------ | ------------------- |
-| `completed` | 已提交；视觉阶段正常完成       | 视觉资源清理后      |
-| `cancelled` | 已提交；视觉或音频播放已停止   | 取消清理后          |
+| `completed` | 已提交；视觉阶段正常完成       | 视觉清理后          |
+| `cancelled` | 已提交；视觉或音频播放停止     | 取消清理后          |
 | `skipped`   | 已提交，但没有可运行的视觉阶段 | 回退清理后          |
 | `rejected`  | 未开始；DOM 未改变             | 当前所有者结束后    |
 
 ## 回调与优先级
 
-实例回调会参与每次操作，也可以同时提供单次操作回调。单次操作选项覆盖实例默认值。保留节点记住的效果仅在 `restore()` 没有显式 `effect` 时使用。
+实例回调会为每次操作运行，操作回调与其一起运行。显式操作展示配置优先，其次是保留节点记住的配置，最后是实例配置。元素已被占用时，并发调用会在当前所有者结束后以 `rejected` 完成。

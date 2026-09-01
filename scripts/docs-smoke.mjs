@@ -44,10 +44,10 @@ async function waitForServer() {
 }
 
 const pages = [
-  ['/', 'en', 'Remove any element'],
+  ['/', 'en', 'Animate DOM removal'],
   ['/docs/learn/installation/', 'en', 'Install and run your first effect'],
   ['/ru/docs/learn/installation/', 'ru', 'Установка и первый эффект'],
-  ['/zh/docs/learn/effects/', 'zh', '内置效果对'],
+  ['/zh/docs/learn/effects/', 'zh', '内置预设'],
   ['/ko/docs/reference/api/', 'ko', 'API 레퍼런스'],
 ];
 const contentPaths = [
@@ -178,18 +178,34 @@ try {
         for (const entry of [
           'vanilla-disintegrate/core',
           'vanilla-disintegrate/particles',
+          'vanilla-disintegrate/sounds',
           'vanilla-disintegrate/snapdom',
           'vanilla-disintegrate.iife.min.js',
         ]) {
           assert.ok(html.includes(entry), `${path} must document ${entry}`);
         }
+        assert.ok(
+          html.includes('vanilla-disintegrate@latest/vanilla-disintegrate-iife.zip'),
+          `${path} must link to the IIFE archive`,
+        );
+        assert.ok(
+          html.includes('vanilla-disintegrate@latest/dist/vanilla-disintegrate.iife.min.js'),
+          `${path} must document direct CDN usage`,
+        );
       }
       if (contentPath === 'learn/custom-effects') {
         assert.ok(html.includes('vanilla-disintegrate/core'), `${path} must document snapshotless core effects`);
       }
       if (contentPath === 'reference/api') {
-        assert.ok(html.includes('<code>prepare</code>'), `${path} must document preparation error context`);
-        assert.ok(html.includes('<code>rejected</code>'), `${path} must document rejected operations`);
+        assert.ok(html.includes('<code>preset</code>'), `${path} must document complete presets`);
+        assert.ok(html.includes('<code>definePreset()</code>'), `${path} must document custom presets`);
+        assert.ok(html.includes('prepare'), `${path} must document preparation error context`);
+        assert.ok(html.includes('rejected'), `${path} must document rejected operations`);
+      }
+      if (contentPath === 'reference/audio') {
+        assert.ok(html.includes('vanilla-disintegrate/sounds'), `${path} must document the sound entry`);
+        assert.ok(html.includes('<code>sounds</code>'), `${path} must document audio preparation selections`);
+        assert.ok(html.includes('<code>volume</code>'), `${path} must document native playback volume`);
       }
     }
   }
@@ -220,13 +236,6 @@ try {
   );
 
   const home = await (await fetch(`${origin}/`)).text();
-  const homeText = home
-    .replace(/<[^>]+>/g, '')
-    .replaceAll('&quot;', '"')
-    .replaceAll('&#39;', "'")
-    .replaceAll('&lt;', '<')
-    .replaceAll('&gt;', '>')
-    .replaceAll('&amp;', '&');
   const installation = await (await fetch(`${origin}/docs/learn/installation/`)).text();
   assert.ok(home.includes('data-menu-button'), 'home must expose its mobile navigation menu');
   assert.ok(home.includes('data-mobile-nav'), 'home must render its mobile navigation links');
@@ -258,18 +267,13 @@ try {
   assert.ok(home.includes('data-package-command="pnpm add vanilla-disintegrate @zumer/snapdom"'));
   assert.ok(home.includes('data-package-command="bun add vanilla-disintegrate @zumer/snapdom"'));
   assert.ok(!installation.includes('class="package-manager-switcher"'));
-  assert.ok(home.includes('data-code-tab="effect"'), 'custom demo must expose the full effect source');
-  assert.ok(home.includes('data-code-tab="usage"'), 'custom demo must expose reproducible usage code');
-  assert.ok(home.includes('sampleParticles'), 'custom effect source must include particle sampling');
-  assert.ok(home.includes('createVortexTone'), 'custom effect source must include its sound factory');
-  assert.ok(homeText.includes('effects.remove(element'), 'custom effect usage must show the remove call');
-  assert.ok(homeText.includes('effects.restore(restored'), 'custom effect usage must show the restore call');
-  assert.ok(!home.includes('data-vortex-remove'), 'custom effect usage must not include demo button handlers');
-  assert.ok(home.includes('data-demo-kind="particle-vortex"'), 'home must keep the particle vortex live demo');
+  assert.ok(home.includes('data-particle-playground'), 'home must render the particle playground');
+  assert.ok(home.includes('data-preset="dust"'), 'particle playground must render its built-in presets');
+  assert.ok(home.includes('data-copy="effect"'), 'particle playground must expose code copying');
+  assert.ok(home.includes('data-copy="link"'), 'particle playground must expose link sharing');
 
   const demoKinds = {
     'learn/effects': 'built-in',
-    'learn/preparation': 'preparation',
     'learn/custom-effects': 'particle-vortex',
   };
   for (const [contentPath, kind] of Object.entries(demoKinds)) {

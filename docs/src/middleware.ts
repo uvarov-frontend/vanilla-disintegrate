@@ -74,7 +74,7 @@ const CONTENT_SECURITY_POLICY = [
   `script-src 'self' ${METRICA_HTTPS_ORIGINS} https://yastatic.net`,
   "style-src 'self' 'unsafe-inline'",
   "worker-src 'self' blob:",
-  'upgrade-insecure-requests',
+  ...(import.meta.env.DEV ? [] : ['upgrade-insecure-requests']),
 ].join('; ');
 
 const legacyRoutes: Readonly<Record<string, string>> = {
@@ -132,7 +132,11 @@ function secure(response: Response) {
   response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
   response.headers.set('Permissions-Policy', 'camera=(), geolocation=(), microphone=()');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  // Safari records HSTS against `localhost` itself and afterwards refuses plain HTTP on
+  // every local port, so the dev server must not advertise it.
+  if (!import.meta.env.DEV) {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-XSS-Protection', '0');
   const contentType = response.headers.get('Content-Type') ?? '';

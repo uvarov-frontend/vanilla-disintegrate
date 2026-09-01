@@ -11,7 +11,7 @@ order: 65
 
 ```ts
 effects.remove(element, {
-  effect: 'dust',
+  preset: 'dust',
   detach: () => removeFromFrameworkState(),
 });
 ```
@@ -20,7 +20,7 @@ effects.remove(element, {
 
 복원할 때는 먼저 요소를 렌더링하고 DOM 커밋을 기다린 다음, 새 요소 참조로 `restore()`를 호출하세요. 반응형 상태에는 분리된 DOM 노드가 아니라 애플리케이션 데이터를 저장해야 하므로 보통 기본값인 `retain: false`를 사용합니다.
 
-복원된 요소는 새 DOM 노드이므로 제거 시 인스턴스 기본 효과가 아닌 값을 사용했다면 `restore()`에도 같은 `effect`를 명시하세요. 기억된 효과 메타데이터는 동일하게 보관된 DOM 노드에만 따라갑니다.
+복원된 요소는 새 DOM 노드입니다. 인스턴스 프리셋을 상속하지만 제거 시 다른 작업 수준 `preset`이나 사용자 `effect`를 선택했다면 `restore()`에도 같은 표현을 전달하세요. 기억된 표현은 동일하게 보관된 DOM 노드에만 자동으로 따라갑니다.
 
 ## React
 
@@ -40,7 +40,7 @@ export function DisintegratingCard() {
   const pendingRestore = useRef(false);
 
   useEffect(() => {
-    const effects = new Disintegrator();
+    const effects = new Disintegrator({ preset: 'dust' });
     effectsRef.current = effects;
 
     return () => {
@@ -55,7 +55,7 @@ export function DisintegratingCard() {
 
     if (!visible || !pendingRestore.current || !effects || !element) return;
     pendingRestore.current = false;
-    effects.restore(element, { effect: 'dust' });
+    effects.restore(element, { preset: 'dust' });
   }, [visible]);
 
   function removeCard() {
@@ -64,7 +64,7 @@ export function DisintegratingCard() {
     if (!effects || !element) return;
 
     effects.remove(element, {
-      effect: 'dust',
+      preset: 'dust',
       detach: () => flushSync(() => setVisible(false)),
     });
   }
@@ -101,7 +101,7 @@ const card = ref<HTMLElement | null>(null);
 let effects: Disintegrator | null = null;
 
 onMounted(() => {
-  effects = new Disintegrator();
+  effects = new Disintegrator({ preset: 'dust' });
 });
 
 onUnmounted(() => {
@@ -112,7 +112,7 @@ function removeCard() {
   if (!effects || !card.value) return;
 
   effects.remove(card.value, {
-    effect: 'dust',
+    preset: 'dust',
     detach: () => {
       visible.value = false;
     },
@@ -124,7 +124,7 @@ async function restoreCard() {
   await nextTick();
 
   if (effects && card.value) {
-    effects.restore(card.value, { effect: 'dust' });
+    effects.restore(card.value, { preset: 'dust' });
   }
 }
 </script>
@@ -154,7 +154,7 @@ async function restoreCard() {
   let effects: Disintegrator | null = null;
 
   onMount(() => {
-    effects = new Disintegrator();
+    effects = new Disintegrator({ preset: 'dust' });
     return () => effects?.destroy();
   });
 
@@ -162,7 +162,7 @@ async function restoreCard() {
     if (!effects || !card) return;
 
     effects.remove(card, {
-      effect: 'dust',
+      preset: 'dust',
       detach: () => {
         visible = false;
       },
@@ -174,7 +174,7 @@ async function restoreCard() {
     await tick();
 
     if (effects && card) {
-      effects.restore(card, { effect: 'dust' });
+      effects.restore(card, { preset: 'dust' });
     }
   }
 </script>
@@ -205,7 +205,7 @@ export function DisintegratingCard() {
   let effects: Disintegrator | null = null;
 
   onMount(() => {
-    effects = new Disintegrator();
+    effects = new Disintegrator({ preset: 'dust' });
   });
 
   onCleanup(() => effects?.destroy());
@@ -214,14 +214,14 @@ export function DisintegratingCard() {
     if (!effects || !card) return;
 
     effects.remove(card, {
-      effect: 'dust',
+      preset: 'dust',
       detach: () => setVisible(false),
     });
   }
 
   function restoreCard() {
     setVisible(true);
-    queueMicrotask(() => effects?.restore(card, { effect: 'dust' }));
+    queueMicrotask(() => effects?.restore(card, { preset: 'dust' }));
   }
 
   return (
@@ -278,7 +278,7 @@ export class DisintegratingCard {
 
   constructor() {
     afterNextRender(() => {
-      this.effects = new Disintegrator();
+      this.effects = new Disintegrator({ preset: 'dust' });
     });
     this.destroyRef.onDestroy(() => this.effects?.destroy());
   }
@@ -288,7 +288,7 @@ export class DisintegratingCard {
     if (!this.effects || !element) return;
 
     this.effects.remove(element, {
-      effect: 'dust',
+      preset: 'dust',
       detach: () => {
         this.visible.set(false);
         this.changeDetector.detectChanges();
@@ -302,7 +302,7 @@ export class DisintegratingCard {
 
     const element = this.card()?.nativeElement;
     if (this.effects && element) {
-      this.effects.restore(element, { effect: 'dust' });
+      this.effects.restore(element, { preset: 'dust' });
     }
   }
 }

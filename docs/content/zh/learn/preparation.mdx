@@ -9,24 +9,41 @@ order: 50
 
 捕获一个元素要花几毫秒到几百毫秒，取决于它的尺寸、字体和图片。准备把这份工作提前做掉，`remove()` 就能立刻开始绘制。
 
-默认策略为 `visible-idle`。库不会自行扫描 DOM：只有将候选元素传给 `register()` 后才会创建观察器并启动后台任务。设置 `preparation: false` 可完全禁用这项工作。
+后台准备默认启用，并使用 `visible-idle` 策略。库不知道稍后会将哪些元素传给 `remove()`，也不会自行扫描 DOM。每个需要提前捕获的元素都必须传给 `register()`。即使未注册，`remove()` 仍可正常工作，但捕获只会在操作开始时进行。设置 `preparation: false` 可完全关闭后台准备。
 
-## 注册候选元素
+## 注册元素
 
 ```ts
-const effects = new Disintegrator();
+const effects = new Disintegrator({ preset: 'dust' });
 
-const unregister = effects.register(document.querySelectorAll('[data-effects]'));
+const cards = document.querySelectorAll<HTMLElement>('[data-effects]');
+
+effects.register(cards);
 ```
 
-默认值与显式设置 `preparation: true` 都使用 `visible-idle`：元素接近视口且浏览器空闲时才准备。
+调用 `effects.register(cards)` 会将这些元素注册为后台准备对象。之后，当元素接近视口且浏览器空闲时，库会创建它们的快照。
 
-不再需要准备该元素时调用 `unregister()`。注册采用引用计数：若两个组件注册了同一节点，每个注销函数只释放自己的注册，二者都释放后才停止观察。
+## 停止准备元素
+
+如果需要在调用 `destroy()` 之前停止观察，请保存 `register()` 返回的函数：
+
+```ts
+const stopPreparing = effects.register(cards);
+```
+
+这是前一个注册调用的替代写法；不要对同一批元素调用两次 `register()`。不再需要后台准备时，调用保存的函数：
+
+```ts
+stopPreparing();
+```
+
+它只停止观察元素，不会修改 DOM。注册采用引用计数：若两个组件注册了同一节点，每个清理函数只释放自己的注册，二者都释放后才停止观察。
 
 ## 配置条件
 
 ```ts
 const effects = new Disintegrator({
+  preset: 'dust',
   preparation: {
     strategy: 'visible-idle',
     rootMargin: '300px 0px',
@@ -55,8 +72,6 @@ effects.invalidate(elements); // 删除旧快照并重新排队
 effects.clearPrepared(); // 清空整个缓存
 ```
 
-<Demo kind="preparation" />
-
 操作绝不会用一份没把握的快照来做动画。如果快照缺失、还在生成、已经过期或被清出缓存，它会先重新捕获一份。
 
 ## 缓存预算
@@ -67,6 +82,6 @@ effects.clearPrepared(); // 清空整个缓存
 
 ## 失效策略
 
-`invalidateOnResize` 默认开启；MutationObserver 默认关闭，因为广泛监听 DOM 可能很昂贵。内容外观改变后应主动调用 `invalidate()`。
+`invalidateOnResize` 默认为 `true`，而 `observeMutations` 默认为 `false`，因为观察整个 DOM 子树的成本可能很高。内容外观改变后应主动调用 `invalidate()`。
 
 启用 `observeMutations: true` 后，新增节点、文本修改、除 `style` 之外的属性变化以及后代资源加载都会使快照失效并重新安排后台准备。内联 `style` 写入只会丢弃过期快照，因为动画库可能每帧更新它，自动重新捕获会形成循环。下一次操作会按需捕获当前状态。若样式只发生一次稳定变化，并希望重新进行后台准备，请调用 `invalidate()`。

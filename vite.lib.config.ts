@@ -31,6 +31,7 @@ export default defineConfig({
         core: resolve(import.meta.dirname, 'src/core.ts'),
         index: resolve(import.meta.dirname, 'src/index.ts'),
         particles: resolve(import.meta.dirname, 'src/particles.ts'),
+        sounds: resolve(import.meta.dirname, 'src/sounds.ts'),
         snapdom: resolve(import.meta.dirname, 'src/snapdom.ts'),
       },
       formats: ['es'],

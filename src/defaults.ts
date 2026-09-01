@@ -1,22 +1,23 @@
 import type {
   AudioPreparationOptions,
   AudioPreparationStrategy,
-  EffectSelection,
   LayoutOptions,
   ParticleOptions,
   PreparationOptions,
+  SoundPreparationSelection,
 } from './types';
 
 export interface ResolvedParticleOptions {
-  readonly motion: NonNullable<ParticleOptions['motion']>;
+  readonly curve: NonNullable<ParticleOptions['curve']>;
   readonly duration: number;
   readonly stagger: number;
   readonly horizontalDrift: number;
   readonly horizontalTravel: readonly [number, number];
-  readonly rise: readonly [number, number];
+  readonly verticalTravel: readonly [number, number];
+  readonly convergence: number;
   readonly swirl: number;
   readonly endScale: number;
-  readonly origin: NonNullable<ParticleOptions['origin']>;
+  readonly release: NonNullable<ParticleOptions['release']>;
 }
 
 export interface ResolvedLayoutOptions {
@@ -47,20 +48,21 @@ export interface ResolvedPreparationOptions {
 export interface ResolvedAudioPreparationOptions {
   readonly enabled: boolean;
   readonly strategy: AudioPreparationStrategy;
-  readonly effects?: EffectSelection | readonly EffectSelection[];
+  readonly sounds?: SoundPreparationSelection;
   readonly cacheByteBudget: number;
 }
 
 export const DEFAULT_PARTICLES: ResolvedParticleOptions = {
-  motion: 'dust',
+  curve: 'settle',
   duration: 720,
   stagger: 180,
   horizontalDrift: 42,
   horizontalTravel: [0, 0],
-  rise: [45, 100],
+  verticalTravel: [-100, -45],
+  convergence: 0,
   swirl: 0,
   endScale: 0.92,
-  origin: 'left',
+  release: 'left',
 };
 
 export const DEFAULT_LAYOUT: ResolvedLayoutOptions = {
@@ -89,7 +91,7 @@ export const DEFAULT_PREPARATION: ResolvedPreparationOptions = {
 
 export const DEFAULT_AUDIO_PREPARATION: ResolvedAudioPreparationOptions = {
   enabled: true,
-  strategy: 'immediate',
+  strategy: 'idle',
   cacheByteBudget: 8 * 1024 * 1024,
 };
 
@@ -115,15 +117,16 @@ function orderedRange(
 
 export function resolveParticles(options: ParticleOptions = {}): ResolvedParticleOptions {
   return {
-    motion: options.motion ?? DEFAULT_PARTICLES.motion,
+    curve: options.curve ?? DEFAULT_PARTICLES.curve,
     duration: finiteNumber(options.duration, DEFAULT_PARTICLES.duration, 0),
     stagger: finiteNumber(options.stagger, DEFAULT_PARTICLES.stagger, 0),
     horizontalDrift: finiteNumber(options.horizontalDrift, DEFAULT_PARTICLES.horizontalDrift, 0),
     horizontalTravel: orderedRange(options.horizontalTravel, DEFAULT_PARTICLES.horizontalTravel),
-    rise: orderedRange(options.rise, DEFAULT_PARTICLES.rise, 0),
+    verticalTravel: orderedRange(options.verticalTravel, DEFAULT_PARTICLES.verticalTravel),
+    convergence: finiteNumber(options.convergence, DEFAULT_PARTICLES.convergence, 0, 1),
     swirl: finiteNumber(options.swirl, DEFAULT_PARTICLES.swirl, 0),
     endScale: finiteNumber(options.endScale, DEFAULT_PARTICLES.endScale, 0),
-    origin: options.origin ?? DEFAULT_PARTICLES.origin,
+    release: options.release ?? DEFAULT_PARTICLES.release,
   };
 }
 
@@ -169,7 +172,7 @@ export function resolveAudioPreparation(
   return {
     enabled: true,
     strategy: options.strategy ?? DEFAULT_AUDIO_PREPARATION.strategy,
-    ...(options.effects === undefined ? {} : { effects: options.effects }),
+    ...(options.sounds === undefined ? {} : { sounds: options.sounds }),
     cacheByteBudget: finiteNumber(options.cacheByteBudget, DEFAULT_AUDIO_PREPARATION.cacheByteBudget, 0),
   };
 }

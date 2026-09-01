@@ -7,7 +7,7 @@ navTitle: 快速开始
 order: 10
 ---
 
-Vanilla Disintegrate 为任意可测量的 DOM 元素添加 **灭霸响指**粒子删除效果。入口 `vanilla-disintegrate/snapdom` 已接好 SnapDOM 截图，且不需要导入 CSS。
+Vanilla Disintegrate 在删除与恢复任意可测量的 DOM 元素时，重现了广为人知的 **灭霸响指效果**。
 
 ## 安装
 
@@ -27,40 +27,40 @@ pnpm add vanilla-disintegrate @zumer/snapdom
 bun add vanilla-disintegrate @zumer/snapdom
 ```
 
-库会在元素碎裂前捕获其当前外观，而捕获引擎由你选择。包提供四个可 tree-shaking 的入口：
+库会在元素碎裂前捕获其当前外观，而捕获引擎由你选择。包提供五个可 tree-shaking 的入口：
 
-| 入口                             | 内容                                                                               | 依赖             |
-| -------------------------------- | ---------------------------------------------------------------------------------- | ---------------- |
-| `vanilla-disintegrate/core`      | 面向自定义效果的生命周期、布局与音频，不包含粒子渲染器和内置声音。                 | 无               |
-| `vanilla-disintegrate/particles` | 粒子动画工厂以及四种内置效果的定义。                                               | 无               |
-| `vanilla-disintegrate`           | 已配置四种内置效果的 `Disintegrator`；`capture` 由你提供。                         | 无               |
-| `vanilla-disintegrate/snapdom`   | 内置效果，并以 [SnapDOM](https://zumerlab.github.io/snapdom/) 作为默认 `capture`。 | `@zumer/snapdom` |
+| 入口                             | 内容                                                                                     | 依赖             |
+| -------------------------------- | ---------------------------------------------------------------------------------------- | ---------------- |
+| `vanilla-disintegrate/core`      | 面向自定义效果的生命周期、布局与音频，不包含粒子或完整预设。                             | 无               |
+| `vanilla-disintegrate/particles` | 粒子动画工厂与可复用的几何配置。                                                         | 无               |
+| `vanilla-disintegrate/sounds`    | 四个内置音频文件的 URL，不包含运行时。                                                   | 无               |
+| `vanilla-disintegrate`           | 带四个完整视觉与音频预设的 `Disintegrator`；`capture` 由你提供。                         | 无               |
+| `vanilla-disintegrate/snapdom`   | 同样的完整预设，并以 [SnapDOM](https://zumerlab.github.io/snapdom/) 作为默认 `capture`。 | `@zumer/snapdom` |
 
-根入口与 `/snapdom` 导出相同的 `Disintegrator` API。`@zumer/snapdom` 是可选 peer 依赖：只有 `/snapdom` 会使用它，其他入口都不会引用它。
+根入口与 `/snapdom` 导出相同的 `Disintegrator` API。每个实例必须且只能提供一个完整 `preset` 或一个自定义 `effect`，不存在隐式默认值。
 
-`/core` 导出 `Disintegrator`、`defineEffect` 与公共类型。它刻意不提供默认效果：请传入内联效果或已注册的名称。`/particles` 导出 `builtInEffects`、两个粒子动画工厂及其类型，但不会创建实例。高级构建可以只组合所需层；下方的 `captureElement` 代表本页后面介绍的适配器：
+`/core` 导出 `Disintegrator`、`defineEffect`、`definePreset` 与公共类型。`/particles` 导出 `createParticleEffect`、`particlePresets`、两个粒子动画工厂及其类型，但不会创建实例。这样可以只组合所需层。下面使用内置几何创建一个静音自定义效果；`captureElement` 代表本页后面介绍的适配器：
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/core';
-import { builtInEffects } from 'vanilla-disintegrate/particles';
+import { createParticleEffect, particlePresets } from 'vanilla-disintegrate/particles';
 
 const effects = new Disintegrator({
   capture: captureElement,
-  effect: 'dust',
-  effects: builtInEffects,
+  effect: createParticleEffect({ remove: particlePresets.dust }),
 });
 ```
 
-对于不需要快照的自定义效果，可完全省略 `/particles` 与 `capture`，并在两个阶段设置 `needsSnapshot: false`。
+最短的接入方式是导入 `/snapdom` 并选择一个完整预设：
 
 ```ts
 import Disintegrator from 'vanilla-disintegrate/snapdom';
 
-const effects = new Disintegrator();
+const effects = new Disintegrator({ preset: 'dust' });
 const card = document.querySelector<HTMLElement>('.card');
 
 if (card) {
-  effects.remove(card, { effect: 'dust' });
+  effects.remove(card);
 }
 ```
 
@@ -72,7 +72,6 @@ if (card) {
 
 ```ts
 const removal = effects.remove(card, {
-  effect: 'dust',
   retain: true,
 });
 
@@ -88,7 +87,7 @@ if (removal.removalId) {
 }
 ```
 
-若 `restore()` 未指定新 `effect`，将使用删除时记住的效果对。
+若 `restore()` 未指定其他 `preset` 或自定义 `effect`，将使用删除时记住的完整配置。
 
 ## 使用其他捕获库
 
@@ -99,6 +98,7 @@ import html2canvas from 'html2canvas';
 import Disintegrator from 'vanilla-disintegrate';
 
 const effects = new Disintegrator({
+  preset: 'dust',
   capture: (element, context) => {
     if (context.signal.aborted) throw new DOMException('Capture aborted.', 'AbortError');
 
@@ -117,21 +117,23 @@ const effects = new Disintegrator({
 });
 ```
 
-传入的函数会完全替代截图行为。此路径请导入根入口 `vanilla-disintegrate`：它没有强制运行时依赖，SnapDOM 也不会进入模块图。
+传入的函数会完全替代截图行为。此路径请导入根入口 `vanilla-disintegrate`：它没有强制运行时依赖。`@zumer/snapdom` 是仅供 `/snapdom` 入口使用的可选 peer 依赖，因此 SnapDOM 不会进入这里的模块图。
 
-## 通过 script 标签使用
+## 本地或通过 CDN 引入
+
+如果想在不使用构建工具或包管理器的情况下快速集成 Vanilla Disintegrate，可以通过 CDN 引入，或[下载包含最新版本的压缩包](https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/vanilla-disintegrate-iife.zip)在本地使用。
 
 IIFE 构建已包含 SnapDOM，并全局暴露 `VanillaDisintegrate`：
 
 ```html
-<script src="/vendor/vanilla-disintegrate.iife.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/dist/vanilla-disintegrate.iife.min.js"></script>
 <script>
-  const effects = new VanillaDisintegrate.Disintegrator();
+  const effects = new VanillaDisintegrate.Disintegrator({ preset: 'dust' });
   effects.remove(document.querySelector('.card'));
 </script>
 ```
 
-若使用内置音频，请把 `dist/sounds` 复制到脚本旁的 `/vendor/sounds`；声音 URL 相对于 IIFE 文件解析。
+压缩包已经包含最小化的 `index.html`、IIFE 构建、许可证和全部内置声音。请通过本地 HTTP 服务器运行解压后的目录，以便浏览器加载音频。手动复制 IIFE 时，请将 `sounds` 目录放在脚本旁边；CDN 版本会自动解析对应资源。
 
 ## 清理
 
@@ -143,12 +145,12 @@ effects.destroy();
 
 ## 浏览器支持
 
-运行时以 ES2020 格式输出，并依赖 Canvas、Web Animations（`Animation.finished` 与 `Element.getAnimations()`）、`AbortController` 和 `requestAnimationFrame`。四种内置效果使用 **WebGL2** 绘制粒子。综合 API 最低基线为 Chrome 84+、Firefox 75+、Edge 84+、Opera 70+ 与 Safari 15+。Chrome for Android 84+ 和 iOS Safari 15+ 适用同一基线。不包含 polyfill。
+运行时以 ES2020 格式输出，并依赖 Canvas、Web Animations（`Animation.finished` 与 `Element.getAnimations()`）、`AbortController` 和 `requestAnimationFrame`。内置预设使用库自带的 **WebGL2** 粒子渲染器；自定义效果可以使用任何合适的动画引擎。综合 API 最低基线为 <strong>Chrome 84+</strong>、<strong>Firefox 75+</strong>、<strong>Edge 84+</strong>、<strong>Opera 70+</strong> 与 <strong>Safari 15+</strong>。<strong>Chrome for Android 84+</strong> 和 <strong>iOS Safari 15+</strong> 适用同一基线。不包含 polyfill。
 
-在缺少 WebGL2 或无法创建上下文时，内置效果会降级而不是报错：`remove()` 仍会移除元素，`restore()` 仍会显示元素，操作以 `skipped` 状态结束，原因通过 `onError` 传出。基于 WAAPI、CSS 或 Canvas 2D 的自定义效果在旧引擎上照常播放。
+在缺少 WebGL2 或无法创建上下文时，内置预设的视觉效果会降级而不是报错：`remove()` 仍会移除元素，`restore()` 仍会显示元素，操作以 `skipped` 状态结束，原因通过 `onError` 传出。基于 WAAPI、CSS 或 Canvas 2D 的自定义效果在旧引擎上照常播放。
 
 这些版本是 API 兼容性的最低基线，并不保证每个 GPU、驱动程序或浏览器设置都允许创建 WebGL2 上下文。
 
-每个并发运行的内置效果会租用一个 WebGL2 上下文。操作结束时，其纹理会被删除，上下文则返回文档级资源池。资源池最多保留两个空闲上下文 30 秒，多余上下文会立即销毁，并在 `pagehide` 时释放全部资源。
+每个并发运行的内置预设视觉效果会租用一个 WebGL2 上下文。操作结束时，其纹理会被删除，上下文则返回文档级资源池。资源池最多保留两个空闲上下文 30 秒，多余上下文会立即销毁，并在 `pagehide` 时释放全部资源。
 
 只在浏览器中创建 `Disintegrator`，不要在服务端渲染期间创建。跨域图片、字体与样式表必须允许 CORS，或通过捕获适配器的代理选项加载，否则可能不会出现在 Canvas 快照中。

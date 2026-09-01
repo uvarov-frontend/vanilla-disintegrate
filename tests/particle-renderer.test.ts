@@ -45,9 +45,12 @@ function createWebGL2Stub() {
   } as const;
   let attribute = 0;
   const loseContext = vi.fn();
+  const bufferData = vi.fn<(target: number, data: ArrayBufferView | number, usage: number) => void>();
+  const createBuffer = vi.fn(() => ({}));
   const createProgram = vi.fn(() => ({}));
+  const deleteBuffer = vi.fn();
   const deleteProgram = vi.fn();
-  const drawArrays = vi.fn();
+  const drawArrays = vi.fn<(mode: number, first: number, count: number) => void>();
   const gl = {
     ...constants,
     activeTexture: vi.fn(),
@@ -56,16 +59,16 @@ function createWebGL2Stub() {
     bindTexture: vi.fn(),
     bindVertexArray: vi.fn(),
     blendFunc: vi.fn(),
-    bufferData: vi.fn(),
+    bufferData,
     clear: vi.fn(),
     clearColor: vi.fn(),
     compileShader: vi.fn(),
-    createBuffer: vi.fn(() => ({})),
+    createBuffer,
     createProgram,
     createShader: vi.fn(() => ({})),
     createTexture: vi.fn(() => ({})),
     createVertexArray: vi.fn(() => ({})),
-    deleteBuffer: vi.fn(),
+    deleteBuffer,
     deleteProgram,
     deleteShader: vi.fn(),
     deleteTexture: vi.fn(),
@@ -95,7 +98,7 @@ function createWebGL2Stub() {
     vertexAttribPointer: vi.fn(),
     viewport: vi.fn(),
   } as unknown as WebGL2RenderingContext;
-  return { createProgram, deleteProgram, drawArrays, gl, loseContext };
+  return { bufferData, createBuffer, createProgram, deleteBuffer, deleteProgram, drawArrays, gl, loseContext };
 }
 
 function particleContext(snapshot: HTMLCanvasElement): AnimationContext {
@@ -113,8 +116,20 @@ function particleContext(snapshot: HTMLCanvasElement): AnimationContext {
   };
 }
 
+function particleComponentAt(
+  field: ReturnType<typeof createParticleField>,
+  x: number,
+  y: number,
+  component: number,
+): number {
+  for (let offset = 0; offset < field.data.length; offset += 7) {
+    if (field.data[offset] === x && field.data[offset + 1] === y) return field.data[offset + component] ?? 0;
+  }
+  throw new Error(`Missing particle at ${String(x)}:${String(y)}`);
+}
+
 describe('particle renderer', () => {
-  it('assigns every visible source block to exactly one particle', () => {
+  it('assigns every visible source block once in Safari-safe upload order', () => {
     const width = 4;
     const height = 3;
     const pixels = new Uint8ClampedArray(width * height * 4);
@@ -129,6 +144,9 @@ describe('particle renderer', () => {
     expect(field.blockSize).toBe(1);
     expect(sources).toHaveLength(width * height);
     expect(new Set(sources).size).toBe(sources.length);
+    // Ascending source order produces a phantom strip along the element edge in Safari's WebGL renderer.
+    expect(sources[0]).toBe('3:2');
+    expect(sources.at(-1)).toBe('0:0');
     expect(field.thresholdMap.every((threshold) => threshold > 0 && threshold < 255)).toBe(true);
     expect(field.layoutReleaseProgress).toBeGreaterThan(0);
     expect(field.layoutReleaseProgress).toBeLessThan(1);
@@ -183,7 +201,7 @@ describe('particle renderer', () => {
 
   it('reserves enough timeline for the last particles to fade naturally', () => {
     const pixels = new Uint8ClampedArray([255, 255, 255, 255]);
-    const field = createParticleField(pixels, 1, 1, resolveParticles({ origin: 'random' }), 1, 1, () => 1);
+    const field = createParticleField(pixels, 1, 1, resolveParticles({ release: 'random' }), 1, 1, () => 1);
 
     expect(field.data[2]).toBeCloseTo(0.68);
   });
@@ -191,10 +209,10 @@ describe('particle renderer', () => {
   it('dissolves vapor evenly instead of peeling toward the centre', () => {
     const pixels = new Uint8ClampedArray(9 * 4);
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
-    const field = createParticleField(pixels, 9, 1, resolveParticles({ motion: 'vapor' }), 1, 1, () => 0.5);
+    const field = createParticleField(pixels, 9, 1, resolveParticles({ release: 'top' }), 1, 1, () => 0.5);
 
     // One row, so nothing in the horizontal position may order the departures.
-    const thresholdAt = (column: number) => field.data[column * 7 + 2] ?? 0;
+    const thresholdAt = (column: number) => particleComponentAt(field, column, 0, 2);
     expect(thresholdAt(0)).toBeCloseTo(thresholdAt(4), 6);
     expect(thresholdAt(8)).toBeCloseTo(thresholdAt(4), 6);
   });
@@ -202,19 +220,19 @@ describe('particle renderer', () => {
   it('releases the top rows of vapor first', () => {
     const pixels = new Uint8ClampedArray(9 * 4);
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
-    const field = createParticleField(pixels, 1, 9, resolveParticles({ motion: 'vapor' }), 1, 1, () => 0.5);
+    const field = createParticleField(pixels, 1, 9, resolveParticles({ release: 'top' }), 1, 1, () => 0.5);
 
     // Row 0 is the top of the element, so it must leave before the bottom row.
-    const thresholdAt = (rowIndex: number) => field.data[rowIndex * 7 + 2] ?? 0;
+    const thresholdAt = (rowIndex: number) => particleComponentAt(field, 0, rowIndex, 2);
     expect(thresholdAt(0)).toBeLessThan(thresholdAt(8));
   });
 
   it('draws vapor toward a narrower central plume', () => {
     const pixels = new Uint8ClampedArray(9 * 4);
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
-    const field = createParticleField(pixels, 9, 1, resolveParticles({ motion: 'vapor' }), 1, 1, () => 0.5);
+    const field = createParticleField(pixels, 9, 1, resolveParticles({ convergence: 1 }), 1, 1, () => 0.5);
 
-    const horizontalVelocityAt = (column: number) => field.data[column * 7 + 3] ?? 0;
+    const horizontalVelocityAt = (column: number) => particleComponentAt(field, column, 0, 3);
     expect(horizontalVelocityAt(0)).toBeGreaterThan(0);
     expect(horizontalVelocityAt(8)).toBeLessThan(0);
   });
@@ -222,27 +240,19 @@ describe('particle renderer', () => {
   it('dissolves scatter from left to right', () => {
     const pixels = new Uint8ClampedArray(9 * 4);
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
-    const scatter = createParticleField(
-      pixels,
-      9,
-      1,
-      resolveParticles({ motion: 'scatter', origin: 'left' }),
-      1,
-      1,
-      () => 0.5,
-    );
+    const scatter = createParticleField(pixels, 9, 1, resolveParticles({ release: 'left' }), 1, 1, () => 0.5);
 
-    const thresholdAt = (column: number) => scatter.data[column * 7 + 2] ?? 0;
+    const thresholdAt = (column: number) => particleComponentAt(scatter, column, 0, 2);
     expect(thresholdAt(0)).toBeLessThan(thresholdAt(8));
   });
 
-  it('spreads scatter on individually directed paths with an upward bias', () => {
+  it('supports independently directed horizontal and vertical paths', () => {
     const pixels = new Uint8ClampedArray([255, 255, 255, 255]);
     const upward = createParticleField(
       pixels,
       1,
       1,
-      resolveParticles({ motion: 'scatter', horizontalTravel: [-100, 100], rise: [50, 100] }),
+      resolveParticles({ horizontalTravel: [-100, 100], verticalTravel: [-100, 100] }),
       1,
       1,
       () => 0,
@@ -251,7 +261,7 @@ describe('particle renderer', () => {
       pixels,
       1,
       1,
-      resolveParticles({ motion: 'scatter', horizontalTravel: [-100, 100], rise: [50, 100] }),
+      resolveParticles({ horizontalTravel: [-100, 100], verticalTravel: [-100, 100] }),
       1,
       1,
       () => 1,
@@ -261,6 +271,29 @@ describe('particle renderer', () => {
     expect(upward.data[4]).toBeLessThan(0);
     expect(downward.data[3]).toBeGreaterThan(0);
     expect(downward.data[4]).toBeGreaterThan(0);
+  });
+
+  it('keeps particle geometry independent from the temporal curve', () => {
+    const pixels = new Uint8ClampedArray(4 * 4 * 4).fill(255);
+    const random = () => {
+      let state = 0;
+      return () => {
+        state = (state * 1_664_525 + 1_013_904_223) >>> 0;
+        return state / 4_294_967_296;
+      };
+    };
+    const options = {
+      convergence: 0.6,
+      horizontalTravel: [-80, 120] as const,
+      release: 'top' as const,
+      verticalTravel: [-140, 35] as const,
+    };
+
+    const settle = createParticleField(pixels, 4, 4, resolveParticles({ ...options, curve: 'settle' }), 1, 1, random());
+    const burst = createParticleField(pixels, 4, 4, resolveParticles({ ...options, curve: 'burst' }), 1, 1, random());
+
+    expect(burst.thresholdMap).toEqual(settle.thresholdMap);
+    expect(burst.data).toEqual(settle.data);
   });
 
   it('does not substitute another renderer when WebGL2 is unavailable', () => {
@@ -282,6 +315,86 @@ describe('particle renderer', () => {
 
     expect(createParticleAnimation()(context)).toBeNull();
     expect(createParticleRestoreAnimation()({ ...context, operation: 'restore' })).toBeNull();
+  });
+
+  it('downscales large snapshots before allocating readback and render surfaces', () => {
+    const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext')
+      ?.value as typeof HTMLCanvasElement.prototype.getContext;
+    const { gl } = createWebGL2Stub();
+    let readbackSize: readonly [number, number] | null = null;
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (
+      this: HTMLCanvasElement,
+      contextId: string,
+      options?: unknown,
+    ) {
+      if (contextId === 'webgl2') return gl;
+      const context = originalGetContext.call(this, contextId, options as never);
+      if (contextId !== '2d' || context === null) return context;
+      const readback = context as CanvasRenderingContext2D;
+      const getImageData = readback.getImageData.bind(readback);
+      readback.getImageData = (x: number, y: number, width: number, height: number) => {
+        readbackSize = [width, height];
+        return getImageData(x, y, width, height);
+      };
+      return readback;
+    } as typeof HTMLCanvasElement.prototype.getContext);
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const snapshot = document.createElement('canvas');
+    snapshot.width = 4000;
+    snapshot.height = 3000;
+    const renderer = createParticleAnimation({ duration: 20, stagger: 0 })(
+      particleContext(snapshot),
+    ) as ParticleRenderer | null;
+
+    expect(renderer).not.toBeNull();
+    expect(readbackSize).not.toBeNull();
+    expect((readbackSize?.[0] ?? 0) * (readbackSize?.[1] ?? 0)).toBeLessThanOrEqual(2_000_000);
+    expect(readbackSize?.[0]).toBeLessThanOrEqual(2048);
+    expect(readbackSize?.[1]).toBeLessThanOrEqual(2048);
+    renderer?.dispose();
+    window.dispatchEvent(new Event('pagehide'));
+  });
+
+  it('splits large particle fields into Safari-safe vertex buffers without dropping particles', () => {
+    const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext')
+      ?.value as typeof HTMLCanvasElement.prototype.getContext;
+    const { bufferData, deleteBuffer, drawArrays, gl } = createWebGL2Stub();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (
+      this: HTMLCanvasElement,
+      contextId: string,
+      options?: unknown,
+    ) {
+      if (contextId === 'webgl2') return gl;
+      return originalGetContext.call(this, contextId, options as never);
+    } as typeof HTMLCanvasElement.prototype.getContext);
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const snapshot = document.createElement('canvas');
+    snapshot.width = 400;
+    snapshot.height = 100;
+
+    const renderer = createParticleAnimation({ duration: 20, stagger: 0 })(
+      particleContext(snapshot),
+    ) as ParticleRenderer | null;
+    const particleUploads = bufferData.mock.calls
+      .map((call) => call[1])
+      .filter((data): data is Float32Array => data instanceof Float32Array && data.length > 12);
+    const particleDraws = drawArrays.mock.calls.filter((call) => call[0] === gl.POINTS);
+
+    expect(renderer).not.toBeNull();
+    expect(particleUploads.map((data) => data.length / 7)).toEqual([32_768, 7_232]);
+    expect(particleDraws.map((call) => call[2])).toEqual([32_768, 7_232]);
+
+    renderer?.dispose();
+    expect(deleteBuffer).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new Event('pagehide'));
   });
 
   it('reuses compiled WebGL resources and releases them when the page is hidden', async () => {
@@ -314,8 +427,7 @@ describe('particle renderer', () => {
     vi.stubGlobal('cancelIdleCallback', vi.fn());
 
     const factory = createParticleAnimation({ duration: 20, stagger: 0 });
-    expect(requestIdleCallback).toHaveBeenCalledTimes(1);
-    runIdle({ didTimeout: false, timeRemaining: () => 10 });
+    expect(requestIdleCallback).not.toHaveBeenCalled();
     for (let index = 0; index < 2; index += 1) {
       const snapshot = document.createElement('canvas');
       snapshot.width = 16;
@@ -325,6 +437,10 @@ describe('particle renderer', () => {
       if (renderer === null) continue;
       await renderer.finished;
       renderer.dispose();
+      if (index === 0) {
+        expect(requestIdleCallback).toHaveBeenCalledTimes(1);
+        runIdle({ didTimeout: false, timeRemaining: () => 10 });
+      }
     }
 
     expect(webglRequests).toHaveBeenCalledTimes(1);

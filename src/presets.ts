@@ -1,88 +1,75 @@
-import christmasSoundUrl from './sounds/christmas-wind.mp3?url&no-inline';
-import dustSoundUrl from './sounds/dust.mp3?url&no-inline';
-import scatterSoundUrl from './sounds/scatter.mp3?url&no-inline';
-import vaporSoundUrl from './sounds/vapor.mp3?url&no-inline';
+import { createParticleEffect } from './particle-effect';
+import type { BuiltInPreset, EffectDefinition, ParticlePreset } from './types';
 
-import { defineEffect } from './effects';
-import { createParticleAnimation, createParticleRestoreAnimation } from './particle-renderer';
-import type { BuiltInEffect, EffectDefinition, ParticleOptions } from './types';
+function freezeRange(range: readonly [number, number]): readonly [number, number] {
+  const copy: [number, number] = [range[0], range[1]];
+  return Object.freeze(copy);
+}
 
-const particlePresets: Readonly<Record<BuiltInEffect, ParticleOptions>> = Object.freeze({
-  dust: {},
-  vapor: {
-    motion: 'vapor',
-    duration: 900,
+function defineParticlePreset(options: ParticlePreset): Readonly<ParticlePreset> {
+  return Object.freeze({
+    ...options,
+    horizontalTravel: freezeRange(options.horizontalTravel),
+    verticalTravel: freezeRange(options.verticalTravel),
+  });
+}
+
+/** Deeply frozen particle configurations used by the four built-in effects. */
+export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePreset>>> = Object.freeze({
+  dust: defineParticlePreset({
+    curve: 'settle',
+    duration: 850,
     stagger: 130,
-    horizontalDrift: 16,
-    horizontalTravel: [-8, 8],
-    rise: [130, 230],
-    swirl: 18,
-    endScale: 1.25,
-  },
-  scatter: {
-    motion: 'scatter',
+    horizontalDrift: 70,
+    horizontalTravel: [40, 190],
+    verticalTravel: [-210, -30],
+    convergence: 0,
+    swirl: 34,
+    endScale: 0.55,
+    release: 'left',
+  }),
+  scatter: defineParticlePreset({
+    curve: 'burst',
     duration: 1100,
     stagger: 70,
     horizontalDrift: 42,
     horizontalTravel: [-125, 125],
-    rise: [50, 140],
+    verticalTravel: [-105, 36],
+    convergence: 0,
     swirl: 8,
     endScale: 0.4,
-    origin: 'left',
-  },
-  wind: {
-    motion: 'wind',
+    release: 'left',
+  }),
+  vapor: defineParticlePreset({
+    curve: 'float',
+    duration: 750,
+    stagger: 80,
+    horizontalDrift: 80,
+    horizontalTravel: [-10, 10],
+    verticalTravel: [-255, -130],
+    convergence: 0.8,
+    swirl: 5,
+    endScale: 0.6,
+    release: 'top',
+  }),
+  wind: defineParticlePreset({
+    curve: 'drift',
     duration: 2075,
     stagger: 0,
     horizontalDrift: 80,
     horizontalTravel: [220, 380],
-    rise: [4, 28],
+    verticalTravel: [-28, -4],
+    convergence: 0,
     swirl: 48,
     endScale: 0.82,
-    origin: 'left',
-  },
+    release: 'left',
+  }),
 });
 
-/** The four built-in paired effects: `dust`, `vapor`, `scatter` and `wind`. */
-export const builtInEffects: Readonly<Record<BuiltInEffect, EffectDefinition>> = Object.freeze({
-  dust: defineEffect({
-    remove: {
-      animate: createParticleAnimation(particlePresets.dust),
-      sound: { src: dustSoundUrl },
-    },
-    restore: {
-      animate: createParticleRestoreAnimation(particlePresets.dust),
-      sound: { src: dustSoundUrl, reverse: true },
-    },
-  }),
-  vapor: defineEffect({
-    remove: {
-      animate: createParticleAnimation(particlePresets.vapor),
-      sound: { src: vaporSoundUrl },
-    },
-    restore: {
-      animate: createParticleRestoreAnimation(particlePresets.vapor),
-      sound: { src: vaporSoundUrl, reverse: true },
-    },
-  }),
-  scatter: defineEffect({
-    remove: {
-      animate: createParticleAnimation(particlePresets.scatter),
-      sound: { src: scatterSoundUrl },
-    },
-    restore: {
-      animate: createParticleRestoreAnimation(particlePresets.scatter),
-      sound: { src: scatterSoundUrl, reverse: true },
-    },
-  }),
-  wind: defineEffect({
-    remove: {
-      animate: createParticleAnimation(particlePresets.wind),
-      sound: { src: christmasSoundUrl },
-    },
-    restore: {
-      animate: createParticleRestoreAnimation(particlePresets.wind),
-      sound: { src: christmasSoundUrl, reverse: true },
-    },
-  }),
+/** Visual implementations used internally by the complete built-in presets. */
+export const builtInParticleEffects: Readonly<Record<BuiltInPreset, EffectDefinition>> = Object.freeze({
+  dust: createParticleEffect({ remove: particlePresets.dust }),
+  scatter: createParticleEffect({ remove: particlePresets.scatter }),
+  vapor: createParticleEffect({ remove: particlePresets.vapor }),
+  wind: createParticleEffect({ remove: particlePresets.wind }),
 });

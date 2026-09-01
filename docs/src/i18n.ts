@@ -10,6 +10,8 @@ export interface UiCopy {
   readonly reference: string;
   readonly menu: string;
   readonly githubStarPrompt: string;
+  readonly sponsor: string;
+  readonly theme: Readonly<Record<'label' | 'system' | 'light' | 'dark', string>>;
   readonly close: string;
   readonly onThisPage: string;
   readonly previous: string;
@@ -32,17 +34,12 @@ export interface UiCopy {
     readonly title: string;
     readonly accent: string;
     readonly description: string;
+    readonly descriptionHighlight: string;
     readonly tryLabel: string;
     readonly playgroundKicker: string;
     readonly playgroundTitle: string;
     readonly playgroundDescription: string;
-    readonly customKicker: string;
-    readonly customTitle: string;
-    readonly customDescription: string;
-    readonly codeLabel: string;
-    readonly codeTitle: string;
-    readonly codeDescription: string;
-    readonly customGuide: string;
+    readonly playgroundDescriptionHighlight: string;
     readonly openGuide: string;
     readonly docsKicker: string;
     readonly docsTitle: string;
@@ -66,6 +63,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     reference: 'Reference',
     menu: 'Open navigation',
     githubStarPrompt: 'If you like Vanilla Disintegrate, please give it a 🌟 star on GitHub.',
+    sponsor: 'Sponsor',
+    theme: { label: 'Theme', system: 'System', light: 'Light', dark: 'Dark' },
     close: 'Close',
     onThisPage: 'On this page',
     previous: 'Previous',
@@ -84,29 +83,23 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       homeAction: 'Go to home',
     },
     home: {
-      documentTitle: 'Vanilla Disintegrate · Thanos snap effects for the DOM',
-      title: 'Remove any element',
-      accent: 'with a Thanos snap',
+      documentTitle: 'Vanilla Disintegrate · Particle effects for removing and restoring DOM elements',
+      title: 'Animate DOM removal',
+      accent: 'and restoration',
       description:
-        'A lightweight TypeScript library for removing and restoring any DOM element with a Thanos-snap effect. Choose one of four ready-made animations or create your own — with no CSS and no framework lock-in.',
-      tryLabel: 'Try it with real DOM',
-      playgroundKicker: 'Live Thanos snap',
-      playgroundTitle: 'Snap it away. Bring it back.',
+        'A lightweight TypeScript library for removing and restoring DOM elements with particle animations inspired by the recognizable Thanos snap effect. It works with plain JavaScript and any framework without requiring runtime CSS.',
+      descriptionHighlight: 'Thanos snap effect',
+      tryLabel: 'Build an effect in the playground',
+      playgroundKicker: 'Interactive playground',
+      playgroundTitle: 'Create your effect',
       playgroundDescription:
-        'Every card is a real DOM element. Pick an animation, remove a card, then restore that same card from the list below.',
-      customKicker: 'Custom effect',
-      customTitle: 'Create your own snap.',
-      customDescription:
-        'This particle vortex is a completely custom animation. Try removing and restoring the card, then see how the pair is defined.',
-      codeLabel: 'Real code',
-      codeTitle: 'One effect, two animations',
-      codeDescription: 'Define what happens when the element disappears and what happens when it comes back.',
-      customGuide: 'Build a custom effect',
+        'Start from a preset, tune removal and restoration separately, preview both directions, and copy ready-to-use TypeScript.',
+      playgroundDescriptionHighlight: 'copy ready-to-use TypeScript',
       openGuide: 'Open guide',
       docsKicker: 'Documentation',
-      docsTitle: 'Start simple. Add more when needed.',
+      docsTitle: 'Bring it into your project',
       docsDescription:
-        'Begin with one remove() call. Then learn how to restore elements, build undo, preload screenshots, or create a custom effect.',
+        'Start with installation and a built-in preset, then add restoration, undo, background preparation, or a custom renderer.',
     },
   },
   ru: {
@@ -117,6 +110,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     reference: 'Справочник',
     menu: 'Открыть навигацию',
     githubStarPrompt: 'Если вам нравится Vanilla Disintegrate, пожалуйста, поставьте ему 🌟 звёздочку на GitHub.',
+    sponsor: 'Спонсор',
+    theme: { label: 'Тема', system: 'Системная', light: 'Светлая', dark: 'Тёмная' },
     close: 'Закрыть',
     onThisPage: 'На этой странице',
     previous: 'Назад',
@@ -135,29 +130,23 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       homeAction: 'На главную',
     },
     home: {
-      documentTitle: 'Vanilla Disintegrate · Эффекты щелчка Таноса для DOM',
-      title: 'Удалите любой элемент',
-      accent: 'щелчком Таноса',
+      documentTitle: 'Vanilla Disintegrate · Анимации удаления и восстановления DOM-элементов',
+      title: 'Анимируйте удаление',
+      accent: 'и восстановление DOM-элементов',
       description:
-        'Лёгкая TypeScript-библиотека для удаления и восстановления любых DOM-элементов с эффектом щелчка Таноса. Выберите одну из четырёх готовых анимаций или создайте собственную — без CSS и привязки к фреймворку.',
-      tryLabel: 'Попробуйте на настоящем DOM',
-      playgroundKicker: 'Щелчок Таноса вживую',
-      playgroundTitle: 'Удалите. Затем верните.',
+        'Лёгкая TypeScript-библиотека для удаления и восстановления DOM-элементов с помощью анимаций частиц, вдохновлённых узнаваемым эффектом «щелчка Таноса». Она работает с обычным JavaScript и любым фреймворком без подключения CSS.',
+      descriptionHighlight: '«щелчка Таноса»',
+      tryLabel: 'Соберите эффект в плейграунде',
+      playgroundKicker: 'Интерактивный плейграунд',
+      playgroundTitle: 'Создайте свой эффект',
       playgroundDescription:
-        'Каждая карточка — настоящий DOM-элемент. Выберите анимацию, удалите карточку и верните тот же узел из списка ниже.',
-      customKicker: 'Свой эффект',
-      customTitle: 'Создайте собственный щелчок.',
-      customDescription:
-        'Эта воронка из частиц — полностью пользовательская анимация. Удалите и верните карточку, затем посмотрите определение пары.',
-      codeLabel: 'Настоящий код',
-      codeTitle: 'Один эффект, две анимации',
-      codeDescription: 'Опишите отдельно исчезновение элемента и его возвращение.',
-      customGuide: 'Создать свой эффект',
+        'Выберите пресет, отдельно настройте удаление и восстановление, проверьте оба направления и скопируйте готовый TypeScript-код.',
+      playgroundDescriptionHighlight: 'скопируйте готовый TypeScript-код',
       openGuide: 'Открыть руководство',
       docsKicker: 'Документация',
-      docsTitle: 'Начните с простого.',
+      docsTitle: 'Подключите библиотеку к проекту',
       docsDescription:
-        'Сначала вызовите remove(). Затем разберитесь с возвратом, undo, подготовкой снимков и собственными эффектами.',
+        'Начните с установки и готового пресета, затем добавьте сохранение удалённых элементов, фоновую подготовку или собственный рендерер.',
     },
   },
   zh: {
@@ -168,6 +157,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     reference: 'API 参考',
     menu: '打开导航',
     githubStarPrompt: '如果你喜欢 Vanilla Disintegrate，请在 GitHub 上点个 🌟 星标。',
+    sponsor: '赞助',
+    theme: { label: '主题', system: '跟随系统', light: '浅色', dark: '深色' },
     close: '关闭',
     onThisPage: '本页内容',
     previous: '上一页',
@@ -186,26 +177,21 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       homeAction: '返回首页',
     },
     home: {
-      documentTitle: 'Vanilla Disintegrate · 面向 DOM 的灭霸响指特效',
-      title: '用灭霸响指',
-      accent: '删除任意元素',
+      documentTitle: 'Vanilla Disintegrate · DOM 元素删除与恢复粒子动画',
+      title: '为 DOM 元素制作',
+      accent: '删除与恢复动画',
       description:
-        '一款轻量的 TypeScript 库，可用灭霸响指效果删除和恢复任意 DOM 元素。可选择四种内置动画或创建自己的效果，无需 CSS，也不受框架限制。',
-      tryLabel: '在真实 DOM 中体验',
-      playgroundKicker: '实时灭霸响指',
-      playgroundTitle: '让它消失，再把它带回来。',
-      playgroundDescription: '每张卡片都是真实 DOM 元素。选择动画、删除卡片，再从下方列表恢复同一个节点。',
-      customKicker: '自定义效果',
-      customTitle: '创造你的响指效果。',
-      customDescription: '这个粒子漩涡完全由用户自定义。试着删除和恢复卡片，再查看效果对的定义。',
-      codeLabel: '真实代码',
-      codeTitle: '一个效果，两段动画',
-      codeDescription: '分别定义元素消失和重新出现时发生的事情。',
-      customGuide: '构建自定义效果',
+        '一个轻量级 TypeScript 库，通过受经典灭霸响指效果启发的粒子动画来删除和恢复 DOM 元素。它适用于原生 JavaScript 和任何框架，无需运行时 CSS。',
+      descriptionHighlight: '灭霸响指效果',
+      tryLabel: '在游乐场中构建效果',
+      playgroundKicker: '交互式游乐场',
+      playgroundTitle: '创建你的效果',
+      playgroundDescription: '从预设开始，分别调整删除和恢复，预览两个方向，然后复制可直接使用的 TypeScript。',
+      playgroundDescriptionHighlight: '复制可直接使用的 TypeScript',
       openGuide: '打开指南',
       docsKicker: '文档',
-      docsTitle: '从简单开始，需要时再深入。',
-      docsDescription: '先调用一次 remove()，再了解恢复、撤销、快照预处理和自定义效果。',
+      docsTitle: '接入你的项目',
+      docsDescription: '从安装和内置预设开始，再添加恢复、撤销、后台准备或自定义渲染器。',
     },
   },
   ko: {
@@ -216,6 +202,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     reference: 'API 레퍼런스',
     menu: '탐색 열기',
     githubStarPrompt: 'Vanilla Disintegrate가 마음에 드신다면 GitHub에 🌟 스타를 눌러 주세요.',
+    sponsor: '후원',
+    theme: { label: '테마', system: '시스템', light: '라이트', dark: '다크' },
     close: '닫기',
     onThisPage: '이 페이지에서',
     previous: '이전',
@@ -234,28 +222,23 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       homeAction: '홈으로 가기',
     },
     home: {
-      documentTitle: 'Vanilla Disintegrate · DOM을 위한 타노스 스냅 효과',
-      title: '타노스의 핑거 스냅으로',
-      accent: '어떤 요소든 삭제하세요',
+      documentTitle: 'Vanilla Disintegrate · DOM 삭제 및 복원 파티클 애니메이션',
+      title: 'DOM 요소의 삭제와',
+      accent: '복원을 애니메이션으로',
       description:
-        '타노스 스냅 효과로 모든 DOM 요소를 삭제하고 복원하는 가벼운 TypeScript 라이브러리입니다. 네 가지 내장 애니메이션을 사용하거나 CSS와 프레임워크 제약 없이 직접 만들 수 있습니다.',
-      tryLabel: '실제 DOM에서 체험하기',
-      playgroundKicker: '실시간 타노스 스냅',
-      playgroundTitle: '사라지게 하고, 다시 불러오세요.',
+        '익숙한 타노스 스냅 효과에서 영감을 받은 파티클 애니메이션으로 DOM 요소를 삭제하고 복원하는 가벼운 TypeScript 라이브러리입니다. 순수 JavaScript와 모든 프레임워크에서 런타임 CSS 없이 사용할 수 있습니다.',
+      descriptionHighlight: '타노스 스냅 효과',
+      tryLabel: '플레이그라운드에서 효과 만들기',
+      playgroundKicker: '인터랙티브 플레이그라운드',
+      playgroundTitle: '나만의 효과를 만드세요',
       playgroundDescription:
-        '각 카드는 실제 DOM 요소입니다. 애니메이션을 고르고 카드를 삭제한 다음 아래 목록에서 같은 노드를 복원하세요.',
-      customKicker: '사용자 효과',
-      customTitle: '나만의 스냅을 만드세요.',
-      customDescription:
-        '이 파티클 소용돌이는 완전한 사용자 애니메이션입니다. 카드를 삭제하고 복원한 뒤 효과 쌍의 정의를 살펴보세요.',
-      codeLabel: '실제 코드',
-      codeTitle: '효과 하나, 애니메이션 두 개',
-      codeDescription: '요소가 사라질 때와 돌아올 때의 동작을 각각 정의합니다.',
-      customGuide: '사용자 효과 만들기',
+        '프리셋에서 시작해 삭제와 복원을 각각 조정하고 두 방향을 미리 본 뒤 바로 사용할 TypeScript를 복사하세요.',
+      playgroundDescriptionHighlight: '바로 사용할 TypeScript를 복사하세요',
       openGuide: '가이드 열기',
       docsKicker: '문서',
-      docsTitle: '간단하게 시작하고 필요할 때 확장하세요.',
-      docsDescription: 'remove() 한 번으로 시작한 뒤 복원, 실행 취소, 스냅샷 준비, 사용자 효과를 익혀 보세요.',
+      docsTitle: '프로젝트에 연결하세요',
+      docsDescription:
+        '설치와 내장 프리셋으로 시작한 뒤 복원, 실행 취소, 백그라운드 준비 또는 사용자 렌더러를 추가하세요.',
     },
   },
 };

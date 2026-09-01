@@ -8,13 +8,15 @@ describe('option resolvers', () => {
     const particles = resolveParticles({
       duration: -1,
       horizontalTravel: [280, 120],
-      rise: [80, Number.NaN],
+      verticalTravel: [80, Number.NaN],
+      convergence: 2,
       swirl: -10,
     });
 
     expect(particles.duration).toBe(0);
     expect(particles.horizontalTravel).toEqual([120, 280]);
-    expect(particles.rise).toEqual([80, 100]);
+    expect(particles.verticalTravel).toEqual([-45, 80]);
+    expect(particles.convergence).toBe(1);
     expect(particles.swirl).toBe(0);
   });
 
@@ -36,10 +38,10 @@ describe('option resolvers', () => {
     });
   });
 
-  it('prepares enabled audio immediately with a bounded decoded cache', () => {
+  it('prepares enabled audio during idle time with a bounded decoded cache', () => {
     expect(resolveAudioPreparation(undefined)).toMatchObject({
       enabled: true,
-      strategy: 'immediate',
+      strategy: 'idle',
       cacheByteBudget: 8 * 1024 * 1024,
     });
     expect(resolveAudioPreparation(false).enabled).toBe(false);

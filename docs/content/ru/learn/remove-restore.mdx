@@ -15,7 +15,6 @@ order: 30
 
 ```ts
 const operation = effects.remove(element, {
-  effect: 'dust',
   retain: false,
   layout: true,
 });
@@ -32,9 +31,7 @@ const result = await operation.finished;
 ```ts
 container.append(element);
 
-const operation = effects.restore(element, {
-  effect: 'dust',
-});
+const operation = effects.restore(element);
 
 await operation.finished;
 ```
@@ -43,16 +40,16 @@ await operation.finished;
 
 Скрытие сделано приостановленной Web Animation, а не инлайновым стилем, поэтому переживает смену классов и стилей во время эффекта. Из каскада CSS следует одно ограничение: авторское объявление с `!important` приоритетнее анимаций, поэтому правило вида `.card { opacity: 1 !important }` на цели восстановления оставит живой элемент видимым под слоем частиц. Помогает убрать `!important` с цели либо восстанавливать обёртку без этого объявления.
 
-## Совершенно новый элемент
+## Анимация появления нового элемента
 
-Предварительное удаление не требуется: `restore()` также работает как entrance-анимация.
+`restore()` можно использовать для анимации появления нового элемента. Сначала добавьте его в DOM, затем вызовите `restore()` — предварительно вызывать `remove()` не нужно.
 
 ```ts
 const message = document.createElement('aside');
 message.textContent = 'Создан только что';
 notifications.append(message);
 
-effects.restore(message, { effect: 'vapor' });
+effects.restore(message, { preset: 'vapor' });
 ```
 
 ## Объект операции
@@ -86,6 +83,7 @@ result.status; // 'completed' | 'cancelled' | 'skipped' | 'rejected'
 
 ```ts
 const effects = new Disintegrator({
+  preset: 'dust',
   onError(error, context) {
     console.error(context.operation, error);
   },

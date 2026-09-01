@@ -5,12 +5,18 @@ export type EffectTargets = EffectTarget | Iterable<HTMLElement>;
 
 /** The content operation currently being animated. */
 export type EffectOperationKind = 'remove' | 'restore';
-/** Names of the effects bundled with the package. */
-export type BuiltInEffect = 'dust' | 'vapor' | 'scatter' | 'wind';
-/** Horizontal origin used to distribute built-in particles. */
-export type DisintegrationOrigin = 'left' | 'right' | 'random';
-/** Particle movement profile used by the built-in WebGL renderer. */
-export type ParticleMotion = 'dust' | 'vapor' | 'scatter' | 'wind';
+/** Names of the complete visual-and-audio presets bundled with the package. */
+export type BuiltInPreset = 'dust' | 'scatter' | 'vapor' | 'wind';
+/** Names of the audio sources bundled independently from particle effects. */
+export type BuiltInSound = BuiltInPreset;
+/** How particles are released across the captured element. */
+export type ParticleRelease = 'left' | 'right' | 'top' | 'random';
+/**
+ * Easing curve the built-in WebGL renderer applies to particle travel. It shapes
+ * how a particle accelerates and fades, and is independent of the geometry
+ * options below, which decide where it goes.
+ */
+export type ParticleCurve = 'settle' | 'float' | 'burst' | 'drift';
 
 declare const removalIdBrand: unique symbol;
 /** Opaque identifier returned by `remove()` when `retain: true` is selected. */
@@ -34,8 +40,8 @@ export type SnapshotCapture = (
 
 /** Controls the built-in particle renderer returned by `createParticleAnimation()`. */
 export interface ParticleOptions {
-  /** Motion profile. Defaults to `dust`. */
-  readonly motion?: ParticleMotion;
+  /** Travel curve. Defaults to `settle`. */
+  readonly curve?: ParticleCurve;
   /** Base animation duration in milliseconds. */
   readonly duration?: number;
   /** Maximum per-particle start delay in milliseconds. */
@@ -44,15 +50,20 @@ export interface ParticleOptions {
   readonly horizontalDrift?: number;
   /** Minimum and maximum horizontal travel in CSS pixels. */
   readonly horizontalTravel?: readonly [number, number];
-  /** Minimum and maximum upward travel in CSS pixels. */
-  readonly rise?: readonly [number, number];
+  /** Minimum and maximum vertical travel in CSS pixels. Negative values move upward. */
+  readonly verticalTravel?: readonly [number, number];
+  /** Pull toward the element's horizontal center, from `0` to `1`. */
+  readonly convergence?: number;
   /** Vertical oscillation amplitude in CSS pixels. */
   readonly swirl?: number;
   /** Particle scale at the end of its movement. */
   readonly endScale?: number;
-  /** Where the particle threshold starts: left, right or random. */
-  readonly origin?: DisintegrationOrigin;
+  /** How particles are released across the element. Defaults to `left`. */
+  readonly release?: ParticleRelease;
 }
+
+/** A complete, reusable particle configuration such as an entry in `particlePresets`. */
+export type ParticlePreset = Required<ParticleOptions>;
 
 /** A cancellable result returned by a custom effect renderer. */
 export interface AnimationPlayback {
@@ -100,12 +111,12 @@ export interface AnimationContext {
 /** Creates the visual part of one remove or restore phase. */
 export type AnimationFactory = (context: AnimationContext) => AnimationResult;
 
-/** Native audio data or a URL accepted by the Web Audio loader. */
-export type SoundSource = string | URL | ArrayBuffer | AudioBuffer;
+/** Native audio data, a built-in name, a local file, encoded bytes, or a URL accepted by the audio loader. */
+export type SoundSource = BuiltInSound | (string & {}) | URL | Blob | ArrayBuffer | ArrayBufferView | AudioBuffer;
 
 /** Playback settings for a sound source. */
 export interface SoundOptions {
-  /** URL or decoded audio data to play. */
+  /** URL, local Blob/File, encoded bytes, or decoded audio data to play. */
   readonly src: SoundSource;
   /**
    * Plays the decoded source backwards, aligned so its final moment lands on the
@@ -114,15 +125,15 @@ export interface SoundOptions {
    * its own `src` keeps working.
    */
   readonly reverse?: boolean;
-  /** Linear output gain from `0` to `1`. Defaults to `0.32`. */
-  readonly gain?: number;
-  /** Optional source duration in seconds. */
+  /** Linear output volume from `0` to `1`. Defaults to `1`. */
+  readonly volume?: number;
+  /** Optional source duration in seconds. Defaults to the visual duration, capped by the source length. */
   readonly duration?: number;
-  /** Fade duration in seconds: applied on the way out, or on the way in when `reverse` is set. */
+  /** Fade duration in seconds: applied on the way out, or on the way in when reversed. Defaults to `0`. */
   readonly fadeDuration?: number;
-  /** Start delay in milliseconds. */
+  /** Start delay in milliseconds. Defaults to `0`. */
   readonly delay?: number;
-  /** Playback speed multiplier. */
+  /** Playback speed multiplier. Defaults to `1`. */
   readonly playbackRate?: number;
 }
 
@@ -148,8 +159,20 @@ export interface SoundPlayback {
 
 /** Creates a custom sound player for a remove or restore phase. */
 export type SoundFactory = (context: SoundContext) => SoundPlayback | PromiseLike<SoundPlayback | void> | void;
-/** A sound source, its playback options, or a custom player factory. */
-export type SoundDefinition = SoundSource | SoundOptions | SoundFactory;
+/** Explicit native playback settings or a custom player factory. */
+export type SoundDefinition = SoundOptions | SoundFactory;
+
+/** Independent sounds for removal and restoration. At least one operation must be configured. */
+export type SoundPair =
+  | { readonly remove: SoundDefinition; readonly restore?: SoundDefinition | false }
+  | { readonly remove?: SoundDefinition | false; readonly restore: SoundDefinition };
+
+/** Complete, independently configurable audio for removal and restoration. */
+export type SoundSelection = SoundPair;
+
+/** One or more sound selections accepted by explicit and automatic preparation. */
+export type SoundPreparationSelection =
+  SoundDefinition | SoundSelection | readonly (false | SoundDefinition | SoundSelection)[];
 
 /** One direction of a paired effect. */
 export interface EffectPhase {
@@ -157,20 +180,26 @@ export interface EffectPhase {
   readonly needsSnapshot?: boolean;
   /** Creates the visual animation for this phase. */
   readonly animate: AnimationFactory;
-  /** Sound played for this phase when audio is enabled; `null` keeps it silent. */
-  readonly sound?: SoundDefinition | null;
 }
 
 /** A paired deletion and restoration effect. */
 export interface EffectDefinition {
-  /** Visual and audio behavior used by `remove()`. */
+  /** Visual behavior used by `remove()`. */
   readonly remove: EffectPhase;
-  /** Visual and audio behavior used by `restore()`. */
+  /** Visual behavior used by `restore()`. */
   readonly restore: EffectPhase;
 }
 
-/** A built-in name, a registered custom name, or an inline paired effect. */
-export type EffectSelection = BuiltInEffect | (string & {}) | EffectDefinition;
+/** A reusable combination of visual behavior and independent remove/restore audio. */
+export interface PresetDefinition {
+  /** Paired visual behavior. */
+  readonly effect: EffectDefinition;
+  /** Complete paired audio behavior. */
+  readonly sound: SoundSelection;
+}
+
+/** A registered preset name or an inline complete preset. */
+export type PresetSelection = BuiltInPreset | (string & {}) | PresetDefinition;
 
 /** Chooses which siblings participate in a removal layout animation. */
 export type LayoutSiblingResolver = (element: HTMLElement, container: HTMLElement) => HTMLElement[];
@@ -199,10 +228,10 @@ export type AudioPreparationStrategy = 'immediate' | 'idle';
 
 /** Controls automatic audio preparation and the decoded-buffer cache. */
 export interface AudioPreparationOptions {
-  /** Starts preparation now or when the browser is idle. Defaults to `immediate`. */
+  /** Starts preparation now or when the browser is idle. Defaults to `idle`. */
   readonly strategy?: AudioPreparationStrategy;
-  /** Effects to prepare instead of only the instance's default effect. */
-  readonly effects?: EffectSelection | readonly EffectSelection[];
+  /** Sounds to prepare instead of only the instance's default sound selection. */
+  readonly sounds?: SoundPreparationSelection;
   /** Per-instance LRU capacity for owned decoded PCM data. Defaults to 8 MiB. */
   readonly cacheByteBudget?: number;
 }
@@ -275,16 +304,12 @@ export interface EffectCallbacks {
   onError?: (error: unknown, context: EffectErrorContext) => void;
 }
 
-/** Instance-wide defaults and infrastructure adapters. */
-export interface DisintegratorOptions extends EffectCallbacks {
+/** Infrastructure and lifecycle options shared by every instance configuration. */
+export interface DisintegratorBaseOptions extends EffectCallbacks {
   /** Canvas capture adapter. Required by every snapshot-based effect. */
   readonly capture?: SnapshotCapture;
-  /** Default effect used when an operation does not choose one. */
-  readonly effect?: EffectSelection;
-  /** Custom effects addressable by name through `effect`. */
-  readonly effects?: Readonly<Record<string, EffectDefinition>>;
-  /** `true` uses phase sounds, `false` disables sound, and a definition overrides every phase. */
-  readonly sound?: boolean | SoundDefinition;
+  /** Custom complete presets addressable by name through `preset`. */
+  readonly presets?: Readonly<Record<string, PresetDefinition>>;
   /** Enables or configures reflow animation for remove operations. */
   readonly layout?: boolean | LayoutOptions;
   /** Configures background snapshot caching. Registered elements use `visible-idle` by default. */
@@ -301,16 +326,56 @@ export interface DisintegratorOptions extends EffectCallbacks {
   readonly random?: () => number;
 }
 
-/** Per-operation overrides shared by `remove()` and `restore()`. */
-export interface OperationOptions extends EffectCallbacks {
-  /** Effect name or inline paired effect for this operation. */
-  readonly effect?: EffectSelection;
-  /** Enables, disables or replaces sound for this operation. */
-  readonly sound?: boolean | SoundDefinition;
-}
+/**
+ * Instance configuration. Choose an immutable complete preset, or configure a
+ * custom visual effect whose audio is silent until explicitly provided.
+ */
+export type DisintegratorOptions = DisintegratorBaseOptions &
+  (
+    | {
+        /** Complete visual-and-audio configuration. */
+        readonly preset: PresetSelection;
+        readonly effect?: never;
+        /** Explicitly mutes the otherwise complete preset. */
+        readonly sound?: false;
+      }
+    | {
+        readonly preset?: never;
+        /** Complete custom visual behavior. String preset names are not accepted here. */
+        readonly effect: EffectDefinition;
+        /** Complete custom audio. Omit it or pass `false` for silence. */
+        readonly sound?: false | SoundSelection;
+      }
+  );
+
+/** Per-operation configuration shared by `remove()` and `restore()`. */
+export type OperationOptions = EffectCallbacks &
+  (
+    | {
+        /** Selects another complete preset for this operation. */
+        readonly preset: PresetSelection;
+        readonly effect?: never;
+        /** Explicitly mutes this operation. */
+        readonly sound?: false;
+      }
+    | {
+        readonly preset?: never;
+        /** Selects a complete custom visual effect for this operation. */
+        readonly effect: EffectDefinition;
+        /** Configures audio for this operation. Omit it or pass `false` for silence. */
+        readonly sound?: false | SoundDefinition;
+      }
+    | {
+        /** Inherits the instance or retained-node presentation. */
+        readonly preset?: never;
+        readonly effect?: never;
+        /** May only mute inherited audio without replacing its configuration. */
+        readonly sound?: false;
+      }
+  );
 
 /** Options specific to `remove()`. */
-export interface RemoveOptions extends OperationOptions {
+export type RemoveOptions = OperationOptions & {
   /** Keeps the detached original node under a `RemovalId` for a later `take()`. Defaults to `false`. */
   readonly retain?: boolean;
   /** Enables or overrides reflow animation for this removal. */
@@ -320,7 +385,7 @@ export interface RemoveOptions extends OperationOptions {
    * this hook to update their own state and remain the owner of the DOM node.
    */
   readonly detach?: (element: HTMLElement) => void;
-}
+};
 
 /** Options specific to `restore()`. */
 export type RestoreOptions = OperationOptions;

@@ -217,10 +217,13 @@ const createVortexTone: SoundFactory = ({ operation, signal }) => {
 export const particleVortex = defineEffect({
   remove: {
     animate: createVortexParticles('collapse'),
-    sound: createVortexTone,
   },
   restore: {
     animate: createVortexParticles('expand'),
-    sound: createVortexTone,
   },
+});
+
+export const particleVortexSounds = Object.freeze({
+  remove: createVortexTone,
+  restore: createVortexTone,
 });

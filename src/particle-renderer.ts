@@ -39,9 +39,14 @@ interface CompiledParticlePrograms {
   readonly baseUniforms: BaseUniforms;
   readonly baseVao: WebGLVertexArrayObject;
   readonly particle: WebGLProgram;
+  readonly particleAttributes: readonly ParticleAttribute[];
   readonly particleUniforms: ParticleUniforms;
   readonly particleVao: WebGLVertexArrayObject;
 }
+
+type ParticleAttribute = readonly [location: number, size: number, offset: number];
+
+type ParticleDraw = readonly [buffer: WebGLBuffer | null, count: number, vao: WebGLVertexArrayObject];
 
 interface RendererContext {
   readonly canvas: HTMLCanvasElement;
@@ -88,12 +93,20 @@ interface RenderBounds {
 
 const PARTICLE_STRIDE = 7;
 const PARTICLE_BUDGET = 180_000;
+// Safari's Metal-backed POINTS path silently stops consuming interleaved
+// attributes beyond this many records in one vertex buffer.
+const PARTICLES_PER_BUFFER = 32_768;
+const MAX_RENDERER_CONTEXTS = 4;
 const MAX_IDLE_CONTEXTS = 2;
+const MAX_SOURCE_PIXELS = 2_000_000;
+const MAX_SOURCE_DIMENSION = 2048;
+const MAX_RENDER_PIXELS = 4_000_000;
 const CONTEXT_IDLE_TTL = 30_000;
 const TRANSITION_WIDTH = 0.018;
 const LAYOUT_RELEASE_FRACTION = 0.6;
 const MIN_THRESHOLD = 0.025;
 const MAX_THRESHOLD = 0.68;
+const CONVERGENCE_FACTOR = 0.58;
 const QUAD_VERTICES = new Float32Array([0, 0, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1]);
 const WEBGL_CONTEXT_ATTRIBUTES: WebGLContextAttributes = {
   alpha: true,
@@ -130,15 +143,20 @@ uniform highp vec2 u_source_size;
 uniform highp float u_block_size;
 uniform float u_progress;
 uniform float u_transition;
-in vec2 v_uv;
+// The vertex stage produces this at highp; mediump here would round the scaled
+// coordinate by up to a pixel and pick the neighbouring threshold block.
+in highp vec2 v_uv;
 out vec4 out_color;
 
 void main() {
   vec4 color = texture(u_source, v_uv);
   ivec2 threshold_size = textureSize(u_thresholds, 0);
   vec2 source_pixel = min(floor(v_uv * u_source_size), u_source_size - vec2(1.0));
-  ivec2 threshold_pixel = min(ivec2(source_pixel / u_block_size), threshold_size - ivec2(1));
-  float threshold = texelFetch(u_thresholds, threshold_pixel, 0).r;
+  ivec2 threshold_pixel = clamp(ivec2(source_pixel / u_block_size), ivec2(0), threshold_size - ivec2(1));
+  // Sampled at a texel centre rather than with texelFetch: Gecko returns 0 for some
+  // texels of this texture, which fades blocks that should still be intact. The
+  // sampler is NEAREST, so this reads exactly the same texel on every engine.
+  float threshold = texture(u_thresholds, (vec2(threshold_pixel) + 0.5) / vec2(threshold_size)).r;
   float intact = smoothstep(u_progress - u_transition, u_progress + u_transition, threshold);
   out_color = color * intact;
 }
@@ -194,15 +212,20 @@ uniform highp vec2 u_source_size;
 uniform highp float u_block_size;
 uniform float u_progress;
 uniform float u_transition;
-in vec2 v_uv;
+// The vertex stage produces this at highp; mediump here would round the scaled
+// coordinate by up to a pixel and pick the neighbouring threshold block.
+in highp vec2 v_uv;
 out vec4 out_color;
 
 void main() {
   vec4 color = texture(u_source, v_uv);
   ivec2 threshold_size = textureSize(u_thresholds, 0);
   vec2 source_pixel = min(floor(v_uv * u_source_size), u_source_size - vec2(1.0));
-  ivec2 threshold_pixel = min(ivec2(source_pixel / u_block_size), threshold_size - ivec2(1));
-  float threshold = texelFetch(u_thresholds, threshold_pixel, 0).r;
+  ivec2 threshold_pixel = clamp(ivec2(source_pixel / u_block_size), ivec2(0), threshold_size - ivec2(1));
+  // Sampled at a texel centre rather than with texelFetch: Gecko returns 0 for some
+  // texels of this texture, which fades blocks that should still be intact. The
+  // sampler is NEAREST, so this reads exactly the same texel on every engine.
+  float threshold = texture(u_thresholds, (vec2(threshold_pixel) + 0.5) / vec2(threshold_size)).r;
   float arrival = 1.0 - threshold;
   float assembled = smoothstep(arrival - u_transition, arrival + u_transition, u_progress);
   out_color = color * assembled;
@@ -256,8 +279,8 @@ void main() {
 const PARTICLE_FRAGMENT_SHADER = `#version 300 es
 precision mediump float;
 uniform sampler2D u_source;
-in vec2 v_uv_origin;
-in vec2 v_uv_size;
+in highp vec2 v_uv_origin;
+in highp vec2 v_uv_size;
 in float v_alpha;
 out vec4 out_color;
 
@@ -283,15 +306,15 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function resolveMotion(motion: ResolvedParticleOptions['motion']) {
-  switch (motion) {
-    case 'vapor':
+function resolveCurve(curve: ResolvedParticleOptions['curve']) {
+  switch (curve) {
+    case 'float':
       return { curveMix: 0.85, fadeStart: 0.3, motionPower: 2.2, waveTurns: 1.6 };
-    case 'scatter':
+    case 'burst':
       return { curveMix: 0.45, fadeStart: 0.12, motionPower: 4, waveTurns: 1 };
-    case 'wind':
+    case 'drift':
       return { curveMix: 0, fadeStart: 0.32, motionPower: 2.2, waveTurns: 1.25 };
-    case 'dust':
+    case 'settle':
     default:
       return { curveMix: 0, fadeStart: 0.3, motionPower: 3, waveTurns: 1 };
   }
@@ -339,12 +362,15 @@ function createTexture(gl: WebGL2RenderingContext, source: HTMLCanvasElement) {
   const texture = gl.createTexture();
   if (texture === null) throw new Error('Unable to create the snapshot texture.');
   gl.bindTexture(gl.TEXTURE_2D, texture);
+  // Global unpack state: it is reset after this upload so the threshold texture,
+  // which is raw bytes rather than a DOM element, is not unpacked through it.
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, source);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
   return texture;
 }
 
@@ -353,6 +379,7 @@ function createThresholdTexture(gl: WebGL2RenderingContext, width: number, heigh
   if (texture === null) throw new Error('Unable to create the particle threshold texture.');
   gl.bindTexture(gl.TEXTURE_2D, texture);
   gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -385,6 +412,21 @@ function deleteCompiledPrograms(gl: WebGL2RenderingContext, programs: CompiledPa
   gl.deleteProgram(programs.particle);
 }
 
+function bindParticleAttributes(gl: WebGL2RenderingContext, attributes: readonly ParticleAttribute[]) {
+  const stride = PARTICLE_STRIDE * Float32Array.BYTES_PER_ELEMENT;
+  for (const attribute of attributes) {
+    gl.enableVertexAttribArray(attribute[0]);
+    gl.vertexAttribPointer(
+      attribute[0],
+      attribute[1],
+      gl.FLOAT,
+      false,
+      stride,
+      attribute[2] * Float32Array.BYTES_PER_ELEMENT,
+    );
+  }
+}
+
 function compileParticlePrograms(context: RendererContext, sources: ParticlePrograms) {
   const cached = context.programs.get(sources.key);
   if (cached !== undefined) return cached;
@@ -409,7 +451,6 @@ function compileParticlePrograms(context: RendererContext, sources: ParticleProg
 
     gl.bindVertexArray(particleVao);
     gl.bindBuffer(gl.ARRAY_BUFFER, context.particleBuffer);
-    const stride = PARTICLE_STRIDE * Float32Array.BYTES_PER_ELEMENT;
     const attributes = [
       [attributeLocation(gl, particle, 'a_source'), 2, 0],
       [attributeLocation(gl, particle, 'a_threshold'), 1, 2],
@@ -417,10 +458,7 @@ function compileParticlePrograms(context: RendererContext, sources: ParticleProg
       [attributeLocation(gl, particle, 'a_swirl'), 1, 5],
       [attributeLocation(gl, particle, 'a_phase'), 1, 6],
     ] as const;
-    for (const [location, size, offset] of attributes) {
-      gl.enableVertexAttribArray(location);
-      gl.vertexAttribPointer(location, size, gl.FLOAT, false, stride, offset * Float32Array.BYTES_PER_ELEMENT);
-    }
+    bindParticleAttributes(gl, attributes);
     gl.bindVertexArray(null);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 
@@ -438,6 +476,7 @@ function compileParticlePrograms(context: RendererContext, sources: ParticleProg
         transition: gl.getUniformLocation(base, 'u_transition'),
       },
       particle,
+      particleAttributes: attributes,
       particleVao,
       particleUniforms: {
         blockSize: gl.getUniformLocation(particle, 'u_block_size'),
@@ -466,6 +505,37 @@ function compileParticlePrograms(context: RendererContext, sources: ParticleProg
     gl.bindVertexArray(null);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
   }
+}
+
+function createParticleDraws(
+  gl: WebGL2RenderingContext,
+  sharedBuffer: WebGLBuffer,
+  sharedVao: WebGLVertexArrayObject,
+  attributes: readonly ParticleAttribute[],
+  data: Float32Array,
+): ParticleDraw[] {
+  const particleCount = data.length / PARTICLE_STRIDE;
+  const draws: ParticleDraw[] = [];
+  for (let offset = 0; offset < particleCount; offset += PARTICLES_PER_BUFFER) {
+    const buffer = offset === 0 ? sharedBuffer : gl.createBuffer();
+    const vao = offset === 0 ? sharedVao : gl.createVertexArray();
+    if (buffer === null || vao === null) throw new Error('Unable to create WebGL particle buffers.');
+    const count = Math.min(PARTICLES_PER_BUFFER, particleCount - offset);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      data.subarray(offset * PARTICLE_STRIDE, (offset + count) * PARTICLE_STRIDE),
+      gl.STATIC_DRAW,
+    );
+    if (offset !== 0) {
+      gl.bindVertexArray(vao);
+      bindParticleAttributes(gl, attributes);
+    }
+    draws.push([offset === 0 ? null : buffer, count, vao]);
+  }
+  gl.bindVertexArray(null);
+  gl.bindBuffer(gl.ARRAY_BUFFER, null);
+  return draws;
 }
 
 function createRendererContext(ownerDocument: Document): RendererContext | null {
@@ -554,7 +624,6 @@ class RendererContextPool {
   private readonly contexts = new Set<RendererContext>();
   private readonly idle: RendererContext[] = [];
   private readonly ownerWindow: Window;
-  private cancelPrewarm: (() => void) | null = null;
 
   constructor(private readonly ownerDocument: Document) {
     const ownerWindow = ownerDocument.defaultView;
@@ -564,8 +633,6 @@ class RendererContextPool {
   }
 
   acquire() {
-    this.cancelPrewarm?.();
-    this.cancelPrewarm = null;
     while (this.idle.length > 0) {
       const context = this.idle.pop();
       if (context === undefined) break;
@@ -577,26 +644,10 @@ class RendererContextPool {
       this.destroy(context);
     }
 
+    if (this.contexts.size >= MAX_RENDERER_CONTEXTS) return null;
     const context = createRendererContext(this.ownerDocument);
     if (context !== null) this.contexts.add(context);
     return context;
-  }
-
-  prewarm() {
-    if (this.cancelPrewarm !== null || this.contexts.size > 0) return;
-    this.cancelPrewarm = scheduleIdle(this.ownerWindow, () => {
-      this.cancelPrewarm = null;
-      const context = createRendererContext(this.ownerDocument);
-      if (context === null) return;
-      this.contexts.add(context);
-      try {
-        compileParticlePrograms(context, REMOVE_PROGRAMS);
-        compileParticlePrograms(context, RESTORE_PROGRAMS);
-        this.release(context);
-      } catch {
-        this.destroy(context);
-      }
-    });
   }
 
   release(context: RendererContext) {
@@ -650,8 +701,6 @@ class RendererContextPool {
   }
 
   private readonly destroyAll = () => {
-    this.cancelPrewarm?.();
-    this.cancelPrewarm = null;
     for (const context of [...this.contexts]) this.destroy(context);
     this.ownerWindow.removeEventListener('pagehide', this.destroyAll);
     contextPools.delete(this.ownerDocument);
@@ -672,28 +721,19 @@ function acquireRendererContext(ownerDocument: Document) {
   return { context: pool.acquire(), pool };
 }
 
-function prewarmRendererContext() {
-  if (typeof document === 'undefined' || document.defaultView === null) return;
-  rendererContextPool(document).prewarm();
-}
-
 function createBounds(
-  snapshot: HTMLCanvasElement,
+  source: Pick<HTMLCanvasElement, 'width' | 'height'>,
   rect: DOMRectReadOnly,
   particles: ResolvedParticleOptions,
 ): RenderBounds {
-  const scaleX = snapshot.width / rect.width;
-  const scaleY = snapshot.height / rect.height;
+  const scaleX = source.width / rect.width;
+  const scaleY = source.height / rect.height;
   const drift = particles.horizontalDrift * 0.5;
-  const isScatter = particles.motion === 'scatter';
-  const horizontalExtent =
-    Math.max(Math.abs(particles.horizontalTravel[0]), Math.abs(particles.horizontalTravel[1])) + drift;
-  const minX = isScatter ? -horizontalExtent : Math.min(0, particles.horizontalTravel[0] - drift);
-  const maxX = isScatter ? horizontalExtent : Math.max(0, particles.horizontalTravel[1] + drift);
-  const minY = isScatter
-    ? -particles.rise[1] * 0.75 - particles.swirl
-    : Math.min(0, -particles.rise[1] - particles.swirl);
-  const maxY = isScatter ? particles.rise[1] * 0.3 + particles.swirl : Math.max(0, particles.swirl);
+  const convergence = rect.width * particles.convergence * CONVERGENCE_FACTOR * 0.5;
+  const minX = Math.min(0, particles.horizontalTravel[0] - drift - convergence);
+  const maxX = Math.max(0, particles.horizontalTravel[1] + drift + convergence);
+  const minY = Math.min(0, particles.verticalTravel[0] - particles.swirl);
+  const maxY = Math.max(0, particles.verticalTravel[1] + particles.swirl);
   const padding = Math.max(8, Math.min(rect.width, rect.height) * 0.04);
   const left = minX - padding;
   const top = minY - padding;
@@ -709,14 +749,42 @@ function createBounds(
   };
 }
 
-function resolveThreshold(particles: ResolvedParticleOptions, column: number, row: number, noise: number) {
-  if (particles.motion === 'vapor') {
-    // Noise dominates so no geometric front forms; the row bias releases the top first.
-    return 0.04 + row * 0.12 + noise * 0.62;
+function resolveSourceSize(width: number, height: number, rect: DOMRectReadOnly, particles: ResolvedParticleOptions) {
+  let scale = Math.min(
+    1,
+    MAX_SOURCE_DIMENSION / width,
+    MAX_SOURCE_DIMENSION / height,
+    Math.sqrt(MAX_SOURCE_PIXELS / (width * height)),
+  );
+  let size = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
+  const bounds = createBounds(size, rect, particles);
+  const renderPixels = Math.ceil(bounds.cssWidth * bounds.scaleX) * Math.ceil(bounds.cssHeight * bounds.scaleY);
+  if (renderPixels > MAX_RENDER_PIXELS) {
+    scale *= Math.sqrt(MAX_RENDER_PIXELS / renderPixels);
+    size = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
   }
+  return size;
+}
 
-  const directional = particles.origin === 'right' ? 1 - column : column;
-  return particles.origin === 'random' ? noise : directional * 0.78 + noise * 0.22;
+function releaseReadback(canvas: HTMLCanvasElement) {
+  canvas.width = 0;
+  canvas.height = 0;
+  canvas.remove();
+}
+
+function resolveThreshold(particles: ResolvedParticleOptions, column: number, row: number, noise: number) {
+  switch (particles.release) {
+    case 'top':
+      // Noise dominates so no hard geometric front forms; the row bias releases the top first.
+      return 0.04 + row * 0.12 + noise * 0.62;
+    case 'right':
+      return (1 - column) * 0.78 + noise * 0.22;
+    case 'random':
+      return noise;
+    case 'left':
+    default:
+      return column * 0.78 + noise * 0.22;
+  }
 }
 
 export function createParticleField(
@@ -759,7 +827,9 @@ export function createParticleField(
   const data = new Float32Array(particleCount * PARTICLE_STRIDE);
   const thresholdMap = new Uint8Array(blockCount);
   const visibleThresholds = new Uint32Array(256);
-  let dataOffset = 0;
+  // Safari's WebGL backend can draw a phantom strip for large, ascending source rows.
+  // Write the same records in reverse order without allocating or traversing another buffer.
+  let dataOffset = data.length - PARTICLE_STRIDE;
 
   for (let blockY = 0; blockY < thresholdHeight; blockY += 1) {
     const y = blockY * blockSize;
@@ -782,13 +852,13 @@ export function createParticleField(
         particles.horizontalTravel[0] === particles.horizontalTravel[1]
           ? particles.horizontalTravel[0]
           : particles.horizontalTravel[0] + random() * (particles.horizontalTravel[1] - particles.horizontalTravel[0]);
-      const riseSpan = particles.rise[1] - particles.rise[0];
-      const riseAmount = particles.rise[0] + random() * riseSpan;
-      // Pull scales with height, so the plume keeps tapering as it lifts.
-      const riseFraction = riseSpan === 0 ? 1 : (riseAmount - particles.rise[0]) / riseSpan;
-      const vaporCenterPull = particles.motion === 'vapor' ? (0.5 - column) * width * (0.16 + riseFraction * 0.42) : 0;
-      const velocityX = (directedTravel + particles.horizontalDrift * (random() - 0.5)) * scaleX + vaporCenterPull;
-      const velocityY = (particles.motion === 'scatter' ? random() - 0.74 : -1) * riseAmount * scaleY;
+      const verticalTravel =
+        particles.verticalTravel[0] === particles.verticalTravel[1]
+          ? particles.verticalTravel[0]
+          : particles.verticalTravel[0] + random() * (particles.verticalTravel[1] - particles.verticalTravel[0]);
+      const centerPull = (0.5 - column) * width * particles.convergence * CONVERGENCE_FACTOR;
+      const velocityX = (directedTravel + particles.horizontalDrift * (random() - 0.5)) * scaleX + centerPull;
+      const velocityY = verticalTravel * scaleY;
       const swirl = particles.swirl * (0.45 + random() * 0.55) * scaleY;
       data[dataOffset] = x;
       data[dataOffset + 1] = y;
@@ -797,7 +867,7 @@ export function createParticleField(
       data[dataOffset + 4] = velocityY;
       data[dataOffset + 5] = swirl;
       data[dataOffset + 6] = random() * Math.PI * 2;
-      dataOffset += PARTICLE_STRIDE;
+      dataOffset -= PARTICLE_STRIDE;
     }
   }
 
@@ -826,26 +896,52 @@ function createParticleRenderer(
   programs: ParticlePrograms,
   random: () => number,
 ): ParticleRenderer | null {
-  const sourceContext = snapshot.getContext('2d', { willReadFrequently: true });
-  if (sourceContext === null || snapshot.width <= 0 || snapshot.height <= 0 || rect.width <= 0 || rect.height <= 0)
-    return null;
+  if (snapshot.width <= 0 || snapshot.height <= 0 || rect.width <= 0 || rect.height <= 0) return null;
 
-  const bounds = createBounds(snapshot, rect, particles);
-  const sourcePixels = sourceContext.getImageData(0, 0, snapshot.width, snapshot.height).data;
+  // Capture adapters may have created their 2D context without the readback hint.
+  // Reading such a reused canvas repeatedly makes Chromium switch its backing
+  // store and emit a warning. A short-lived CPU-backed canvas keeps the source
+  // snapshot reusable without retaining another full-size pixel buffer.
+  const readback = snapshot.ownerDocument.createElement('canvas');
+  const sourceSize = resolveSourceSize(snapshot.width, snapshot.height, rect, particles);
+  readback.width = sourceSize.width;
+  readback.height = sourceSize.height;
+  const readbackContext = readback.getContext('2d', { willReadFrequently: true });
+  if (readbackContext === null) {
+    releaseReadback(readback);
+    return null;
+  }
+  const sourcePixels = (() => {
+    try {
+      readbackContext.drawImage(snapshot, 0, 0, sourceSize.width, sourceSize.height);
+      return readbackContext.getImageData(0, 0, sourceSize.width, sourceSize.height).data;
+    } catch (error) {
+      releaseReadback(readback);
+      throw error;
+    }
+  })();
+
+  const bounds = createBounds(sourceSize, rect, particles);
   const field = createParticleField(
     sourcePixels,
-    snapshot.width,
-    snapshot.height,
+    sourceSize.width,
+    sourceSize.height,
     particles,
     bounds.scaleX,
     bounds.scaleY,
     random,
   );
-  if (field.data.length === 0) return null;
+  if (field.data.length === 0) {
+    releaseReadback(readback);
+    return null;
+  }
 
   const acquired = acquireRendererContext(snapshot.ownerDocument);
   const rendererContext = acquired.context;
-  if (rendererContext === null) return null;
+  if (rendererContext === null) {
+    releaseReadback(readback);
+    return null;
+  }
   const { canvas, gl } = rendererContext;
 
   try {
@@ -854,8 +950,9 @@ function createParticleRenderer(
     const maxTextureSize = Number(gl.getParameter(gl.MAX_TEXTURE_SIZE));
     const maxViewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array;
     if (
-      snapshot.width > maxTextureSize ||
-      snapshot.height > maxTextureSize ||
+      sourceSize.width > maxTextureSize ||
+      sourceSize.height > maxTextureSize ||
+      canvasWidth * canvasHeight > MAX_RENDER_PIXELS ||
       canvasWidth > (maxViewport[0] ?? maxTextureSize) ||
       canvasHeight > (maxViewport[1] ?? maxTextureSize)
     ) {
@@ -874,8 +971,16 @@ function createParticleRenderer(
     });
 
     const compiled = compileParticlePrograms(rendererContext, programs);
-    const { base, baseUniforms, baseVao, particle, particleUniforms, particleVao } = compiled;
-    const sourceTexture = createTexture(gl, snapshot);
+    const { base, baseUniforms, baseVao, particle, particleAttributes, particleUniforms, particleVao } = compiled;
+    const particleDraws = createParticleDraws(
+      gl,
+      rendererContext.particleBuffer,
+      particleVao,
+      particleAttributes,
+      field.data,
+    );
+    const sourceTexture = createTexture(gl, readback);
+    releaseReadback(readback);
     const thresholdTexture = createThresholdTexture(
       gl,
       field.thresholdWidth,
@@ -883,9 +988,6 @@ function createParticleRenderer(
       field.thresholdMap,
     );
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, rendererContext.particleBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, field.data, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -894,8 +996,8 @@ function createParticleRenderer(
 
     const canvasSize = [canvas.width, canvas.height] as const;
     const sourceOffset = [bounds.sourceX, bounds.sourceY] as const;
-    const sourceSize = [snapshot.width, snapshot.height] as const;
-    const motion = resolveMotion(particles.motion);
+    const textureSize = [sourceSize.width, sourceSize.height] as const;
+    const curve = resolveCurve(particles.curve);
 
     const bindTexture = (uniform: WebGLUniformLocation | null, texture: WebGLTexture, unit: number) => {
       gl.activeTexture(gl.TEXTURE0 + unit);
@@ -906,7 +1008,7 @@ function createParticleRenderer(
     gl.useProgram(base);
     gl.uniform2f(baseUniforms.canvasSize, ...canvasSize);
     gl.uniform2f(baseUniforms.sourceOffset, ...sourceOffset);
-    gl.uniform2f(baseUniforms.sourceSize, ...sourceSize);
+    gl.uniform2f(baseUniforms.sourceSize, ...textureSize);
     gl.uniform1f(baseUniforms.blockSize, field.blockSize);
     gl.uniform1f(baseUniforms.transition, TRANSITION_WIDTH);
     bindTexture(baseUniforms.source, sourceTexture, 0);
@@ -915,13 +1017,13 @@ function createParticleRenderer(
     gl.useProgram(particle);
     gl.uniform2f(particleUniforms.canvasSize, ...canvasSize);
     gl.uniform2f(particleUniforms.sourceOffset, ...sourceOffset);
-    gl.uniform2f(particleUniforms.textureSize, ...sourceSize);
+    gl.uniform2f(particleUniforms.textureSize, ...textureSize);
     gl.uniform1f(particleUniforms.blockSize, field.blockSize);
     gl.uniform1f(particleUniforms.endScale, particles.endScale);
-    gl.uniform1f(particleUniforms.curveMix, motion.curveMix);
-    gl.uniform1f(particleUniforms.motionPower, motion.motionPower);
-    gl.uniform1f(particleUniforms.fadeStart, motion.fadeStart);
-    gl.uniform1f(particleUniforms.waveTurns, motion.waveTurns);
+    gl.uniform1f(particleUniforms.curveMix, curve.curveMix);
+    gl.uniform1f(particleUniforms.motionPower, curve.motionPower);
+    gl.uniform1f(particleUniforms.fadeStart, curve.fadeStart);
+    gl.uniform1f(particleUniforms.waveTurns, curve.waveTurns);
     gl.uniform1f(particleUniforms.transition, TRANSITION_WIDTH);
     bindTexture(particleUniforms.source, sourceTexture, 0);
 
@@ -935,9 +1037,11 @@ function createParticleRenderer(
       gl.drawArrays(gl.TRIANGLES, 0, 6);
 
       gl.useProgram(particle);
-      gl.bindVertexArray(particleVao);
       gl.uniform1f(particleUniforms.progress, progress);
-      gl.drawArrays(gl.POINTS, 0, field.data.length / PARTICLE_STRIDE);
+      for (const draw of particleDraws) {
+        gl.bindVertexArray(draw[2]);
+        gl.drawArrays(gl.POINTS, 0, draw[1]);
+      }
       gl.bindVertexArray(null);
     };
 
@@ -962,6 +1066,10 @@ function createParticleRenderer(
       }
       gl.deleteTexture(sourceTexture);
       gl.deleteTexture(thresholdTexture);
+      for (const draw of particleDraws.slice(1)) {
+        gl.deleteVertexArray(draw[2]);
+        gl.deleteBuffer(draw[0]);
+      }
       acquired.pool.release(rendererContext);
     };
     const tick = () => {
@@ -993,12 +1101,13 @@ function createParticleRenderer(
   } catch (error) {
     acquired.pool.discard(rendererContext);
     throw error;
+  } finally {
+    releaseReadback(readback);
   }
 }
 
 function createParticlePhase(options: ParticleOptions, programs: ParticlePrograms): AnimationFactory {
   const particles = resolveParticles(options);
-  prewarmRendererContext();
   return ({ snapshot, bounds, random }) => {
     if (snapshot === null) return null;
     return createParticleRenderer(snapshot, bounds, particles, programs, random);

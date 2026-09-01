@@ -9,19 +9,35 @@ order: 50
 
 Capturing an element takes anywhere from a few milliseconds to a few hundred, depending on its size, fonts and images. Preparation does that work ahead of time so `remove()` can start drawing at once.
 
-The default policy is `visible-idle`. It does not scan the DOM: observers and background work start only after you pass candidates to `register()`. Set `preparation: false` to disable that work completely.
+Background preparation is enabled by default with the `visible-idle` strategy. The library does not know which elements you will later pass to `remove()` and does not scan the DOM. Register every element that should be captured ahead of time with `register()`. Without registration, `remove()` still works, but capture starts only when the operation begins. Set `preparation: false` to disable background preparation completely.
 
-## Register candidates
+## Register elements
 
 ```ts
-const effects = new Disintegrator();
+const effects = new Disintegrator({ preset: 'dust' });
 
-const unregister = effects.register(document.querySelectorAll('[data-effects]'));
+const cards = document.querySelectorAll<HTMLElement>('[data-effects]');
+
+effects.register(cards);
 ```
 
-The default, and the explicit `preparation: true` value, mean `visible-idle`: an element is captured once it comes near the viewport and the browser has a free moment.
+The `effects.register(cards)` call registers those elements for background preparation. Their snapshots are then created once they come near the viewport and the browser has a free moment.
 
-Call `unregister()` when you stop caring about those elements. It stops watching them and does not touch the DOM.
+## Stop preparing elements
+
+To stop observation before calling `destroy()`, save the function returned by `register()`:
+
+```ts
+const stopPreparing = effects.register(cards);
+```
+
+This is an alternative to the previous registration call; do not call `register()` twice for the same elements. Call the saved function when background preparation is no longer needed:
+
+```ts
+stopPreparing();
+```
+
+It stops watching the elements and does not touch the DOM.
 
 Registrations are reference-counted. If two components register the same element, each receives its own release function and observation stops only after both have released it.
 
@@ -29,6 +45,7 @@ Registrations are reference-counted. If two components register the same element
 
 ```ts
 const effects = new Disintegrator({
+  preset: 'dust',
   preparation: {
     strategy: 'visible-idle',
     rootMargin: '300px 0px',
@@ -57,8 +74,6 @@ effects.invalidate(elements); // remove stale entries and requeue registered nod
 effects.clearPrepared(); // release every prepared snapshot
 ```
 
-<Demo kind="preparation" />
-
 An operation never animates from a snapshot it is unsure about. If one is missing, still being taken, out of date, or was dropped from the cache, it captures a fresh one first.
 
 ## Cache budget
@@ -69,6 +84,6 @@ Lower the budget on memory-tight devices. Raise it only after measuring what cap
 
 ## Invalidation
 
-`invalidateOnResize` is on by default. Watching for mutations is off, because watching a whole subtree costs real work and only you know when it is worth it. Call `invalidate()` after a change that alters how a registered element looks.
+`invalidateOnResize` defaults to `true`, while `observeMutations` defaults to `false` because watching an entire DOM subtree can be expensive. Call `invalidate()` after a change that alters how a registered element looks.
 
 With `observeMutations: true`, added nodes, text edits, non-style attribute changes, and descendant load events invalidate and requeue preparation. Inline `style` writes only drop the stale snapshot: animation libraries often update them every frame, so automatic recapture would create a loop. The next operation captures the current state on demand. After a one-time style update, call `invalidate()` if you want to prepare that state again in the background.

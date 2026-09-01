@@ -1,58 +1,62 @@
 ---
-title: 내장 효과 쌍
-description: 네 가지 삭제 애니메이션 중 하나를 선택하고 대응하는 복원 단계를 확인합니다.
+title: 내장 프리셋
+description: 완성된 시각 및 오디오 프리셋 네 개 중 하나를 선택하고 두 단계를 미리 봅니다.
 locale: ko
 section: learn
-navTitle: 내장 효과
+navTitle: 내장 프리셋
 order: 20
 ---
 
-각 내장 이름은 **한 쌍**입니다. 하나는 지울 때, 하나는 되돌릴 때 씁니다. 복원 애니메이션은 따로 작성한 것이며, 삭제 타임라인을 거꾸로 재생한 것이 아닙니다.
+각 내장 프리셋은 바로 사용할 수 있습니다. 삭제와 복원 애니메이션, 두 단계에 맞는 오디오를 모두 포함합니다. 내장 프리셋은 복원할 때 같은 사운드를 역재생합니다. 사용자 구성에서는 삭제와 복원에 서로 다른 사운드를 선택할 수 있습니다.
 
-## 네 가지 효과
+## 네 가지 프리셋
 
-| 이름      | 삭제                                                                          | 복원                                             | 길이    |
-| --------- | ----------------------------------------------------------------------------- | ------------------------------------------------ | ------- |
-| `dust`    | 요소가 위로 떠오르는 먼지로 흩어집니다.                                       | 먼지가 요소의 최종 위치에 모입니다.              | 900 ms  |
-| `scatter` | 작은 조각이 왼쪽에서 오른쪽으로 녹아들며 위쪽 위주로 흩어집니다.              | 조각이 같은 흩어진 영역에서 모입니다.            | 1170 ms |
-| `vapor`   | 표면이 무작위로 떨어져 나가되 위쪽이 먼저 오르고, 올라가면서 부풀어 오릅니다. | 좁아지는 수증기 흐름이 보이는 요소로 응결합니다. | 1030 ms |
-| `wind`    | 흐름이 파티클을 옆으로 운반합니다.                                            | 같은 방향의 흐름이 파티클을 되돌립니다.          | 2040 ms |
+| 이름      | 삭제                                                             | 복원                                             | 길이    |
+| --------- | ---------------------------------------------------------------- | ------------------------------------------------ | ------- |
+| `dust`    | 요소가 위로 떠오르는 먼지로 흩어집니다.                          | 먼지가 요소의 최종 위치에 모입니다.              | 850 ms  |
+| `scatter` | 작은 조각이 왼쪽에서 오른쪽으로 녹아들며 위쪽 위주로 흩어집니다. | 조각이 같은 흩어진 영역에서 모입니다.            | 1100 ms |
+| `vapor`   | 표면이 위쪽부터 빠르게 올라가며 좁아지는 수증기 흐름을 만듭니다. | 좁아지는 수증기 흐름이 보이는 요소로 응결합니다. | 750 ms  |
+| `wind`    | 긴 흐름이 파티클을 옆으로 운반합니다.                            | 같은 방향의 흐름이 파티클을 되돌립니다.          | 2075 ms |
 
-효과의 두 단계는 같은 길이로 재생됩니다. `remove()`는 삭제 타임라인으로, `restore()`는 등장 타임라인으로 쓰며 내장 사운드도 이 길이에 맞춰 잘립니다.
+`remove()`는 삭제 단계를, `restore()`는 복원 단계를 선택합니다. 프리셋 오디오는 자동으로 활성화되고 선택한 시각 효과와 정렬됩니다.
 
 ```ts
-effects.remove(card, { effect: 'dust' });
-effects.restore(card, { effect: 'dust' });
+effects.remove(card, { preset: 'dust' });
+effects.restore(card, { preset: 'dust' });
 
-effects.remove(card, { effect: 'scatter' });
-effects.restore(card, { effect: 'scatter' });
+effects.remove(card, { preset: 'scatter' });
+effects.restore(card, { preset: 'scatter' });
 
-effects.remove(card, { effect: 'vapor' });
-effects.restore(card, { effect: 'vapor' });
+effects.remove(card, { preset: 'vapor' });
+effects.restore(card, { preset: 'vapor' });
 
-effects.remove(card, { effect: 'wind' });
-effects.restore(card, { effect: 'wind' });
+effects.remove(card, { preset: 'wind' });
+effects.restore(card, { preset: 'wind' });
 ```
 
 <Demo kind="built-in" />
 
-## 기본 효과
+## 인스턴스 프리셋 선택
+
+생성자는 하나의 프리셋 또는 사용자 효과를 요구합니다. 개별 작업은 다른 완성 프리셋을 선택할 수 있습니다.
 
 ```ts
 const effects = new Disintegrator({
-  effect: 'vapor',
+  preset: 'vapor',
 });
 
 effects.remove(firstElement); // vapor
-effects.remove(secondElement, { effect: 'scatter' });
-effects.restore(insertedElement, { effect: 'wind' });
+effects.remove(secondElement, { preset: 'scatter' });
+effects.restore(insertedElement, { preset: 'wind' });
 ```
 
-## 기억한 효과 쌍으로 복원
+## 기억한 프리셋으로 복원
+
+보관한 노드를 다시 삽입하면 `restore()`는 복원 사운드를 포함해 삭제 시 선택한 전체 프리셋을 복구합니다.
 
 ```ts
 const removal = effects.remove(card, {
-  effect: 'wind',
+  preset: 'wind',
   retain: true,
 });
 
@@ -65,8 +69,16 @@ if (retained) {
 }
 ```
 
-의도적으로 다른 애니메이션이 필요할 때만 `restore()`의 `effect`를 덮어쓰세요.
+다른 완성 프리셋이 필요할 때 `restore()`에 `preset`을 전달하세요. 인라인 `effect`를 대신 전달하면 사용자 시각 효과를 선택하며, 해당 작업에 자체 사운드가 없으면 무음입니다.
 
-## 사운드 슬롯
+## 프리셋 음소거
 
-각 단계는 독립된 사운드 슬롯을 가집니다. `dust`, `scatter`, `vapor`, `wind`는 두 단계 모두 오디오가 있으며, 복원 트랙은 `reverse` 옵션으로 삭제 트랙을 재생 시점에 뒤집은 것입니다. 애니메이션의 두 단계는 독립적으로 유지됩니다. 오디오는 명시적으로 켜야 합니다. `sound: true`는 인스턴스나 개별 호출에서 내장 사운드를 켜고, `sound: false`는 애니메이션을 바꾸지 않고 소리를 끈 상태로 둡니다.
+내장 오디오는 별도 활성화 플래그가 필요 없습니다. 프리셋 애니메이션은 유지하면서 인스턴스나 작업의 소리를 끄려면 `sound: false`를 전달하세요.
+
+```ts
+const silent = new Disintegrator({ preset: 'dust', sound: false });
+
+effects.remove(card, { preset: 'vapor', sound: false });
+```
+
+프리셋은 의도적으로 원자적입니다. 애니메이션과 오디오는 미리 동기화되어 있으므로 둘 중 하나만 교체하면 타이밍이 어긋날 가능성이 큽니다. 따라서 프리셋은 다른 시각 효과나 오디오와 결합할 수 없습니다. 내장 파티클 움직임에 사용자 사운드를 쓰려면 프리셋의 `effect`를 사용자 효과로 사용하고 명시적인 사운드 쌍을 제공하세요.

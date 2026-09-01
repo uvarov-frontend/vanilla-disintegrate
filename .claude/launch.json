@@ -7,6 +7,13 @@
       "runtimeArgs": ["run", "dev"],
       "port": 4321,
       "autoPort": true
+    },
+    {
+      "name": "readme-preview",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "vite", "--port", "4330", "--strictPort"],
+      "port": 4330,
+      "autoPort": true
     }
   ]
 }

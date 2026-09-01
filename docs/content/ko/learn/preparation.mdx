@@ -9,24 +9,41 @@ order: 50
 
 요소를 캡처하는 데는 크기와 폰트, 이미지에 따라 몇 밀리초에서 수백 밀리초가 걸립니다. 준비는 그 작업을 미리 해 두어 `remove()`가 곧바로 그리기 시작하게 합니다.
 
-기본 정책은 `visible-idle`입니다. 라이브러리가 DOM을 직접 탐색하지는 않습니다. 후보 요소를 `register()`에 전달한 뒤에만 옵저버와 백그라운드 작업이 시작됩니다. `preparation: false`로 이 작업을 완전히 끌 수 있습니다.
+백그라운드 준비는 기본적으로 활성화되며 `visible-idle` 전략을 사용합니다. 라이브러리는 나중에 어떤 요소가 `remove()`에 전달될지 알 수 없고 DOM을 직접 탐색하지도 않습니다. 미리 캡처할 요소는 각각 `register()`에 전달해야 합니다. 등록하지 않아도 `remove()`는 동작하지만 캡처는 작업이 시작될 때 비로소 진행됩니다. `preparation: false`로 백그라운드 준비를 완전히 끌 수 있습니다.
 
-## 후보 요소 등록하기
+## 요소 등록하기
 
 ```ts
-const effects = new Disintegrator();
+const effects = new Disintegrator({ preset: 'dust' });
 
-const unregister = effects.register(document.querySelectorAll('[data-effects]'));
+const cards = document.querySelectorAll<HTMLElement>('[data-effects]');
+
+effects.register(cards);
 ```
 
-기본값과 명시적인 `preparation: true` 모두 `visible-idle`을 선택합니다. 등록된 요소가 뷰포트에 가까워지고 브라우저가 idle일 때 준비합니다.
+`effects.register(cards)` 호출은 해당 요소를 백그라운드 준비 대상으로 등록합니다. 이후 요소가 뷰포트에 가까워지고 브라우저가 유휴 상태가 되면 스냅샷이 생성됩니다.
 
-더 이상 준비할 필요가 없으면 `unregister()`를 호출하세요. 등록은 참조 횟수를 셉니다. 두 컴포넌트가 같은 노드를 등록했다면 각 해제 함수는 자신의 등록만 해제하며 둘 다 해제된 뒤에 관찰을 멈춥니다.
+## 요소 준비 중지하기
+
+`destroy()`를 호출하기 전에 관찰을 중지해야 한다면 `register()`가 반환하는 함수를 저장하세요.
+
+```ts
+const stopPreparing = effects.register(cards);
+```
+
+이는 앞선 등록 호출의 대안입니다. 같은 요소에 `register()`를 두 번 호출하지 마세요. 백그라운드 준비가 더 이상 필요하지 않을 때 저장한 함수를 호출합니다.
+
+```ts
+stopPreparing();
+```
+
+이 함수는 DOM을 변경하지 않고 요소 관찰만 중지합니다. 등록은 참조 횟수를 셉니다. 두 컴포넌트가 같은 노드를 등록했다면 각 정리 함수는 자신의 등록만 해제하며 둘 다 해제된 뒤에 관찰을 멈춥니다.
 
 ## 실행 조건 설정
 
 ```ts
 const effects = new Disintegrator({
+  preset: 'dust',
   preparation: {
     strategy: 'visible-idle',
     rootMargin: '300px 0px',
@@ -55,8 +72,6 @@ effects.invalidate(elements); // 오래된 항목 제거 및 재예약
 effects.clearPrepared(); // 전체 캐시 해제
 ```
 
-<Demo kind="preparation" />
-
 작업은 확신할 수 없는 스냅샷으로 애니메이션하지 않습니다. 스냅샷이 없거나, 아직 만들어지는 중이거나, 오래됐거나, 캐시에서 밀려났다면 먼저 새로 캡처합니다.
 
 ## 캐시 예산
@@ -67,6 +82,6 @@ effects.clearPrepared(); // 전체 캐시 해제
 
 ## 무효화
 
-`invalidateOnResize`는 기본으로 켜지고 MutationObserver는 비용 때문에 기본으로 꺼져 있습니다. 콘텐츠 모양이 바뀌면 `invalidate()`를 호출하세요.
+`invalidateOnResize`의 기본값은 `true`이고 `observeMutations`의 기본값은 `false`입니다. 전체 DOM 하위 트리를 관찰하는 데 비용이 들 수 있기 때문입니다. 콘텐츠 모양이 바뀌면 `invalidate()`를 호출하세요.
 
 `observeMutations: true`에서는 노드 추가, 텍스트 수정, `style` 이외의 속성 변경, 하위 리소스 로드가 스냅샷을 무효화하고 준비를 다시 예약합니다. 인라인 `style` 쓰기는 오래된 스냅샷만 제거합니다. 애니메이션 라이브러리가 매 프레임 이를 갱신할 수 있으므로 자동 재캡처는 반복 루프를 만들기 때문입니다. 다음 작업은 필요할 때 현재 상태를 직접 캡처합니다. 일회성 스타일 변경 후 해당 상태를 백그라운드에서 다시 준비하려면 `invalidate()`를 호출하세요.

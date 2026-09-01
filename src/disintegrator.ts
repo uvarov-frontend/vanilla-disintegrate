@@ -3,17 +3,24 @@ import { resolveAudioPreparation, resolvePreparation } from './defaults';
 import { resolveEffect } from './effects';
 import { OperationRunner } from './operation-runner';
 import { SnapshotPreparation } from './preparation';
+import { resolvePreset } from './preset';
 import { RetainedElements } from './retained-elements';
+import { soundDefinitions } from './sound-selection';
+import { soundSourceResolver } from './sound-sources';
 import type {
   DisintegratorOptions,
   EffectDefinition,
   EffectErrorContext,
-  EffectSelection,
+  EffectOperationKind,
   EffectTarget,
   EffectTargets,
+  OperationOptions,
+  PresetDefinition,
   RemoveOptions,
   RemovalId,
   RestoreOptions,
+  SoundPreparationSelection,
+  SoundSelection,
 } from './types';
 
 /**
@@ -25,25 +32,38 @@ export class Disintegrator {
   private readonly preparation: SnapshotPreparation;
   private readonly sound: SoundPlayer;
   private readonly runner: OperationRunner;
-  private readonly effects: Readonly<Record<string, EffectDefinition>>;
+  private readonly presets: Readonly<Record<string, PresetDefinition>>;
+  private readonly defaultEffect: EffectDefinition;
+  private readonly defaultSound: false | SoundSelection;
   private destroyed = false;
 
   /** Creates an independent animation instance. Call `destroy()` when its UI is disposed. */
-  constructor(private readonly options: DisintegratorOptions = {}) {
-    this.effects = options.effects ?? {};
+  constructor(private readonly options: DisintegratorOptions) {
+    if (
+      options === undefined ||
+      options === null ||
+      typeof options !== 'object' ||
+      (options.preset === undefined) === (options.effect === undefined) ||
+      (options.preset !== undefined && options.sound !== undefined && options.sound !== false)
+    ) {
+      throw new TypeError('Configure exactly one of preset or effect. A preset may only be muted with sound: false.');
+    }
+    this.presets = options.presets ?? {};
+    const preset = resolvePreset(options.preset, this.presets);
+    this.defaultEffect = resolveEffect(options.effect ?? preset?.effect);
+    this.defaultSound =
+      preset === undefined ? (options.sound ?? false) : options.sound === false ? false : preset.sound;
     const audioPreparation = resolveAudioPreparation(options.audioPreparation);
     this.preparation = new SnapshotPreparation(
       options.capture,
       resolvePreparation(options.preparation),
       (error, element) => this.reportBackgroundError(error, element),
     );
-    this.sound = new SoundPlayer(audioPreparation.cacheByteBudget);
+    this.sound = new SoundPlayer(audioPreparation.cacheByteBudget, soundSourceResolver(options));
     this.runner = new OperationRunner(options, this.preparation, this.retained, this.sound);
-    if (audioPreparation.enabled && options.sound !== undefined && options.sound !== false) {
-      this.sound.schedule(
-        this.resolveSoundDefinitions(audioPreparation.effects ?? options.effect),
-        audioPreparation.strategy,
-      );
+    const sounds = audioPreparation.sounds ?? this.defaultSound;
+    if (audioPreparation.enabled && sounds !== undefined && sounds !== false) {
+      this.sound.schedule(soundDefinitions(sounds), audioPreparation.strategy);
     }
   }
 
@@ -56,8 +76,8 @@ export class Disintegrator {
     const element = this.resolveElement(target);
     const rejected = this.runner.rejectIfBusy('remove', element);
     if (rejected !== null) return rejected;
-    const effect = resolveEffect(options.effect ?? this.options.effect, this.effects);
-    return this.runner.run({ kind: 'remove', element, effect, overrides: options });
+    const { effect, sound } = this.resolveOperation('remove', options, this.defaultEffect, this.defaultSound);
+    return this.runner.run({ kind: 'remove', element, effect, sound, overrides: options });
   }
 
   /**
@@ -73,12 +93,15 @@ export class Disintegrator {
     if (!element.isConnected || bounds.width <= 0 || bounds.height <= 0) {
       throw new TypeError('restore() requires a connected element with measurable geometry.');
     }
-    const effect =
-      options.effect === undefined
-        ? (this.retained.effectFor(element) ?? resolveEffect(this.options.effect, this.effects))
-        : resolveEffect(options.effect, this.effects);
-    const operation = this.runner.run({ kind: 'restore', element, effect, overrides: options });
-    this.retained.associate(element, effect);
+    const retained = this.retained.presentationFor(element);
+    const { effect, sound } = this.resolveOperation(
+      'restore',
+      options,
+      retained?.effect ?? this.defaultEffect,
+      retained?.sound ?? this.defaultSound,
+    );
+    const operation = this.runner.run({ kind: 'restore', element, effect, sound, overrides: options });
+    this.retained.associate(element, { effect, sound });
     return operation;
   }
 
@@ -110,16 +133,16 @@ export class Disintegrator {
     this.preparation.clear();
   }
 
-  /** Immediately fetches and decodes the selected effects' native audio. */
-  prepareAudio(effects: EffectSelection | readonly EffectSelection[] | undefined = this.options.effect) {
+  /** Immediately loads and decodes native audio without coupling it to a visual effect. */
+  prepareAudio(sounds: false | SoundPreparationSelection | undefined = this.defaultSound) {
     this.assertAlive();
-    return this.sound.prepareAll(this.resolveSoundDefinitions(effects));
+    return this.sound.prepareAll(soundDefinitions(sounds));
   }
 
-  /** Releases decoded audio belonging to the selected effects without stopping active playback. */
-  discardPreparedAudio(effects: EffectSelection | readonly EffectSelection[] | undefined = this.options.effect) {
+  /** Releases decoded audio ownership without stopping active playback. */
+  discardPreparedAudio(sounds: false | SoundPreparationSelection | undefined = this.defaultSound) {
     this.assertAlive();
-    return this.sound.discard(this.resolveSoundDefinitions(effects));
+    return this.sound.discard(soundDefinitions(sounds));
   }
 
   /** Releases every decoded audio buffer while leaving sound configuration unchanged. */
@@ -184,19 +207,33 @@ export class Disintegrator {
     }
   }
 
-  private resolveSoundDefinitions(selections: EffectSelection | readonly EffectSelection[] | undefined) {
-    const configuredSound = this.options.sound;
-    if (configuredSound !== undefined && typeof configuredSound !== 'boolean') return [configuredSound];
-    const effects: readonly EffectSelection[] =
-      selections === undefined
-        ? [resolveEffect(undefined, this.effects)]
-        : Array.isArray(selections)
-          ? (selections as readonly EffectSelection[])
-          : [selections as EffectSelection];
-    return effects.flatMap((selection) => {
-      const effect = resolveEffect(selection, this.effects);
-      return [effect.remove.sound ?? null, effect.restore.sound ?? null];
-    });
+  private resolveOperation(
+    operation: EffectOperationKind,
+    options: OperationOptions,
+    fallbackEffect: EffectDefinition,
+    fallbackSound: false | SoundSelection,
+  ) {
+    if (options.preset !== undefined && options.effect !== undefined) {
+      throw new TypeError('An operation cannot combine preset and effect.');
+    }
+    if (options.preset !== undefined) {
+      if (options.sound !== undefined && options.sound !== false) {
+        throw new TypeError('A preset operation may only be muted with sound: false.');
+      }
+      const preset = resolvePreset(options.preset, this.presets)!;
+      return { effect: resolveEffect(preset.effect), sound: preset.sound };
+    }
+    if (options.effect !== undefined) {
+      const selectedSound = options.sound;
+      const sound: false | SoundSelection =
+        selectedSound === undefined || selectedSound === false
+          ? false
+          : operation === 'remove'
+            ? { remove: selectedSound }
+            : { restore: selectedSound };
+      return { effect: resolveEffect(options.effect), sound };
+    }
+    return { effect: fallbackEffect, sound: fallbackSound };
   }
 
   private assertAlive() {

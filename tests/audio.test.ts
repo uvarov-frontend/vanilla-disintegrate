@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { SoundPlayer } from '../src/audio';
+import type { SoundFactory } from '../src/types';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -52,7 +53,10 @@ function mockAudio() {
     disconnect: gainDisconnect,
     gain: { linearRampToValueAtTime, setValueAtTime },
   } as unknown as GainNode;
+  const contextListeners = new Map<string, EventListener>();
   const context = {
+    addEventListener: vi.fn((type: string, listener: EventListener) => contextListeners.set(type, listener)),
+    removeEventListener: vi.fn((type: string) => contextListeners.delete(type)),
     close,
     createBuffer: vi.fn((numberOfChannels: number, length: number, sampleRate: number) =>
       fakeBuffer(
@@ -86,6 +90,7 @@ function mockAudio() {
   return {
     close,
     context,
+    contextListeners,
     decodeAudioData,
     decoded,
     gainDisconnect,
@@ -121,6 +126,80 @@ describe('SoundPlayer', () => {
     player.destroy();
   });
 
+  it('resumes a suspended context on the first user gesture', () => {
+    const listeners = new Map<string, EventListener>();
+    const resume = vi.fn().mockResolvedValue(undefined);
+    const context = {
+      addEventListener: vi.fn((type: string, listener: EventListener) => listeners.set(type, listener)),
+      removeEventListener: vi.fn((type: string) => listeners.delete(type)),
+      close: vi.fn().mockResolvedValue(undefined),
+      currentTime: 0,
+      decodeAudioData: vi.fn(),
+      destination: {},
+      resume,
+      state: 'suspended',
+    } as unknown as AudioContext;
+    vi.stubGlobal(
+      'AudioContext',
+      vi.fn(function AudioContextMock() {
+        return context;
+      }),
+    );
+    const player = new SoundPlayer();
+
+    // Creating the context arms the listener; nothing resumes on its own.
+    player.unlock({ src: '/dust.mp3' }, vi.fn());
+    resume.mockClear();
+    expect(listeners.has('statechange')).toBe(true);
+
+    document.dispatchEvent(new Event('pointerdown'));
+    expect(resume).toHaveBeenCalled();
+
+    // Once the browser reports the context running, the listener retires.
+    (context as { state: string }).state = 'running';
+    listeners.get('statechange')?.(new Event('statechange'));
+    resume.mockClear();
+    document.dispatchEvent(new Event('pointerdown'));
+    expect(resume).not.toHaveBeenCalled();
+
+    player.destroy();
+  });
+
+  it('does not request a resume while preparing, leaving that to the gesture listener', async () => {
+    const decoded = deferred<AudioBuffer>();
+    const resume = vi.fn().mockResolvedValue(undefined);
+    const context = {
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      close: vi.fn().mockResolvedValue(undefined),
+      currentTime: 0,
+      decodeAudioData: vi.fn(() => decoded.promise),
+      destination: {},
+      resume,
+      state: 'suspended',
+    } as unknown as AudioContext;
+    vi.stubGlobal(
+      'AudioContext',
+      vi.fn(function AudioContextMock() {
+        return context;
+      }),
+    );
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)), ok: true }),
+    );
+    const player = new SoundPlayer();
+
+    const preparation = player.prepare({ src: '/dust.mp3' });
+    decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
+    const prepared = await preparation;
+
+    // Asking outside a user gesture is refused and logged, so preparation must not ask.
+    expect(resume).not.toHaveBeenCalled();
+    expect(prepared).not.toBeNull();
+    player.destroy();
+  });
+
   it('does not start playback until a source has been fully decoded', async () => {
     const { decoded, start } = mockAudio();
     const player = new SoundPlayer();
@@ -133,6 +212,27 @@ describe('SoundPlayer', () => {
     player.play(prepared, 0.9, soundContext(), vi.fn());
 
     expect(start).toHaveBeenCalledOnce();
+    player.destroy();
+  });
+
+  it('plays an already decoded AudioBuffer without fetching or decoding it again', async () => {
+    const { decodeAudioData, start } = mockAudio();
+    const player = new SoundPlayer();
+    const prepared = await player.prepare({ src: sourceBuffer([1, 2, 3, 4]).buffer });
+
+    player.play(prepared, 0.5, soundContext(), vi.fn());
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(decodeAudioData).not.toHaveBeenCalled();
+    expect(start).toHaveBeenCalledOnce();
+    player.destroy();
+  });
+
+  it('requires native sounds to use an explicit src options object', async () => {
+    const player = new SoundPlayer();
+
+    await expect(player.prepare({ invalid: true } as never)).rejects.toThrow('requires an options object with a src');
+    await expect(player.prepare('dust' as never)).rejects.toThrow('requires an options object with a src');
     player.destroy();
   });
 
@@ -191,7 +291,7 @@ describe('SoundPlayer', () => {
   it('fades a reversed source in rather than out', async () => {
     const { decoded, linearRampToValueAtTime, setValueAtTime } = mockAudio();
     const player = new SoundPlayer();
-    const preparation = player.prepare({ src: '/dust.mp3', reverse: true, gain: 0.5, fadeDuration: 0.1 });
+    const preparation = player.prepare({ src: '/dust.mp3', reverse: true, volume: 0.5, fadeDuration: 0.1 });
 
     decoded.resolve(sourceBuffer([1, 2, 3, 4, 5, 6, 7, 8]).buffer);
     player.play(await preparation, 1, soundContext(), vi.fn());
@@ -199,6 +299,28 @@ describe('SoundPlayer', () => {
     expect(setValueAtTime).toHaveBeenCalledWith(0, 0);
     expect(linearRampToValueAtTime).toHaveBeenCalledWith(0.5, 0.1);
     expect(linearRampToValueAtTime).not.toHaveBeenCalledWith(0, expect.anything());
+    player.destroy();
+  });
+
+  it('normalizes non-finite native playback settings before scheduling Web Audio', async () => {
+    const { decoded, setValueAtTime, source, start, stop } = mockAudio();
+    const player = new SoundPlayer();
+    const preparation = player.prepare({
+      src: '/invalid-options.mp3',
+      delay: Number.NaN,
+      duration: Number.NaN,
+      fadeDuration: Number.POSITIVE_INFINITY,
+      volume: Number.NaN,
+      playbackRate: Number.POSITIVE_INFINITY,
+    });
+
+    decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
+    player.play(await preparation, 0.4, soundContext(), vi.fn());
+
+    expect(source.playbackRate.value).toBe(1);
+    expect(start).toHaveBeenCalledWith(0, 0);
+    expect(stop).toHaveBeenCalledWith(0.4);
+    expect(setValueAtTime).toHaveBeenCalledWith(1, 0);
     player.destroy();
   });
 
@@ -236,6 +358,19 @@ describe('SoundPlayer', () => {
     expect(close).not.toHaveBeenCalled();
     second.destroy();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('deduplicates equivalent relative and absolute URL sources', async () => {
+    const { decoded } = mockAudio();
+    const player = new SoundPlayer();
+    const relative = player.prepare({ src: '/shared-url.mp3' });
+    const absolute = player.prepare({ src: new URL('/shared-url.mp3', document.baseURI) });
+
+    decoded.resolve(sourceBuffer([1, 2, 3, 4]).buffer);
+    await Promise.all([relative, absolute]);
+
+    expect(fetch).toHaveBeenCalledOnce();
+    player.destroy();
   });
 
   it('keeps a shared pending load alive while another player still owns it', async () => {
@@ -457,4 +592,23 @@ describe('SoundPlayer', () => {
     idle.destroy();
     vi.useRealTimers();
   });
+
+  it('does not schedule background work for custom factories or decoded forward buffers', () => {
+    mockAudio();
+    vi.useFakeTimers();
+    const player = new SoundPlayer();
+    const custom: SoundFactory = vi.fn(() => undefined);
+
+    player.schedule([custom, { src: audioBufferForSchedule() }], 'idle');
+    vi.runAllTimers();
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(AudioContext).not.toHaveBeenCalled();
+    player.destroy();
+    vi.useRealTimers();
+  });
 });
+
+function audioBufferForSchedule() {
+  return fakeBuffer([new Float32Array(4)], 4);
+}
