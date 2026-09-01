@@ -10,6 +10,7 @@ export interface UiCopy {
   readonly reference: string;
   readonly menu: string;
   readonly githubStarPrompt: string;
+  readonly sponsor: string;
   readonly close: string;
   readonly onThisPage: string;
   readonly previous: string;
@@ -61,6 +62,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     reference: 'Reference',
     menu: 'Open navigation',
     githubStarPrompt: 'If you like Vanilla Disintegrate, please give it a 🌟 star on GitHub.',
+    sponsor: 'Sponsor',
     close: 'Close',
     onThisPage: 'On this page',
     previous: 'Previous',
@@ -87,7 +89,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       descriptionHighlight: 'Thanos snap effect',
       tryLabel: 'Build an effect in the playground',
       playgroundKicker: 'Interactive playground',
-      playgroundTitle: 'Shape your particle effect',
+      playgroundTitle: 'Create your effect',
       playgroundDescription:
         'Start from a preset, tune removal and restoration separately, preview both directions, and copy ready-to-use TypeScript.',
       playgroundDescriptionHighlight: 'copy ready-to-use TypeScript',
@@ -106,6 +108,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     reference: 'Справочник',
     menu: 'Открыть навигацию',
     githubStarPrompt: 'Если вам нравится Vanilla Disintegrate, пожалуйста, поставьте ему 🌟 звёздочку на GitHub.',
+    sponsor: 'Спонсор',
     close: 'Закрыть',
     onThisPage: 'На этой странице',
     previous: 'Назад',
@@ -132,7 +135,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       descriptionHighlight: '«щелчка Таноса»',
       tryLabel: 'Соберите эффект в плейграунде',
       playgroundKicker: 'Интерактивный плейграунд',
-      playgroundTitle: 'Настройте свой эффект частиц',
+      playgroundTitle: 'Создайте свой эффект',
       playgroundDescription:
         'Выберите пресет, отдельно настройте удаление и восстановление, проверьте оба направления и скопируйте готовый TypeScript-код.',
       playgroundDescriptionHighlight: 'скопируйте готовый TypeScript-код',
@@ -151,6 +154,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     reference: 'API 参考',
     menu: '打开导航',
     githubStarPrompt: '如果你喜欢 Vanilla Disintegrate，请在 GitHub 上点个 🌟 星标。',
+    sponsor: '赞助',
     close: '关闭',
     onThisPage: '本页内容',
     previous: '上一页',
@@ -177,7 +181,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       descriptionHighlight: '灭霸响指效果',
       tryLabel: '在游乐场中构建效果',
       playgroundKicker: '交互式游乐场',
-      playgroundTitle: '调整你的粒子效果',
+      playgroundTitle: '创建你的效果',
       playgroundDescription: '从预设开始，分别调整删除和恢复，预览两个方向，然后复制可直接使用的 TypeScript。',
       playgroundDescriptionHighlight: '复制可直接使用的 TypeScript',
       openGuide: '打开指南',
@@ -194,6 +198,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     reference: 'API 레퍼런스',
     menu: '탐색 열기',
     githubStarPrompt: 'Vanilla Disintegrate가 마음에 드신다면 GitHub에 🌟 스타를 눌러 주세요.',
+    sponsor: '후원',
     close: '닫기',
     onThisPage: '이 페이지에서',
     previous: '이전',
@@ -220,7 +225,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       descriptionHighlight: '타노스 스냅 효과',
       tryLabel: '플레이그라운드에서 효과 만들기',
       playgroundKicker: '인터랙티브 플레이그라운드',
-      playgroundTitle: '파티클 효과를 조정하세요',
+      playgroundTitle: '나만의 효과를 만드세요',
       playgroundDescription:
         '프리셋에서 시작해 삭제와 복원을 각각 조정하고 두 방향을 미리 본 뒤 바로 사용할 TypeScript를 복사하세요.',
       playgroundDescriptionHighlight: '바로 사용할 TypeScript를 복사하세요',

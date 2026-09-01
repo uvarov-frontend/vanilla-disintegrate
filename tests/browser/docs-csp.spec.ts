@@ -2,9 +2,9 @@ import { expect, test } from '@playwright/test';
 
 test('lays out every bundle variant without horizontal overflow', async ({ page }) => {
   const viewports = [
-    { columns: 4, height: 900, width: 1440 },
-    { columns: 2, height: 900, width: 820 },
-    { columns: 1, height: 844, width: 390 },
+    { columns: 4, height: 900, nextStepsPadding: '130px', playgroundPadding: '110px', width: 1440 },
+    { columns: 2, height: 900, nextStepsPadding: '72px', playgroundPadding: '64px', width: 820 },
+    { columns: 1, height: 844, nextStepsPadding: '48px', playgroundPadding: '40px', width: 390 },
   ];
 
   for (const viewport of viewports) {
@@ -19,11 +19,18 @@ test('lays out every bundle variant without horizontal overflow', async ({ page 
 
       return {
         columns: getComputedStyle(values).gridTemplateColumns.split(' ').length,
+        nextStepsPadding: getComputedStyle(document.querySelector('.home-next-steps')!).paddingBottom,
         overflow: values.scrollWidth > values.clientWidth,
+        playgroundPadding: getComputedStyle(document.querySelector('.home-playground-section')!).paddingBottom,
       };
     });
 
-    expect(layout).toEqual({ columns: viewport.columns, overflow: false });
+    expect(layout).toEqual({
+      columns: viewport.columns,
+      nextStepsPadding: viewport.nextStepsPadding,
+      overflow: false,
+      playgroundPadding: viewport.playgroundPadding,
+    });
   }
 });
 
@@ -33,11 +40,46 @@ test('keeps localized documentation within the mobile viewport', async ({ page }
   for (const path of ['/ru/docs/learn/installation/', '/ru/docs/reference/api/']) {
     await page.goto(`http://localhost:4321${path}`);
     await expect(page.locator('main')).toBeVisible();
-    const hasPageOverflow = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    );
-    expect(hasPageOverflow).toBe(false);
+    const layout = await page.locator('.docs-layout').evaluate((element) => ({
+      hasPageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      paddingBottom: getComputedStyle(element).paddingBottom,
+      paddingTop: getComputedStyle(element).paddingTop,
+    }));
+    expect(layout).toEqual({ hasPageOverflow: false, paddingBottom: '40px', paddingTop: '24px' });
   }
+});
+
+test('reduces page padding at responsive breakpoints', async ({ browserName, page }) => {
+  test.skip(browserName !== 'chromium');
+
+  const viewports = [
+    { height: 900, paddingBottom: '72px', paddingTop: '42px', width: 1024 },
+    { height: 900, paddingBottom: '56px', paddingTop: '30px', width: 760 },
+    { height: 844, paddingBottom: '40px', paddingTop: '24px', width: 390 },
+  ];
+
+  for (const viewport of viewports) {
+    await page.setViewportSize(viewport);
+    await page.goto('http://localhost:4321/docs/learn/installation/');
+
+    const padding = await page.locator('.docs-layout').evaluate((element) => ({
+      bottom: getComputedStyle(element).paddingBottom,
+      top: getComputedStyle(element).paddingTop,
+    }));
+    expect(padding).toEqual({ bottom: viewport.paddingBottom, top: viewport.paddingTop });
+  }
+
+  await page.setViewportSize({ height: 844, width: 320 });
+  await page.goto('http://localhost:4321/ru/privacy/');
+  await expect(page.locator('.privacy-page')).toHaveCSS('padding-block', '48px');
+  const headingLayout = await page.locator('.privacy-page').evaluate((pageElement) => ({
+    hasPageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    wraps: [...pageElement.querySelectorAll('h1, h2')].every((heading) => {
+      const style = getComputedStyle(heading);
+      return style.hyphens === 'auto' && style.overflowWrap === 'anywhere';
+    }),
+  }));
+  expect(headingLayout).toEqual({ hasPageOverflow: false, wraps: true });
 });
 
 test('keeps default analytics and opt-out CSP-clean', async ({ browser, browserName, page }) => {

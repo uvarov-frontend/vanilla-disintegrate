@@ -1,4 +1,6 @@
 export interface StoredPlaygroundAudio {
+  /** Identifies the entry inside the store and inside the playground's sound select. */
+  readonly id: string;
   readonly blob: Blob;
   readonly name: string;
   readonly type: string;
@@ -72,19 +74,27 @@ function transactionCommitted(transaction: IDBTransaction) {
   });
 }
 
-export async function loadPlaygroundAudio(key: string): Promise<StoredPlaygroundAudio | null> {
-  const connection = await database();
-  const stored = await requestResult<StoredPlaygroundAudio | undefined>(
-    connection.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(key) as IDBRequest<
-      StoredPlaygroundAudio | undefined
-    >,
+function isStoredAudio(value: unknown): value is StoredPlaygroundAudio {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'blob' in value &&
+    (value as StoredPlaygroundAudio).blob instanceof Blob
   );
-  if (stored === undefined || !(stored.blob instanceof Blob)) return null;
-  return stored;
 }
 
-export async function savePlaygroundAudio(key: string, file: File): Promise<StoredPlaygroundAudio> {
+/** Every audio file kept for the playground, oldest first. */
+export async function listPlaygroundAudio(): Promise<StoredPlaygroundAudio[]> {
+  const connection = await database();
+  const stored = await requestResult<unknown[]>(
+    connection.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).getAll() as IDBRequest<unknown[]>,
+  );
+  return stored.filter(isStoredAudio);
+}
+
+export async function savePlaygroundAudio(file: File): Promise<StoredPlaygroundAudio> {
   const stored: StoredPlaygroundAudio = {
+    id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
     blob: file,
     name: file.name,
     type: file.type,
@@ -93,14 +103,14 @@ export async function savePlaygroundAudio(key: string, file: File): Promise<Stor
   };
   const connection = await database();
   const transaction = connection.transaction(STORE_NAME, 'readwrite');
-  const request = transaction.objectStore(STORE_NAME).put(stored, key);
+  const request = transaction.objectStore(STORE_NAME).put(stored, stored.id);
   await Promise.all([requestResult(request), transactionCommitted(transaction)]);
   return stored;
 }
 
-export async function deletePlaygroundAudio(key: string) {
+export async function deletePlaygroundAudio(id: string) {
   const connection = await database();
   const transaction = connection.transaction(STORE_NAME, 'readwrite');
-  const request = transaction.objectStore(STORE_NAME).delete(key);
+  const request = transaction.objectStore(STORE_NAME).delete(id);
   await Promise.all([requestResult(request), transactionCommitted(transaction)]);
 }

@@ -57,6 +57,16 @@ a {
   color: inherit;
 }
 
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  hyphens: auto;
+  overflow-wrap: anywhere;
+}
+
 button:focus-visible,
 select:focus-visible,
 a:focus-visible,
@@ -198,6 +208,26 @@ summary:focus-visible {
 .top-navigation a[aria-current='true'] {
   color: var(--text);
   background: rgb(255 255 255 / 5%);
+}
+
+/* Selector matches .top-navigation a so the shared link padding does not win. */
+.top-navigation .sponsor-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px 7px 12px;
+  color: var(--text);
+  background: rgb(255 255 255 / 6%);
+}
+
+.top-navigation .sponsor-link:hover {
+  background: rgb(255 255 255 / 11%);
+}
+
+.sponsor-link svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
 }
 
 .github-navigation-item {
@@ -988,8 +1018,15 @@ code {
 }
 
 .button-primary {
-  color: #1a0d0c;
-  background: var(--accent);
+  border-color: rgb(255 117 107 / 42%) !important;
+  color: var(--accent-bright);
+  background: var(--accent-soft);
+}
+
+.button-primary:not(:disabled):hover {
+  border-color: rgb(255 117 107 / 68%) !important;
+  color: #fff4f2;
+  background: rgb(255 117 107 / 20%);
 }
 
 .button-secondary {
@@ -1232,6 +1269,10 @@ code {
 }
 
 @media (max-width: 640px) {
+  .privacy-page {
+    padding: 48px 0;
+  }
+
   .privacy-actions {
     align-items: stretch;
     flex-direction: column;
@@ -1370,9 +1411,11 @@ code {
   bottom: 4px;
   left: 4px;
   width: calc((100% - 8px) / var(--package-manager-count));
+  /* The same selected state the playground tabs use, so a low-stakes toggle
+     stops competing with the hero call to action for attention. */
+  border: 1px solid rgb(255 117 107 / 42%);
   border-radius: 6px;
-  background: var(--accent);
-  box-shadow: 0 7px 20px rgb(255 117 107 / 16%);
+  background: var(--accent-soft);
   content: '';
   transform: translateX(calc(var(--package-manager-index) * 100%));
   transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
@@ -1395,7 +1438,7 @@ code {
 }
 
 .package-manager-switcher button[aria-pressed='true'] {
-  color: #1a0d0c;
+  color: var(--accent-bright);
 }
 
 .install-command {
@@ -1947,6 +1990,26 @@ code {
   min-width: 0;
 }
 
+/* The frame wraps below its 145px + 270px flex bases, so the width alone decides
+   whether the card is upright or side-by-side. */
+.playground-card[data-card-width='wide'] {
+  width: min(480px, 100%);
+}
+
+/* While the shape switch morphs the card, both halves leave the flex flow so the
+   wrap cannot snap them into place mid-travel. */
+.demo-card-frame[data-morphing] {
+  position: relative;
+  display: block;
+  height: 100%;
+}
+
+.demo-card-frame[data-morphing] > * {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
 .demo-card-cover {
   position: relative;
   flex: 1 1 145px;
@@ -2375,7 +2438,7 @@ code {
   white-space: nowrap;
 }
 
-.playground-range-heading output {
+.playground-range-heading > .playground-range-value {
   flex: 0 0 auto;
   color: #d9a7a2;
   font-family: var(--font-mono);
@@ -2721,6 +2784,7 @@ code {
   .docs-layout {
     grid-template-columns: 205px minmax(0, var(--content-width));
     justify-content: center;
+    padding-bottom: 72px;
   }
 
   .page-toc {
@@ -2816,7 +2880,7 @@ code {
 
   .docs-layout {
     display: block;
-    padding-top: 30px;
+    padding: 30px 0 56px;
   }
 
   .docs-sidebar {
@@ -2974,6 +3038,10 @@ code {
 }
 
 @media (max-width: 500px) {
+  .docs-layout {
+    padding: 24px 0 40px;
+  }
+
   .brand > span:nth-child(2) {
     display: none;
   }
@@ -3082,8 +3150,8 @@ code {
   }
 
   .playground-stage {
-    min-height: 340px;
-    padding: 28px 18px;
+    min-height: 430px;
+    padding: 60px 18px;
   }
 
   .playground-commandbar,
@@ -3106,7 +3174,8 @@ code {
     padding-inline: 9px;
   }
 
-  .playground-view-tabs button {
+  .playground-view-tabs button,
+  .playground-width-tabs button {
     padding-inline: 8px;
   }
 
@@ -3189,7 +3258,8 @@ code {
 }
 
 .playground-operation-tabs,
-.playground-view-tabs {
+.playground-view-tabs,
+.playground-width-tabs {
   display: flex;
   gap: 2px;
   min-width: 0;
@@ -3200,7 +3270,8 @@ code {
 }
 
 .playground-operation-tabs button,
-.playground-view-tabs button {
+.playground-view-tabs button,
+.playground-width-tabs button {
   display: block;
   min-width: 0;
   min-height: 0;
@@ -3224,13 +3295,15 @@ code {
 }
 
 .playground-operation-tabs button:hover,
-.playground-view-tabs button:hover {
+.playground-view-tabs button:hover,
+.playground-width-tabs button:hover {
   color: var(--text);
   background: transparent;
 }
 
 .playground-operation-tabs button[aria-selected='true'],
-.playground-view-tabs button[aria-selected='true'] {
+.playground-view-tabs button[aria-selected='true'],
+.playground-width-tabs button[aria-pressed='true'] {
   color: var(--accent-bright);
   background: var(--accent-soft);
   box-shadow: none;
@@ -3238,6 +3311,7 @@ code {
 
 .playground-operation-tabs button:focus-visible,
 .playground-view-tabs button:focus-visible,
+.playground-width-tabs button:focus-visible,
 .playground-settings-tabs button:focus-visible {
   outline: 2px solid rgb(255 145 136 / 58%);
   outline-offset: 2px;
@@ -3400,8 +3474,32 @@ code {
   background: var(--border-light);
 }
 
+/* The shape switch floats over the stage grid rather than sitting in the window
+   chrome. It is a sibling of [data-slot], which reset() empties. */
+.playground-preview-panel {
+  position: relative;
+}
+
 .playground-view-tabs {
   margin-left: auto;
+}
+
+.playground-width-tabs {
+  position: absolute;
+  z-index: 1;
+  top: 12px;
+  left: 12px;
+}
+
+.playground-width-tabs button {
+  display: grid;
+  padding: 5px 9px;
+  place-items: center;
+}
+
+.playground-width-tabs svg {
+  width: 16px;
+  height: 16px;
 }
 
 .playground-preview-panel {
@@ -3410,8 +3508,11 @@ code {
 }
 
 .playground-stage {
-  min-height: 340px;
-  padding: 28px 20px;
+  /* Reserves the upright card's 310px so removing it cannot collapse the stage. */
+  min-height: 430px;
+  /* Symmetric block padding clears the shape switch (12px offset + 34px control)
+     without pushing the card off the vertical centre of the stage. */
+  padding: 60px 20px;
   background:
     radial-gradient(circle at 50% 0%, rgb(255 117 107 / 7%), transparent 60%),
     repeating-linear-gradient(0deg, transparent 0 23px, rgb(255 255 255 / 2.5%) 23px 24px),
@@ -3610,11 +3711,59 @@ code {
   color: inherit;
 }
 
-.playground-range-heading output {
+.playground-range-heading > .playground-range-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 72px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
   color: var(--text);
+  background: transparent;
   font-family: var(--font-mono);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.playground-range-value:hover {
+  border-color: var(--border-light);
+  background: rgb(255 255 255 / 3%);
+}
+
+.playground-range-value:focus-within {
+  border-color: rgb(255 117 107 / 58%);
+  background: var(--surface-raised);
+  box-shadow: 0 0 0 2px rgb(255 117 107 / 10%);
+}
+
+.playground-range-value input {
+  width: 5.5ch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-variant-numeric: inherit;
+  line-height: 1.5;
+  text-align: right;
+  appearance: textfield;
+}
+
+.playground-range-value input::-webkit-inner-spin-button,
+.playground-range-value input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.playground-range-value > span {
+  margin-left: 2px;
+  color: var(--faint);
 }
 
 .playground-range input[type='range'] {
@@ -3650,6 +3799,22 @@ code {
   height: 14px;
   border: 2px solid var(--surface);
   background: var(--accent);
+}
+
+.playground-sound-ranges {
+  align-items: start;
+  gap: 12px 16px;
+}
+
+.playground-sound-ranges .playground-range {
+  display: grid;
+  grid-template-rows: 40px 20px;
+  gap: 8px;
+}
+
+.playground-sound-ranges .playground-range-heading {
+  align-items: start;
+  margin-bottom: 0;
 }
 
 .playground-sound-enabled {
@@ -3693,72 +3858,104 @@ code {
   font-weight: 650;
 }
 
-.playground-sound-source select {
-  min-height: 42px;
-  width: 100%;
-  padding: 9px 32px 9px 11px;
-  border: 1px solid var(--border-light);
-  border-radius: 9px;
-  color: var(--text);
-  background: var(--surface-raised);
-  font-family: var(--font-sans);
-  font-size: 13px;
-  transition: none;
-}
-
-.playground-sound-source:hover select,
-.playground-sound-source:focus-within select {
-  border: 1px solid var(--border-light);
-  background: var(--surface-raised);
-  box-shadow: none;
-}
-
-.playground-local-audio {
+/* Bundled sounds and a local file share one bordered field: the select carries the
+   flexible side, the file chip the trailing side, and whichever is active is lit.
+   Two classes are needed to outrank the shared `.playground-select-field > div`. */
+.playground-sound-source .playground-sound-picker {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px 12px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: rgb(255 255 255 / 2%);
+  align-items: stretch;
+  /* The shared field rule sets a 6px gap that would break the seam. */
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  background: var(--surface-raised);
 }
 
-.playground-local-audio[hidden] {
-  display: none;
-}
-
-.playground-local-audio-file {
-  display: grid;
+/* The select sits in its own cell so the chevron can anchor to the select's edge
+   instead of the field's, which the file chip occupies. */
+.playground-sound-source .playground-sound-select {
+  position: relative;
   min-width: 0;
 }
 
-.playground-local-audio-file span {
-  overflow: hidden;
+/* Same 6px chevron the other playground selects draw. */
+.playground-sound-source .playground-sound-select::after {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  content: '';
+  pointer-events: none;
+  transform: translateY(-70%) rotate(45deg);
+}
+
+.playground-sound-source .playground-sound-picker select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 30px 0 11px;
+  border: 0;
+  border-radius: 0;
   color: var(--text);
-  font-size: 12px;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  /* The other playground selects suppress the ring the same way. */
+  outline: 0;
+  cursor: pointer;
+  appearance: none;
+  transition: none;
+}
+
+.playground-sound-file {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 150px;
+  padding: 0 11px;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
   font-weight: 620;
+  cursor: pointer;
+}
+
+.playground-sound-file svg {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+}
+
+.playground-sound-file span {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.playground-local-audio-file small,
-.playground-local-audio-note {
-  color: var(--faint);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.playground-local-audio-actions {
+/* The delete action sits beside the field heading and removes the stored file the
+   select is currently pointing at. */
+.playground-sound-source .playground-sound-heading {
   display: flex;
-  gap: 5px;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
 }
 
-.playground-local-audio-actions label,
-.playground-local-audio-actions button {
-  min-height: 30px;
-  padding: 6px 9px;
-  border: 1px solid var(--border-light);
+.playground-sound-remove {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
   border-radius: 7px;
   color: var(--muted);
   background: var(--surface-raised);
@@ -3768,15 +3965,27 @@ code {
   cursor: pointer;
 }
 
-.playground-local-audio-actions label:hover,
-.playground-local-audio-actions button:hover {
-  border-color: var(--border-light);
-  color: var(--muted);
-  background: var(--surface-raised);
+.playground-sound-remove[hidden] {
+  display: none;
 }
 
-.playground-local-audio-note {
-  grid-column: 1 / -1;
+.playground-sound-remove svg {
+  width: 13px;
+  height: 13px;
+}
+
+.playground-sound-source .playground-local-audio-note {
+  display: block;
+  margin-top: 7px;
+  color: var(--faint);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+/* The wrapper draws the control's frame, so the shared field chrome stands down. */
+.playground-sound-source::after {
+  display: none;
+  content: none;
 }
 
 .playground-code {
@@ -3876,7 +4085,10 @@ code {
   background: rgb(255 255 255 / 5%);
 }
 
-.playground-code-heading button[data-copy-state='success'] {
+/* A button reporting its result keeps that colour: the per-variant :hover rules are
+   more specific than a bare state selector, so the hover case is restated here. */
+.playground-code-heading button[data-copy][data-copy-state='success'],
+.playground-code-heading button[data-copy][data-copy-state='success']:hover {
   border-color: rgb(104 200 153 / 35%);
   color: #87d7ae;
   background: rgb(104 200 153 / 10%);
@@ -3890,11 +4102,20 @@ code {
   display: inline-grid;
 }
 
-.playground-code-heading button[data-copy-state='error'] {
+.playground-code-heading button[data-copy][data-copy-state='error'],
+.playground-code-heading button[data-copy][data-copy-state='error']:hover {
   color: var(--accent-bright);
 }
 
 @media (max-width: 980px) {
+  .home-playground-section {
+    padding-bottom: 64px;
+  }
+
+  .home-next-steps {
+    padding-bottom: 72px;
+  }
+
   .playground-workspace {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -3906,6 +4127,14 @@ code {
 }
 
 @media (max-width: 640px) {
+  .home-playground-section {
+    padding-bottom: 40px;
+  }
+
+  .home-next-steps {
+    padding-bottom: 48px;
+  }
+
   .playground-preset-heading {
     align-items: stretch;
     flex-direction: column;
@@ -3921,8 +4150,8 @@ code {
   }
 
   .playground-stage {
-    min-height: 280px;
-    padding: 20px 12px;
+    min-height: 430px;
+    padding: 60px 12px;
   }
 
   .playground-commandbar .playground-actions {
@@ -3936,13 +4165,5 @@ code {
 
   .playground-sound-toggles {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .playground-local-audio {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .playground-local-audio-note {
-    grid-column: auto;
   }
 }
