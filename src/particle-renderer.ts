@@ -776,7 +776,9 @@ export function createParticleField(
   const data = new Float32Array(particleCount * PARTICLE_STRIDE);
   const thresholdMap = new Uint8Array(blockCount);
   const visibleThresholds = new Uint32Array(256);
-  let dataOffset = 0;
+  // Safari's WebGL backend can draw a phantom strip for large, ascending source rows.
+  // Write the same records in reverse order without allocating or traversing another buffer.
+  let dataOffset = data.length - PARTICLE_STRIDE;
 
   for (let blockY = 0; blockY < thresholdHeight; blockY += 1) {
     const y = blockY * blockSize;
@@ -814,7 +816,7 @@ export function createParticleField(
       data[dataOffset + 4] = velocityY;
       data[dataOffset + 5] = swirl;
       data[dataOffset + 6] = random() * Math.PI * 2;
-      dataOffset += PARTICLE_STRIDE;
+      dataOffset -= PARTICLE_STRIDE;
     }
   }
 

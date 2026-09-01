@@ -113,8 +113,20 @@ function particleContext(snapshot: HTMLCanvasElement): AnimationContext {
   };
 }
 
+function particleComponentAt(
+  field: ReturnType<typeof createParticleField>,
+  x: number,
+  y: number,
+  component: number,
+): number {
+  for (let offset = 0; offset < field.data.length; offset += 7) {
+    if (field.data[offset] === x && field.data[offset + 1] === y) return field.data[offset + component] ?? 0;
+  }
+  throw new Error(`Missing particle at ${String(x)}:${String(y)}`);
+}
+
 describe('particle renderer', () => {
-  it('assigns every visible source block to exactly one particle', () => {
+  it('assigns every visible source block once in Safari-safe upload order', () => {
     const width = 4;
     const height = 3;
     const pixels = new Uint8ClampedArray(width * height * 4);
@@ -129,6 +141,9 @@ describe('particle renderer', () => {
     expect(field.blockSize).toBe(1);
     expect(sources).toHaveLength(width * height);
     expect(new Set(sources).size).toBe(sources.length);
+    // Ascending source order produces a phantom strip along the element edge in Safari's WebGL renderer.
+    expect(sources[0]).toBe('3:2');
+    expect(sources.at(-1)).toBe('0:0');
     expect(field.thresholdMap.every((threshold) => threshold > 0 && threshold < 255)).toBe(true);
     expect(field.layoutReleaseProgress).toBeGreaterThan(0);
     expect(field.layoutReleaseProgress).toBeLessThan(1);
@@ -194,7 +209,7 @@ describe('particle renderer', () => {
     const field = createParticleField(pixels, 9, 1, resolveParticles({ release: 'top' }), 1, 1, () => 0.5);
 
     // One row, so nothing in the horizontal position may order the departures.
-    const thresholdAt = (column: number) => field.data[column * 7 + 2] ?? 0;
+    const thresholdAt = (column: number) => particleComponentAt(field, column, 0, 2);
     expect(thresholdAt(0)).toBeCloseTo(thresholdAt(4), 6);
     expect(thresholdAt(8)).toBeCloseTo(thresholdAt(4), 6);
   });
@@ -205,7 +220,7 @@ describe('particle renderer', () => {
     const field = createParticleField(pixels, 1, 9, resolveParticles({ release: 'top' }), 1, 1, () => 0.5);
 
     // Row 0 is the top of the element, so it must leave before the bottom row.
-    const thresholdAt = (rowIndex: number) => field.data[rowIndex * 7 + 2] ?? 0;
+    const thresholdAt = (rowIndex: number) => particleComponentAt(field, 0, rowIndex, 2);
     expect(thresholdAt(0)).toBeLessThan(thresholdAt(8));
   });
 
@@ -214,7 +229,7 @@ describe('particle renderer', () => {
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
     const field = createParticleField(pixels, 9, 1, resolveParticles({ convergence: 1 }), 1, 1, () => 0.5);
 
-    const horizontalVelocityAt = (column: number) => field.data[column * 7 + 3] ?? 0;
+    const horizontalVelocityAt = (column: number) => particleComponentAt(field, column, 0, 3);
     expect(horizontalVelocityAt(0)).toBeGreaterThan(0);
     expect(horizontalVelocityAt(8)).toBeLessThan(0);
   });
@@ -224,7 +239,7 @@ describe('particle renderer', () => {
     for (let index = 3; index < pixels.length; index += 4) pixels[index] = 255;
     const scatter = createParticleField(pixels, 9, 1, resolveParticles({ release: 'left' }), 1, 1, () => 0.5);
 
-    const thresholdAt = (column: number) => scatter.data[column * 7 + 2] ?? 0;
+    const thresholdAt = (column: number) => particleComponentAt(scatter, column, 0, 2);
     expect(thresholdAt(0)).toBeLessThan(thresholdAt(8));
   });
 
