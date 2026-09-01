@@ -166,6 +166,44 @@ test('releases a queued preset lock when the playground enters the back-forward 
   await expect(root.locator('[data-preset="dust"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('keeps the documentation header above particle overlays', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium');
+  await page.goto('http://localhost:4321/');
+
+  const root = page.locator('[data-particle-playground]');
+  await root.scrollIntoViewIfNeeded();
+  const layers = await root.evaluate(async (element) => {
+    const overlay = await new Promise<HTMLElement>((resolve, reject) => {
+      const findOverlay = () =>
+        [...document.body.children].find(
+          (child): child is HTMLElement =>
+            child instanceof HTMLElement && child.ariaHidden === 'true' && child.style.position === 'fixed',
+        );
+      const observer = new MutationObserver(() => {
+        const candidate = findOverlay();
+        if (candidate === undefined) return;
+        window.clearTimeout(timeout);
+        observer.disconnect();
+        resolve(candidate);
+      });
+      const timeout = window.setTimeout(() => {
+        observer.disconnect();
+        reject(new Error('The particle overlay was not mounted.'));
+      }, 5_000);
+      observer.observe(document.body, { childList: true });
+      element.querySelector<HTMLButtonElement>('[data-action="remove"]')?.click();
+    });
+    const header = document.querySelector<HTMLElement>('.docs-header');
+    if (header === null) throw new Error('The documentation header is missing.');
+    return {
+      header: getComputedStyle(header).zIndex,
+      overlay: getComputedStyle(overlay).zIndex,
+    };
+  });
+
+  expect(layers).toEqual({ header: '2147483647', overlay: '2147483646' });
+});
+
 test('accepts exact numeric input for every playground range', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   await page.goto('http://localhost:4321/');
@@ -351,7 +389,7 @@ test('deduplicates shared custom particle options in generated code', async ({ p
   await setRange('duration', '925');
   await expect(code).toContainText('const sharedParticleOptions: ParticleOptions');
   await expect(code).toContainText('duration: 925');
-  await expect(code).toContainText('duration: 900');
+  await expect(code).toContainText('duration: 750');
   await expectOccurrences(/curve: 'float'/g, 1);
   await expectOccurrences(/\.\.\.sharedParticleOptions/g, 2);
   await expect(code).toContainText('const sharedSoundOptions =');
@@ -366,7 +404,7 @@ test('deduplicates shared custom particle options in generated code', async ({ p
   await root.locator('[data-operation="restore"]').click();
   await setRange('duration', '925');
   await expectOccurrences(/duration: 925/g, 1);
-  await expectOccurrences(/duration: 900/g, 0);
+  await expectOccurrences(/duration: 750/g, 0);
   await expect(code).toContainText('const sharedParticleOptions: ParticleOptions');
   await expectOccurrences(/sharedParticleOptions/g, 3);
   await expectOccurrences(/\.\.\.sharedParticleOptions/g, 0);
@@ -374,7 +412,7 @@ test('deduplicates shared custom particle options in generated code', async ({ p
   expect(await generatedEffect()).toContain('restore: sharedParticleOptions,');
 
   await setRange('swirl', '19');
-  await expectOccurrences(/swirl: 18/g, 1);
+  await expectOccurrences(/swirl: 5/g, 1);
   await expectOccurrences(/swirl: 19/g, 1);
   await expectOccurrences(/\.\.\.sharedParticleOptions/g, 2);
 });

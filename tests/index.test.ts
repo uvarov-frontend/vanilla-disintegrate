@@ -135,6 +135,18 @@ describe('public entries', () => {
     expect(Object.isFrozen(particlePresets.dust)).toBe(true);
     expect(Object.isFrozen(particlePresets.dust.horizontalTravel)).toBe(true);
     expect(Object.isFrozen(particlePresets.dust.verticalTravel)).toBe(true);
+    expect(particlePresets.vapor).toEqual({
+      curve: 'float',
+      duration: 750,
+      stagger: 80,
+      horizontalDrift: 80,
+      horizontalTravel: [-10, 10],
+      verticalTravel: [-255, -130],
+      convergence: 0.8,
+      swirl: 5,
+      endScale: 0.6,
+      release: 'top',
+    });
 
     const effect = createParticleEffect({
       remove: { curve: 'burst', release: 'random' },

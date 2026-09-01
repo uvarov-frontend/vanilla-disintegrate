@@ -14,6 +14,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Retune the `vapor` preset to a faster 750 ms plume with wider drift, stronger lift, and a smaller end scale.
 - Retime the `dust` preset to a shorter, tighter fall: 850 ms with 130 ms of stagger and a 0.55 end scale.
 - Require every `Disintegrator` instance to choose exactly one complete `preset` or one object-valued custom `effect`; there is no implicit default.
 - Make built-in presets audible by default and allow them to be muted only with `sound: false`; custom effects remain silent until given an explicit remove/restore sound pair.
@@ -23,6 +24,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Fixed
 
+- Keep the documentation header above particle overlays throughout playground and demo animations.
 - Release the playground's queued preset lock when a pending preview is cancelled by a back/forward-cache navigation.
 - Write the playground's URL state immediately for a discrete change — a click, an Enter, a select — instead of debouncing it, so reloading right after an edit no longer restores the previous value.
 - Replace `AbortSignal.throwIfAborted()` in the audio loader with a check that works on the documented browser baseline, so local `Blob`/`File` sources load below Chrome 100, Firefox 97, and Safari 15.4.

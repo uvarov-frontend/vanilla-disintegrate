@@ -189,7 +189,9 @@ summary:focus-visible {
 
 .docs-header {
   position: sticky;
-  z-index: 100;
+  /* The runtime overlay defaults to 2147483646, leaving this final layer for
+     persistent application chrome that must stay visible above animations. */
+  z-index: 2147483647;
   top: 0;
   height: var(--header-height);
   border-bottom: 1px solid rgb(var(--tint-rgb) / 8%);
