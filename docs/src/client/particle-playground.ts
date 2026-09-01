@@ -1449,7 +1449,7 @@ export function mountParticlePlayground(root: HTMLElement) {
       if (selected === cardWidth) return;
       cardWidth = selected;
       applyCardWidth(true);
-      scheduleHash();
+      flushHash();
     });
   }
 
@@ -1678,7 +1678,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     hashTimer = null;
     writeHash(configuration, activeOperation, cardWidth);
   };
-  const commitConfigurationChange = (changed?: NumericKey) => {
+  const commitConfigurationChange = (changed?: NumericKey, committed = false) => {
     const state = configuration[activeOperation];
     if (state.horizontalMin > state.horizontalMax) {
       if (changed === 'horizontalMin') state.horizontalMax = state.horizontalMin;
@@ -1689,11 +1689,15 @@ export function mountParticlePlayground(root: HTMLElement) {
       else state.verticalMin = state.verticalMax;
     }
     status.textContent = copy.updated;
-    scheduleHash();
+    // A click, an Enter or a select change is a decision, and reloading right after one
+    // must not lose it: `replaceState` during unload no longer reaches the URL the
+    // browser is already navigating to. The debounce stays for streams of input events.
+    if (committed) flushHash();
+    else scheduleHash();
     render();
     schedulePreview();
   };
-  const syncFromControls = (changed?: NumericKey) => {
+  const syncFromControls = (changed?: NumericKey, committed = false) => {
     const state = configuration[activeOperation];
     state.curve = curveSelect.value as ParticleCurve;
     state.release = releaseSelect.value as ParticleRelease;
@@ -1701,7 +1705,7 @@ export function mountParticlePlayground(root: HTMLElement) {
       const value = Number(inputs.get(changed)?.value);
       if (Number.isFinite(value)) state[changed] = value;
     }
-    commitConfigurationChange(changed);
+    commitConfigurationChange(changed, committed);
   };
   const syncFromValueInput = (range: RangeDefinition, input: HTMLInputElement) => {
     if (!Number.isFinite(input.valueAsNumber)) {
@@ -1710,7 +1714,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     }
     const value = stateRangeValue(range, input.valueAsNumber);
     configuration[activeOperation][range.key] = Math.min(range.max, Math.max(range.min, value));
-    commitConfigurationChange(range.key);
+    commitConfigurationChange(range.key, true);
   };
   const prepare = () => {
     status.textContent = copy.preparing;
@@ -1777,13 +1781,13 @@ export function mountParticlePlayground(root: HTMLElement) {
       }
       configuration = configurationFromPreset(preset);
       void Promise.all([prepareOperationSound('remove'), prepareOperationSound('restore')]);
-      scheduleHash();
+      flushHash();
       render();
       schedulePreview(true);
     });
   }
-  curveSelect.addEventListener('change', () => syncFromControls());
-  releaseSelect.addEventListener('change', () => syncFromControls());
+  curveSelect.addEventListener('change', () => syncFromControls(undefined, true));
+  releaseSelect.addEventListener('change', () => syncFromControls(undefined, true));
   for (const [key, input] of inputs) input.addEventListener('input', () => syncFromControls(key));
   for (const range of ranges) {
     const input = valueInputs.get(range.key);
@@ -1807,7 +1811,7 @@ export function mountParticlePlayground(root: HTMLElement) {
       if (operation === activeOperation) return;
       activeOperation = operation;
       status.textContent = copy.updated;
-      scheduleHash();
+      flushHash();
       render();
       schedulePreview();
     });
@@ -1830,7 +1834,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     state.soundEnabled = soundEnabled.checked;
     status.textContent = copy.updated;
     if (state.soundEnabled) void prepareOperationSound(activeOperation);
-    scheduleHash();
+    flushHash();
     render();
     schedulePreview();
   });
@@ -1841,7 +1845,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     if (previous !== null) instance.discardPreparedAudio(previous);
     state.soundSource = soundSource.value as PlaygroundSoundSource;
     status.textContent = copy.updated;
-    scheduleHash();
+    flushHash();
     render();
     void prepareOperationSound(operation);
     schedulePreview();
@@ -1853,7 +1857,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     if (previous !== null) instance.discardPreparedAudio(previous);
     state.soundReverse = soundReverse.checked;
     status.textContent = copy.updated;
-    scheduleHash();
+    flushHash();
     render();
     void prepareOperationSound(operation);
     schedulePreview();
@@ -1917,7 +1921,7 @@ export function mountParticlePlayground(root: HTMLElement) {
       }
     }
     status.textContent = copy.updated;
-    scheduleHash();
+    flushHash();
     render();
     void deletePlaygroundAudio(removed.id).catch(() => undefined);
     void prepareOperationSound(operation);
@@ -1963,7 +1967,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     activeOperation = 'remove';
     configuration = configurationFromPreset('dust');
     void Promise.all([prepareOperationSound('remove'), prepareOperationSound('restore')]);
-    scheduleHash();
+    flushHash();
     render();
     prepare();
   });
