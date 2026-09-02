@@ -588,14 +588,22 @@ export class OperationRunner {
   private createOverlay(rect: DOMRectReadOnly) {
     const overlay = document.createElement('div');
     overlay.setAttribute('aria-hidden', 'true');
+    // `rect` is measured against the layout viewport while a fixed element is
+    // placed against the visual one, and iOS separates the two whenever the page
+    // is pinch-zoomed or the address bar is mid-collapse. The offset closes that
+    // gap; without it the overlay lands off screen and the element simply
+    // vanishes with no effect in sight. Measured on iOS 26: at scale 1.77 a
+    // fixed box set to the element's own rect rendered 98px left and 288px above
+    // it — exactly the visual viewport offset.
+    const viewport = window.visualViewport;
     Object.assign(overlay.style, {
       height: `${rect.height}px`,
       isolation: 'isolate',
-      left: `${rect.left}px`,
+      left: `${rect.left + (viewport?.offsetLeft ?? 0)}px`,
       overflow: 'visible',
       pointerEvents: 'none',
       position: 'fixed',
-      top: `${rect.top}px`,
+      top: `${rect.top + (viewport?.offsetTop ?? 0)}px`,
       width: `${rect.width}px`,
       zIndex: `${this.options.zIndex ?? 2147483646}`,
     });
@@ -609,9 +617,14 @@ export class OperationRunner {
     }
     const initialX = window.scrollX;
     const initialY = window.scrollY;
+    // Pinching, and panning inside a zoomed page, move the visual viewport
+    // without scrolling the document, so those events have to be followed too.
+    const viewport = window.visualViewport;
+    const initialOffsetX = viewport?.offsetLeft ?? 0;
+    const initialOffsetY = viewport?.offsetTop ?? 0;
     const update = () => {
-      let x = initialX - window.scrollX;
-      let y = initialY - window.scrollY;
+      let x = initialX - window.scrollX + ((viewport?.offsetLeft ?? 0) - initialOffsetX);
+      let y = initialY - window.scrollY + ((viewport?.offsetTop ?? 0) - initialOffsetY);
       for (const [ancestor, scrollLeft, scrollTop] of ancestors) {
         x += scrollLeft - ancestor.scrollLeft;
         y += scrollTop - ancestor.scrollTop;
@@ -619,9 +632,13 @@ export class OperationRunner {
       overlay.style.transform = `translate3d(${x}px, ${y}px, 0)`;
     };
     window.addEventListener('scroll', update, { passive: true });
+    viewport?.addEventListener('scroll', update, { passive: true });
+    viewport?.addEventListener('resize', update, { passive: true });
     for (const [ancestor] of ancestors) ancestor.addEventListener('scroll', update, { passive: true });
     return () => {
       window.removeEventListener('scroll', update);
+      viewport?.removeEventListener('scroll', update);
+      viewport?.removeEventListener('resize', update);
       for (const [ancestor] of ancestors) ancestor.removeEventListener('scroll', update);
     };
   }
