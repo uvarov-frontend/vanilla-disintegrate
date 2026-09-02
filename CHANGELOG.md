@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-09-02
+
+### Fixed
+
+- Align fixed particle overlays with the visual viewport in iOS Safari during pinch zoom, viewport panning, and address-bar transitions.
+
 ## [1.2.0] - 2026-09-02
 
 ### Added
@@ -90,7 +96,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Reworked the public runtime around explicit DOM removal and restoration.
 - Removed obsolete `disintegrate()` and `/core` entry points.
 
-[Unreleased]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.2.1...HEAD
+[1.2.1]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.1.4...v1.2.0
 [1.1.4]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.1.3...v1.1.4
 [1.1.3]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/72cdbf64be5b2c658cc219d2ff5d0ce8ecc08ef0...v1.1.3
