@@ -119,6 +119,8 @@ const effects = new Disintegrator({
 
 传入的函数会完全替代截图行为。此路径请导入根入口 `vanilla-disintegrate`：它没有强制运行时依赖。`@zumer/snapdom` 是仅供 `/snapdom` 入口使用的可选 peer 依赖，因此 SnapDOM 不会进入这里的模块图。
 
+适配器上下文、取消契约和 `createSnapdomCapture()` 默认值请参阅[捕获 API](/zh/docs/reference/capture/)。
+
 ## 本地或通过 CDN 引入
 
 如果想在不使用构建工具或包管理器的情况下快速集成 Vanilla Disintegrate，可以通过 CDN 引入，或[下载包含最新版本的压缩包](https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/vanilla-disintegrate-iife.zip)在本地使用。

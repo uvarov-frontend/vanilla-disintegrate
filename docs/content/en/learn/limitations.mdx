@@ -33,7 +33,7 @@ In other words, `exact` controls the quality of subsequent rendering, not the ac
 
 The IIFE bundle uses SnapDOM as its ready-made capture adapter. Performance was one consideration behind this choice: as of 2026, the [comparative benchmarks published by the project](https://github.com/zumerlab/snapdom#performance-benchmarks) show **low capture latency for DOM elements of varying complexity**. Actual speed depends on the content, browser, and device, and the choice of capture engine does not remove browser rasterization limitations.
 
-The `capture` option accepts any adapter capable of returning a `<canvas>`, so a project **can use another engine or a custom implementation**.
+The `capture` option accepts any adapter capable of returning a `<canvas>`, so a project **can use another engine or a custom implementation**. The [Capture API](/docs/reference/capture/) defines the complete adapter contract.
 
 Nevertheless, neither SnapDOM nor the other DOM-to-Canvas solutions available at that point guarantee pixel-perfect results for every kind of content. Engines handle text, images, SVG, form controls, pseudo-elements, and browser effects differently.
 

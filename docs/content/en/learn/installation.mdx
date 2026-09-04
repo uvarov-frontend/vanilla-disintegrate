@@ -119,6 +119,8 @@ const effects = new Disintegrator({
 
 The supplied function completely replaces capture. Import the default `vanilla-disintegrate` entry on this path: it has no runtime dependencies. `@zumer/snapdom` is an optional peer dependency used only by `/snapdom`, so SnapDOM does not enter the module graph here.
 
+The [Capture API](/docs/reference/capture/) documents the adapter context, cancellation contract, and `createSnapdomCapture()` defaults.
+
 ## Local setup or CDN
 
 To integrate Vanilla Disintegrate quickly without a bundler or package manager, load it from the CDN or [download the archive](https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/vanilla-disintegrate-iife.zip) containing the latest version for local use.

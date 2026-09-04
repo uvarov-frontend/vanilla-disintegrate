@@ -9,7 +9,17 @@ order: 70
 
 `Disintegrator` 把一套完整视觉配置、可选音频、捕获、布局动画、后台准备与保留节点存储组合在一起。
 
-根入口与 `/snapdom` 注册四个完整内置预设；只有 `/snapdom` 提供捕获适配器。`/core` 只提供生命周期，不包含内置预设、粒子、声音或捕获。任何入口都不会选择默认预设。
+## 入口
+
+| 入口                             | 运行时内容                                                    | 额外依赖         |
+| -------------------------------- | ------------------------------------------------------------- | ---------------- |
+| `vanilla-disintegrate/core`      | `Disintegrator`、效果与预设辅助函数，以及所有公共类型         | 无               |
+| `vanilla-disintegrate/particles` | 粒子工厂、视觉预设和粒子类型                                  | 无               |
+| `vanilla-disintegrate/sounds`    | 四个内置音频文件的 URL 和声音类型                             | 无               |
+| `vanilla-disintegrate`           | `Disintegrator`、四个完整预设、粒子、声音、辅助函数和公共类型 | 无               |
+| `vanilla-disintegrate/snapdom`   | 根入口 API，并把 SnapDOM 配置为默认捕获适配器                 | `@zumer/snapdom` |
+
+根入口与 `/snapdom` 注册四个完整内置预设。只有 `/snapdom` 提供捕获适配器；`/core` 只提供生命周期，不包含内置预设、粒子、内置声音文件或捕获。任何入口都不会选择默认预设。[粒子](/zh/docs/reference/particles/)、[捕获](/zh/docs/reference/capture/)和[音频](/zh/docs/reference/audio/)页面分别详细说明了对应的专用导出。
 
 ## 构造器
 
@@ -53,6 +63,50 @@ type DisintegratorOptions =
 
 后台快照错误报告 `context.operation === 'prepare'`；操作错误报告 `remove` 或 `restore`。
 
+### `LayoutOptions`
+
+布局动画使用 FLIP 技术，在删除后把受影响的元素从原位置移动到新位置。
+
+| 参数               | 类型                                                            | 默认值                             | 作用                                |
+| ------------------ | --------------------------------------------------------------- | ---------------------------------- | ----------------------------------- |
+| `enabled`          | `boolean`                                                       | `true`                             | 启用布局动画，同时保留其他默认设置  |
+| `duration`         | `number`                                                        | `300`                              | 重排动画时长，单位为毫秒            |
+| `easing`           | `string`                                                        | `'cubic-bezier(0.22, 1, 0.36, 1)'` | 传递给 WAAPI 的 CSS timing function |
+| `container`        | `HTMLElement \| (element) => HTMLElement \| null`               | 目标的父元素                       | 定义坐标空间和可选的高度动画目标    |
+| `siblings`         | `'following' \| 'all' \| (element, container) => HTMLElement[]` | `'following'`                      | 选择参与动画的子元素                |
+| `animateContainer` | `boolean`                                                       | `true`                             | 为变化后的容器高度添加动画          |
+
+传入 `layout: false` 会关闭重排动画。`layout` 只用于 `remove()`；恢复时，被插入的元素会在最终布局位置执行动画。负数 `duration` 会归零，非有限值会使用默认值。
+
+### `PreparationOptions`
+
+| 参数                 | 类型                                      | 默认值           | 作用                                     |
+| -------------------- | ----------------------------------------- | ---------------- | ---------------------------------------- |
+| `strategy`           | `'immediate' \| 'idle' \| 'visible-idle'` | `'visible-idle'` | 决定何时可以捕获已注册元素               |
+| `shouldPrepare`      | `(element) => boolean`                    | `() => true`     | 在加入调度队列前筛选元素                 |
+| `root`               | `Element \| Document \| null`             | `null`           | Intersection Observer 的根               |
+| `rootMargin`         | `string`                                  | `'300px 0px'`    | 在元素进入视口之前启动 visible-idle 工作 |
+| `concurrency`        | `number`                                  | `1`              | 最大并发捕获数，规范为 `1` 到 `8` 的整数 |
+| `invalidateOnResize` | `boolean`                                 | `true`           | 尺寸变化时使已准备快照失效               |
+| `observeMutations`   | `boolean`                                 | `false`          | 监听子树变化和后代元素的加载事件         |
+| `idleTimeout`        | `number`                                  | `750`            | 等待 `requestIdleCallback` 的最长毫秒数  |
+| `fallbackDelay`      | `number`                                  | `250`            | 不支持 idle callback 时的延迟            |
+| `scrollSettle`       | `number`                                  | `120`            | 滚动停止后开始后台工作的静默时间         |
+| `animationSettle`    | `number`                                  | `400`            | 捕获前等待元素现有动画的最长时间         |
+| `cachePixelBudget`   | `number`                                  | `8_000_000`      | 以 canvas 物理像素计算的 LRU 容量        |
+
+传入 `preparation: false` 会关闭自动准备，但不会禁用显式的 `prepare()` 调用。负数的计时和缓存预算会归零，非有限值会使用对应默认值。
+
+### `AudioPreparationOptions`
+
+| 参数              | 类型                        | 默认值            | 作用                                       |
+| ----------------- | --------------------------- | ----------------- | ------------------------------------------ |
+| `strategy`        | `'immediate' \| 'idle'`     | `'idle'`          | 决定何时获取并解码原生音频                 |
+| `sounds`          | `SoundPreparationSelection` | 实例声音          | 选择要准备的声音，替代实例声音             |
+| `cacheByteBudget` | `number`                    | `8 * 1024 * 1024` | 每个实例对已解码 PCM 数据的 LRU 所有权预算 |
+
+传入 `audioPreparation: false` 会关闭自动工作，但仍可显式准备音频。负数缓存预算会归零。
+
 ## 完整预设
 
 ```ts
@@ -77,9 +131,72 @@ const effects = new Disintegrator({
 
 `definePreset()` 会冻结预设、视觉阶段和原生声音选项对象，但不会冻结调用方拥有的二进制音频数据。
 
+```ts
+const builtInPresets: Readonly<Record<'dust' | 'scatter' | 'vapor' | 'wind', Readonly<PresetDefinition>>>;
+```
+
+`builtInPresets` 由根入口和 `/snapdom` 导出。每个值都是一个完整且冻结的粒子与音频预设。`/particles` 入口则导出只包含视觉配置的 `particlePresets`。
+
+## 自定义效果契约
+
+```ts
+import { defineEffect } from 'vanilla-disintegrate/core';
+
+interface EffectPhase {
+  needsSnapshot?: boolean;
+  animate: AnimationFactory;
+}
+
+interface EffectDefinition {
+  remove: EffectPhase;
+  restore: EffectPhase;
+}
+
+const effect = defineEffect({
+  remove: { needsSnapshot: false, animate: removeFactory },
+  restore: { needsSnapshot: false, animate: restoreFactory },
+});
+```
+
+`needsSnapshot` 默认为 `true`。`defineEffect()` 会冻结效果及其两个阶段对象，同时保留 TypeScript 推断出的窄类型。
+
+动画工厂接收 `AnimationContext`：
+
+| 字段            | 类型                             | 含义                                       |
+| --------------- | -------------------------------- | ------------------------------------------ |
+| `operation`     | `'remove' \| 'restore'`          | 当前阶段                                   |
+| `element`       | `HTMLElement`                    | 应用中的原始元素                           |
+| `layer`         | `HTMLElement`                    | 由库管理的空白定位覆盖层                   |
+| `snapshot`      | `HTMLCanvasElement \| null`      | 原始捕获；无快照阶段为 `null`              |
+| `visual`        | `HTMLCanvasElement \| null`      | 按需创建的 `snapshot` 全尺寸副本           |
+| `bounds`        | `DOMRectReadOnly`                | 覆盖层使用的最终视口几何信息               |
+| `signal`        | `AbortSignal`                    | 取消操作或销毁实例时中止                   |
+| `reducedMotion` | `false`                          | 减少动态效果的请求会在工厂运行前被跳过     |
+| `random`        | `() => number`                   | 每次操作独立的伪随机数流                   |
+| `addCleanup`    | `(callback: () => void) => void` | 注册在完成、取消和失败时都会执行的清理函数 |
+
+`AnimationFactory` 可以返回 Web `Animation`、任意 `PromiseLike`、`AnimationPlayback` 控制器，或者在无法创建动画时返回 `null`。
+
+```ts
+interface AnimationPlayback {
+  finished: PromiseLike<unknown>;
+  element?: HTMLElement;
+  duration?: number;
+  layoutDelay?: number;
+  cancel?(): void;
+  dispose?(): void;
+}
+```
+
+如果 `element` 尚无父节点，它会被添加到 `layer`。`duration` 用于同步原生音频，`layoutDelay` 延迟删除时的布局重排，`cancel()` 停止播放，`dispose()` 在任何退出路径中释放渲染器资源。
+
 ## remove(target, options?)
 
 分离解析后的元素，并同步返回 `EffectOperation`。
+
+```ts
+remove(target: EffectTarget, options?: RemoveOptions): EffectOperation;
+```
 
 ```ts
 const operation = effects.remove('.card', {
@@ -100,6 +217,10 @@ const operation = effects.remove('.card', {
 在元素当前几何位置动画显示已连接、可测量的元素。
 
 ```ts
+restore(target: EffectTarget, options?: RestoreOptions): EffectOperation;
+```
+
+```ts
 const operation = effects.restore(element, {
   preset: 'scatter',
   sound: false,
@@ -109,6 +230,23 @@ const operation = effects.restore(element, {
 元素未连接或宽高为零时，该方法会抛错。
 
 任一操作都可传入一个完整 `preset`、一个自定义 `effect` 加该阶段可选声音定义，或不传以继承实例或保留节点的展示配置。继承音频与预设音频只能通过 `sound: false` 静音。
+
+### 操作选项
+
+| 参数         | 适用范围 | 含义                                                |
+| ------------ | -------- | --------------------------------------------------- |
+| `preset`     | 两种操作 | 选择已注册名称或内联的完整预设                      |
+| `effect`     | 两种操作 | 选择完整自定义效果；不能与 `preset` 同时使用        |
+| `sound`      | 两种操作 | 为显式自定义效果添加当前阶段声音，或用 `false` 静音 |
+| `onTrigger`  | 两种操作 | 添加捕获前的操作回调                                |
+| `onStart`    | 两种操作 | 添加 DOM 提交后的操作回调                           |
+| `onComplete` | 两种操作 | 添加视觉效果正常完成后的操作回调                    |
+| `onError`    | 两种操作 | 添加隔离的错误回调                                  |
+| `retain`     | 删除     | 使用 `operation.removalId` 保存被分离的原始节点     |
+| `layout`     | 删除     | 为本次删除启用或覆盖布局动画                        |
+| `detach`     | 删除     | 替换默认的 `element.remove()` 提交操作              |
+
+操作回调会在实例回调之外额外执行。未提供 `preset` 或 `effect` 时会继承呈现配置；继承声音和预设声音可以静音，但不能独立替换。
 
 ## 保留元素
 
@@ -131,6 +269,8 @@ effects.clearPrepared();
 
 `register()` 遵循配置的策略。即使后台准备已关闭，`prepare()` 也会立即捕获。同一元素的重复注册采用引用计数；每个返回的取消函数只释放自己的注册。
 
+`register()` 返回幂等的 `() => void`；`prepare()` 返回 `Promise<void>`；`invalidate()` 和 `clearPrepared()` 返回 `void`。
+
 ## 音频准备
 
 ```ts
@@ -143,6 +283,8 @@ effects.clearPreparedAudio();
 ```
 
 无参数时，`prepareAudio()` 与 `discardPreparedAudio()` 使用实例配置的声音对。即使自动准备关闭，显式方法仍然有效。解码缓冲区使用有界的实例所有权 LRU，而请求、缓冲区和 `AudioContext` 在实例间共享。
+
+`prepareAudio()` 返回 `Promise<void>`，`discardPreparedAudio()` 返回已释放的实例所有解码条目数量，`clearPreparedAudio()` 返回 `void`。
 
 ## destroy()
 
@@ -179,3 +321,21 @@ interface EffectOperation {
 ## 回调与优先级
 
 实例回调会为每次操作运行，操作回调与其一起运行。显式操作展示配置优先，其次是保留节点记住的配置，最后是实例配置。元素已被占用时，并发调用会在当前所有者结束后以 `rejected` 完成。
+
+```ts
+interface EffectContext {
+  operation: 'remove' | 'restore';
+  element: HTMLElement;
+  overlay: HTMLElement | null;
+  removalId: RemovalId | null;
+}
+
+interface EffectErrorContext {
+  operation: 'remove' | 'restore' | 'prepare';
+  element: HTMLElement;
+  overlay: HTMLElement | null;
+  removalId: RemovalId | null;
+}
+```
+
+`onTrigger` 在验证和测量之后、捕获和 DOM 提交之前运行，此时 `overlay` 为 `null`。`onStart` 在内容操作提交且视觉播放开始后运行。`onComplete` 只在视觉与布局正常完成后运行。`onError` 接收准备、捕获、动画、音频、清理和应用回调中的错误，同时不会让这些错误中断必要的 DOM 操作或清理。

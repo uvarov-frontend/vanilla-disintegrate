@@ -22,10 +22,15 @@ import {
 type Locale = 'en' | 'ru' | 'zh' | 'ko';
 
 interface PlaygroundState {
+  particleSize: number;
+  alphaThreshold: number;
   curve: ParticleCurve;
   release: ParticleRelease;
+  releaseRandomness: number;
   duration: number;
   stagger: number;
+  fadeStart: number;
+  layoutRelease: number;
   horizontalDrift: number;
   horizontalMin: number;
   horizontalMax: number;
@@ -33,7 +38,10 @@ interface PlaygroundState {
   verticalMax: number;
   convergence: number;
   swirl: number;
+  waveTurns: number;
   endScale: number;
+  rotationMin: number;
+  rotationMax: number;
   soundEnabled: boolean;
   soundSource: PlaygroundSoundSource;
   soundReverse: boolean;
@@ -118,6 +126,7 @@ const copies = {
     timing: 'Timing',
     horizontal: 'Horizontal',
     vertical: 'Vertical',
+    particles: 'Particles',
     sound: 'Sound',
     soundEnabled: 'Enable sound',
     soundSource: 'Sound source',
@@ -156,7 +165,15 @@ const copies = {
     verticalMax: 'Maximum',
     convergence: 'Center pull',
     swirl: 'Swirl',
+    waveTurns: 'Wave turns',
     endScale: 'End scale',
+    particleSize: 'Particle size',
+    alphaThreshold: 'Alpha threshold',
+    releaseRandomness: 'Release randomness',
+    fadeStart: 'Fade start',
+    layoutRelease: 'Layout handoff',
+    rotationMin: 'Minimum rotation',
+    rotationMax: 'Maximum rotation',
   },
   ru: {
     presetTitle: 'Готовые эффекты',
@@ -179,6 +196,7 @@ const copies = {
     timing: 'Тайминг',
     horizontal: 'Горизонталь',
     vertical: 'Вертикаль',
+    particles: 'Частицы',
     sound: 'Звук',
     soundEnabled: 'Включить звук',
     soundSource: 'Источник звука',
@@ -217,7 +235,15 @@ const copies = {
     verticalMax: 'Максимум',
     convergence: 'К центру',
     swirl: 'Колебание',
+    waveTurns: 'Число колебаний',
     endScale: 'Размер в конце',
+    particleSize: 'Размер частиц',
+    alphaThreshold: 'Порог прозрачности',
+    releaseRandomness: 'Случайность распада',
+    fadeStart: 'Начало затухания',
+    layoutRelease: 'Изменение раскладки',
+    rotationMin: 'Минимальный поворот',
+    rotationMax: 'Максимальный поворот',
   },
   zh: {
     presetTitle: '现成效果',
@@ -240,6 +266,7 @@ const copies = {
     timing: '时间',
     horizontal: '水平',
     vertical: '垂直',
+    particles: '粒子',
     sound: '声音',
     soundEnabled: '开启声音',
     soundSource: '声音来源',
@@ -278,7 +305,15 @@ const copies = {
     verticalMax: '最大值',
     convergence: '向中心',
     swirl: '摆动',
+    waveTurns: '波动次数',
     endScale: '结束缩放',
+    particleSize: '粒子大小',
+    alphaThreshold: 'Alpha 阈值',
+    releaseRandomness: '释放随机度',
+    fadeStart: '淡出起点',
+    layoutRelease: '布局切换',
+    rotationMin: '最小旋转',
+    rotationMax: '最大旋转',
   },
   ko: {
     presetTitle: '준비된 효과',
@@ -301,6 +336,7 @@ const copies = {
     timing: '타이밍',
     horizontal: '가로',
     vertical: '세로',
+    particles: '파티클',
     sound: '사운드',
     soundEnabled: '사운드 켜기',
     soundSource: '사운드 소스',
@@ -339,7 +375,15 @@ const copies = {
     verticalMax: '최댓값',
     convergence: '중앙으로',
     swirl: '흔들림',
+    waveTurns: '진동 횟수',
     endScale: '최종 크기',
+    particleSize: '파티클 크기',
+    alphaThreshold: '알파 임곗값',
+    releaseRandomness: '방출 무작위성',
+    fadeStart: '페이드 시작',
+    layoutRelease: '레이아웃 전환',
+    rotationMin: '최소 회전',
+    rotationMax: '최대 회전',
   },
 } as const;
 
@@ -347,8 +391,13 @@ const helps = {
   en: {
     curve: 'Changes how particles accelerate and fade without changing where they travel.',
     release: 'Determines which part of the element starts disintegrating first.',
+    particleSize: 'Minimum particle edge in CSS pixels. Zero keeps adaptive sizing.',
+    alphaThreshold: 'Pixels at or below this source opacity do not produce particles.',
+    releaseRandomness: 'Blends the selected release pattern with a fully random order.',
     duration: 'Base lifetime of the particle animation. Longer values make the effect feel slower.',
     stagger: 'Maximum spread between the first and last particle start times.',
+    fadeStart: 'Point in each particle lifetime at which fading begins.',
+    layoutRelease: 'Share of particles released before the surrounding layout moves.',
     horizontalDrift: 'Adds random sideways variation so particle paths do not look parallel.',
     horizontalMin: 'Smallest horizontal travel. Negative values move particles to the left.',
     horizontalMax: 'Largest horizontal travel. Positive values move particles to the right.',
@@ -356,7 +405,10 @@ const helps = {
     verticalMax: 'Largest vertical travel. Positive values move particles downward.',
     convergence: 'Pulls particles toward the element centre. Zero keeps their paths independent.',
     swirl: 'Sets the amplitude of the vertical wave along each particle path.',
+    waveTurns: 'Number of vertical oscillations along each particle path.',
     endScale: 'Particle size at the end of removal, relative to its starting size.',
+    rotationMin: 'Smallest detached-particle rotation in degrees.',
+    rotationMax: 'Largest detached-particle rotation in degrees.',
     soundSource: 'Bundled audio or a local file.',
     soundReverse: 'Reverses the selected recording without requiring a second audio file.',
     soundVolume: '0–100%.',
@@ -367,8 +419,13 @@ const helps = {
   ru: {
     curve: 'Меняет ускорение и затухание частиц, но не их траекторию.',
     release: 'Определяет, какая часть элемента начнёт распадаться первой.',
+    particleSize: 'Минимальная сторона частицы в CSS-пикселях. Ноль включает автоматический размер.',
+    alphaThreshold: 'Пиксели с такой или меньшей непрозрачностью не создают частицы.',
+    releaseRandomness: 'Смешивает выбранный порядок распада с полностью случайным.',
     duration: 'Базовое время жизни анимации частиц. Чем больше значение, тем медленнее эффект.',
     stagger: 'Разница во времени запуска частиц. При нуле все частицы стартуют одновременно.',
+    fadeStart: 'Момент внутри времени жизни частицы, когда начинается затухание.',
+    layoutRelease: 'Доля вылетевших частиц, после которой перестраивается окружающая раскладка.',
     horizontalDrift: 'Добавляет случайное движение в стороны, чтобы частицы летели естественнее.',
     horizontalMin: 'Минимальный путь по горизонтали. Отрицательное значение направляет частицы влево.',
     horizontalMax: 'Максимальный путь по горизонтали. Положительное значение направляет частицы вправо.',
@@ -376,7 +433,10 @@ const helps = {
     verticalMax: 'Максимальный путь по вертикали. Положительное значение направляет частицы вниз.',
     convergence: 'Насколько сильно частицы тянутся к центру элемента. При нуле притяжения нет.',
     swirl: 'Насколько сильно частицы колеблются во время движения.',
+    waveTurns: 'Количество вертикальных колебаний на пути каждой частицы.',
     endScale: 'Размер частицы в конце анимации. 1× — исходный размер.',
+    rotationMin: 'Минимальный поворот отделившейся частицы в градусах.',
+    rotationMax: 'Максимальный поворот отделившейся частицы в градусах.',
     soundSource: 'Встроенный звук или локальный файл.',
     soundReverse: 'Воспроизводит выбранную запись задом наперёд без второго аудиофайла.',
     soundVolume: 'Уровень 0–100%.',
@@ -387,8 +447,13 @@ const helps = {
   zh: {
     curve: '改变粒子的加速和淡出方式，但不改变运动路径。',
     release: '决定元素的哪个区域最先开始消散。',
+    particleSize: '粒子边长的最小 CSS 像素值；设为零时自动计算。',
+    alphaThreshold: '源像素透明度不高于此值时不会生成粒子。',
+    releaseRandomness: '在所选释放模式与完全随机顺序之间进行混合。',
     duration: '粒子动画的基础持续时间，数值越大效果越慢。',
     stagger: '第一批与最后一批粒子开始时间的最大间隔。',
+    fadeStart: '每个粒子在自身生命周期中开始淡出的时刻。',
+    layoutRelease: '周围布局开始移动前需要释放的粒子比例。',
     horizontalDrift: '加入随机横向偏移，避免粒子路径显得平行。',
     horizontalMin: '最小水平位移，负值使粒子向左移动。',
     horizontalMax: '最大水平位移，正值使粒子向右移动。',
@@ -396,7 +461,10 @@ const helps = {
     verticalMax: '最大垂直位移，正值使粒子向下移动。',
     convergence: '将粒子拉向元素中心；设为零时路径彼此独立。',
     swirl: '设置粒子路径上垂直波动的幅度。',
+    waveTurns: '每个粒子沿路径产生的垂直波动次数。',
     endScale: '移除结束时粒子相对初始大小的比例。',
+    rotationMin: '脱离后的粒子最小旋转角度。',
+    rotationMax: '脱离后的粒子最大旋转角度。',
     soundSource: '内置音频或本地文件。',
     soundReverse: '反向播放所选录音，无需第二个音频文件。',
     soundVolume: '0%–100%。',
@@ -407,8 +475,13 @@ const helps = {
   ko: {
     curve: '파티클의 이동 경로는 유지하면서 가속과 페이드를 바꿉니다.',
     release: '요소의 어느 부분부터 분해가 시작될지 정합니다.',
+    particleSize: '파티클 한 변의 최소 CSS 픽셀 크기입니다. 0이면 자동으로 계산합니다.',
+    alphaThreshold: '원본 픽셀의 불투명도가 이 값 이하이면 파티클을 만들지 않습니다.',
+    releaseRandomness: '선택한 방출 패턴과 완전한 무작위 순서를 혼합합니다.',
     duration: '파티클 애니메이션의 기본 재생 시간입니다. 값이 클수록 느려집니다.',
     stagger: '첫 파티클과 마지막 파티클의 시작 시간 차이를 정합니다.',
+    fadeStart: '각 파티클의 수명에서 페이드가 시작되는 지점입니다.',
+    layoutRelease: '주변 레이아웃이 움직이기 전에 방출될 파티클의 비율입니다.',
     horizontalDrift: '무작위 가로 편차를 더해 경로가 평행해 보이지 않게 합니다.',
     horizontalMin: '최소 가로 이동 거리입니다. 음수는 왼쪽으로 이동합니다.',
     horizontalMax: '최대 가로 이동 거리입니다. 양수는 오른쪽으로 이동합니다.',
@@ -416,7 +489,10 @@ const helps = {
     verticalMax: '최대 세로 이동 거리입니다. 양수는 아래로 이동합니다.',
     convergence: '파티클을 요소 중앙으로 끌어당깁니다. 0이면 경로가 서로 독립적입니다.',
     swirl: '각 파티클 경로의 세로 파동 진폭을 정합니다.',
+    waveTurns: '각 파티클이 이동 경로에서 반복하는 세로 진동 횟수입니다.',
     endScale: '삭제가 끝날 때 시작 크기 대비 파티클 크기입니다.',
+    rotationMin: '분리된 파티클의 최소 회전 각도입니다.',
+    rotationMax: '분리된 파티클의 최대 회전 각도입니다.',
     soundSource: '내장 오디오 또는 로컬 파일.',
     soundReverse: '두 번째 파일 없이 선택한 녹음을 거꾸로 재생합니다.',
     soundVolume: '0%–100%.',
@@ -484,24 +560,41 @@ const releaseOptionLabels: Record<Locale, Record<ParticleRelease, string>> = {
     left: 'left — left to right',
     right: 'right — right to left',
     top: 'top — top to bottom',
+    bottom: 'bottom — bottom to top',
+    center: 'center — centre outward',
+    edges: 'edges — edges inward',
     random: 'random — mixed order',
   },
   ru: {
     left: 'left — слева направо',
     right: 'right — справа налево',
     top: 'top — сверху вниз',
+    bottom: 'bottom — снизу вверх',
+    center: 'center — от центра',
+    edges: 'edges — от краёв',
     random: 'random — случайно',
   },
-  zh: { left: 'left — 从左到右', right: 'right — 从右到左', top: 'top — 从上到下', random: 'random — 随机' },
+  zh: {
+    left: 'left — 从左到右',
+    right: 'right — 从右到左',
+    top: 'top — 从上到下',
+    bottom: 'bottom — 从下到上',
+    center: 'center — 从中心向外',
+    edges: 'edges — 从边缘向内',
+    random: 'random — 随机',
+  },
   ko: {
     left: 'left — 왼쪽에서 오른쪽',
     right: 'right — 오른쪽에서 왼쪽',
     top: 'top — 위에서 아래',
+    bottom: 'bottom — 아래에서 위',
+    center: 'center — 중앙에서 바깥으로',
+    edges: 'edges — 가장자리에서 안쪽으로',
     random: 'random — 무작위',
   },
 };
 const curves: readonly ParticleCurve[] = ['settle', 'float', 'burst', 'drift'];
-const releases: readonly ParticleRelease[] = ['left', 'right', 'top', 'random'];
+const releases: readonly ParticleRelease[] = ['left', 'right', 'top', 'bottom', 'center', 'edges', 'random'];
 const presetKeys = Object.keys(presetNames) as BuiltInPreset[];
 const builtInSoundKeys: readonly BuiltInSound[] = ['dust', 'scatter', 'vapor', 'wind'];
 /** Used whenever a chosen custom file is not in this browser's store. */
@@ -511,6 +604,16 @@ function createRanges(copy: (typeof copies)[Locale], help: (typeof helps)[Locale
   return [
     { key: 'duration', label: copy.duration, min: 200, max: 3000, step: 25, unit: 'ms', description: help.duration },
     { key: 'stagger', label: copy.stagger, min: 0, max: 800, step: 10, unit: 'ms', description: help.stagger },
+    { key: 'fadeStart', label: copy.fadeStart, min: 0, max: 1, step: 0.01, unit: '', description: help.fadeStart },
+    {
+      key: 'layoutRelease',
+      label: copy.layoutRelease,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: '',
+      description: help.layoutRelease,
+    },
     {
       key: 'horizontalDrift',
       label: copy.horizontalDrift,
@@ -566,7 +669,53 @@ function createRanges(copy: (typeof copies)[Locale], help: (typeof helps)[Locale
       description: help.convergence,
     },
     { key: 'swirl', label: copy.swirl, min: 0, max: 160, step: 1, unit: 'px', description: help.swirl },
+    { key: 'waveTurns', label: copy.waveTurns, min: 0, max: 5, step: 0.05, unit: '×', description: help.waveTurns },
     { key: 'endScale', label: copy.endScale, min: 0.1, max: 2, step: 0.01, unit: '×', description: help.endScale },
+    {
+      key: 'particleSize',
+      label: copy.particleSize,
+      min: 0,
+      max: 16,
+      step: 0.25,
+      unit: 'px',
+      description: help.particleSize,
+    },
+    {
+      key: 'alphaThreshold',
+      label: copy.alphaThreshold,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: '',
+      description: help.alphaThreshold,
+    },
+    {
+      key: 'releaseRandomness',
+      label: copy.releaseRandomness,
+      min: 0,
+      max: 1,
+      step: 0.01,
+      unit: '',
+      description: help.releaseRandomness,
+    },
+    {
+      key: 'rotationMin',
+      label: copy.rotationMin,
+      min: -720,
+      max: 720,
+      step: 1,
+      unit: '°',
+      description: help.rotationMin,
+    },
+    {
+      key: 'rotationMax',
+      label: copy.rotationMax,
+      min: -720,
+      max: 720,
+      step: 1,
+      unit: '°',
+      description: help.rotationMax,
+    },
     {
       key: 'soundVolume',
       label: copy.soundVolume,
@@ -602,7 +751,7 @@ const ranges = createRanges(copy, help);
 const MAX_LOCAL_AUDIO_BYTES = 5 * 1024 * 1024;
 const MAX_LOCAL_AUDIO_SECONDS = 10;
 const COMPACT_HASH_PREFIX = '#p=';
-const COMPACT_HASH_VERSION = 1;
+const COMPACT_HASH_VERSION = 2;
 
 type CompactInteger = 'i16' | 'u8' | 'u16';
 
@@ -612,11 +761,15 @@ interface CompactNumberDefinition {
   readonly type: CompactInteger;
 }
 
-// The order is the compact-link wire format. Append fields or introduce a new
-// version instead of reordering them.
+// The order is the compact-link wire format.
 const compactNumbers: readonly CompactNumberDefinition[] = [
+  { key: 'particleSize', scale: 4, type: 'u8' },
+  { key: 'alphaThreshold', scale: 100, type: 'u8' },
+  { key: 'releaseRandomness', scale: 100, type: 'u8' },
   { key: 'duration', scale: 1, type: 'u16' },
   { key: 'stagger', scale: 1, type: 'u16' },
+  { key: 'fadeStart', scale: 100, type: 'u8' },
+  { key: 'layoutRelease', scale: 100, type: 'u8' },
   { key: 'horizontalDrift', scale: 1, type: 'u8' },
   { key: 'horizontalMin', scale: 1, type: 'i16' },
   { key: 'horizontalMax', scale: 1, type: 'i16' },
@@ -624,7 +777,10 @@ const compactNumbers: readonly CompactNumberDefinition[] = [
   { key: 'verticalMax', scale: 1, type: 'i16' },
   { key: 'convergence', scale: 100, type: 'u8' },
   { key: 'swirl', scale: 1, type: 'u8' },
+  { key: 'waveTurns', scale: 20, type: 'u8' },
   { key: 'endScale', scale: 100, type: 'u8' },
+  { key: 'rotationMin', scale: 1, type: 'i16' },
+  { key: 'rotationMax', scale: 1, type: 'i16' },
   { key: 'soundVolume', scale: 100, type: 'u8' },
   { key: 'soundPlaybackRate', scale: 100, type: 'u8' },
   { key: 'soundDelay', scale: 1, type: 'u16' },
@@ -747,10 +903,15 @@ function stateFromPreset(
   soundSource: BuiltInSound = 'dust',
 ): PlaygroundState {
   return {
+    particleSize: preset.particleSize === 'auto' ? 0 : preset.particleSize,
+    alphaThreshold: preset.alphaThreshold,
     curve: preset.curve,
     release: preset.release,
+    releaseRandomness: preset.releaseRandomness,
     duration: preset.duration,
     stagger: preset.stagger,
+    fadeStart: preset.fadeStart,
+    layoutRelease: preset.layoutRelease,
     horizontalDrift: preset.horizontalDrift,
     horizontalMin: preset.horizontalTravel[0],
     horizontalMax: preset.horizontalTravel[1],
@@ -758,7 +919,10 @@ function stateFromPreset(
     verticalMax: preset.verticalTravel[1],
     convergence: preset.convergence,
     swirl: preset.swirl,
+    waveTurns: preset.waveTurns,
     endScale: preset.endScale,
+    rotationMin: preset.rotation[0],
+    rotationMax: preset.rotation[1],
     soundEnabled: true,
     soundSource,
     soundReverse: operation === 'restore',
@@ -775,16 +939,23 @@ function stateFromBuiltInPreset(preset: BuiltInPreset, operation: PlaygroundOper
 
 function particleOptions(state: PlaygroundState): ParticleOptions {
   return {
+    particleSize: state.particleSize === 0 ? 'auto' : state.particleSize,
+    alphaThreshold: state.alphaThreshold,
     curve: state.curve,
     release: state.release,
+    releaseRandomness: state.releaseRandomness,
     duration: state.duration,
     stagger: state.stagger,
+    fadeStart: state.fadeStart,
+    layoutRelease: state.layoutRelease,
     horizontalDrift: state.horizontalDrift,
     horizontalTravel: [state.horizontalMin, state.horizontalMax],
     verticalTravel: [state.verticalMin, state.verticalMax],
     convergence: state.convergence,
     swirl: state.swirl,
+    waveTurns: state.waveTurns,
     endScale: state.endScale,
+    rotation: [state.rotationMin, state.rotationMax],
   };
 }
 
@@ -793,10 +964,15 @@ function matchingParticlePreset(state: PlaygroundState): BuiltInPreset | null {
     presetKeys.find((preset) => {
       const candidate = particlePresets[preset];
       return (
+        state.particleSize === (candidate.particleSize === 'auto' ? 0 : candidate.particleSize) &&
+        state.alphaThreshold === candidate.alphaThreshold &&
         state.curve === candidate.curve &&
         state.release === candidate.release &&
+        state.releaseRandomness === candidate.releaseRandomness &&
         state.duration === candidate.duration &&
         state.stagger === candidate.stagger &&
+        state.fadeStart === candidate.fadeStart &&
+        state.layoutRelease === candidate.layoutRelease &&
         state.horizontalDrift === candidate.horizontalDrift &&
         state.horizontalMin === candidate.horizontalTravel[0] &&
         state.horizontalMax === candidate.horizontalTravel[1] &&
@@ -804,7 +980,10 @@ function matchingParticlePreset(state: PlaygroundState): BuiltInPreset | null {
         state.verticalMax === candidate.verticalTravel[1] &&
         state.convergence === candidate.convergence &&
         state.swirl === candidate.swirl &&
-        state.endScale === candidate.endScale
+        state.waveTurns === candidate.waveTurns &&
+        state.endScale === candidate.endScale &&
+        state.rotationMin === candidate.rotation[0] &&
+        state.rotationMax === candidate.rotation[1]
       );
     }) ?? null
   );
@@ -868,16 +1047,23 @@ function stateRangeValue(range: RangeDefinition, value: number) {
 
 function particleOptionSources(state: PlaygroundState): readonly ParticleOptionSource[] {
   return [
+    ['particleSize', state.particleSize === 0 ? `'auto'` : formatNumber(state.particleSize)],
+    ['alphaThreshold', formatNumber(state.alphaThreshold)],
     ['curve', `'${state.curve}'`],
     ['release', `'${state.release}'`],
+    ['releaseRandomness', formatNumber(state.releaseRandomness)],
     ['duration', formatNumber(state.duration)],
     ['stagger', formatNumber(state.stagger)],
+    ['fadeStart', formatNumber(state.fadeStart)],
+    ['layoutRelease', formatNumber(state.layoutRelease)],
     ['horizontalDrift', formatNumber(state.horizontalDrift)],
     ['horizontalTravel', `[${formatNumber(state.horizontalMin)}, ${formatNumber(state.horizontalMax)}]`],
     ['verticalTravel', `[${formatNumber(state.verticalMin)}, ${formatNumber(state.verticalMax)}]`],
     ['convergence', formatNumber(state.convergence)],
     ['swirl', formatNumber(state.swirl)],
+    ['waveTurns', formatNumber(state.waveTurns)],
     ['endScale', formatNumber(state.endScale)],
+    ['rotation', `[${formatNumber(state.rotationMin)}, ${formatNumber(state.rotationMax)}]`],
   ];
 }
 
@@ -1149,7 +1335,7 @@ function readCompactNumber(reader: CompactReader, definition: CompactNumberDefin
 function writeCompactState(writer: CompactWriter, state: PlaygroundState) {
   const curve = curves.indexOf(state.curve);
   const release = releases.indexOf(state.release);
-  writer.u8(curve | (release << 2) | (state.soundEnabled ? 1 << 4 : 0) | (state.soundReverse ? 1 << 5 : 0));
+  writer.u8(curve | (release << 2) | (state.soundEnabled ? 1 << 5 : 0) | (state.soundReverse ? 1 << 6 : 0));
 
   const customId = customSoundId(state.soundSource);
   if (customId === null) writer.u8(builtInSoundKeys.indexOf(state.soundSource as BuiltInSound));
@@ -1162,9 +1348,9 @@ function writeCompactState(writer: CompactWriter, state: PlaygroundState) {
 
 function readCompactState(reader: CompactReader): PlaygroundState {
   const metadata = reader.u8();
-  if ((metadata & 0xc0) !== 0) throw new RangeError('Unsupported compact playground flags.');
+  if ((metadata & 0x80) !== 0) throw new RangeError('Unsupported compact playground flags.');
   const curve = curves[metadata & 0b11];
-  const release = releases[(metadata >>> 2) & 0b11];
+  const release = releases[(metadata >>> 2) & 0b111];
   if (curve === undefined || release === undefined) throw new RangeError('Invalid compact playground options.');
 
   const soundCode = reader.u8();
@@ -1182,11 +1368,15 @@ function readCompactState(reader: CompactReader): PlaygroundState {
   const state = stateFromPreset(particlePresets.dust, 'remove');
   state.curve = curve;
   state.release = release;
-  state.soundEnabled = (metadata & (1 << 4)) !== 0;
-  state.soundReverse = (metadata & (1 << 5)) !== 0;
+  state.soundEnabled = (metadata & (1 << 5)) !== 0;
+  state.soundReverse = (metadata & (1 << 6)) !== 0;
   state.soundSource = soundSource;
   for (const definition of compactNumbers) state[definition.key] = readCompactNumber(reader, definition);
-  if (state.horizontalMin > state.horizontalMax || state.verticalMin > state.verticalMax)
+  if (
+    state.horizontalMin > state.horizontalMax ||
+    state.verticalMin > state.verticalMax ||
+    state.rotationMin > state.rotationMax
+  )
     throw new RangeError('Invalid compact playground range.');
   return state;
 }
@@ -1284,7 +1474,11 @@ export function renderParticlePlayground(locale: Locale) {
         return `<div class="playground-range"><div class="playground-range-heading"><span><label for="playground-${range.key}">${range.label}</label><small>${range.description}</small></span><span class="playground-range-value"><input id="playground-${range.key}-value" type="number" min="${formatNumber(range.min * scale)}" max="${formatNumber(range.max * scale)}" step="any" value="${formatEditableRangeValue(range, value)}" data-value="${range.key}" aria-label="${range.label}">${unit}</span></div><input id="playground-${range.key}" type="range" min="${range.min}" max="${range.max}" step="${range.step}" value="${value}" data-option="${range.key}" style="--range-progress: ${progress}%"></div>`;
       })
       .join('');
-  const groupPanel = (id: 'timing' | 'horizontal' | 'vertical', keys: readonly NumericKey[], hidden = false) =>
+  const groupPanel = (
+    id: 'timing' | 'horizontal' | 'vertical' | 'particles',
+    keys: readonly NumericKey[],
+    hidden = false,
+  ) =>
     `<section id="playground-group-panel-${id}" class="playground-settings-panel" role="tabpanel" data-group-panel="${id}" aria-labelledby="playground-group-tab-${id}"${hidden ? ' hidden' : ''}><div class="playground-control-list">${rangeMarkup(keys)}</div></section>`;
   const soundOptions = builtInSoundKeys
     .map((key) => `<option value="${key}">${soundOptionLabels[locale][key]}</option>`)
@@ -1339,10 +1533,10 @@ export function renderParticlePlayground(locale: Locale) {
           </div>
           <div id="playground-view-panel-preview" class="playground-view-panel playground-preview-panel" role="tabpanel" data-view-panel="preview" aria-labelledby="playground-view-tab-preview">
             <div class="playground-width-tabs" role="group" aria-label="${copy.cardShape}">
-              <button type="button" data-width-option="narrow" aria-pressed="false" aria-label="${copy.cardShapeUpright}" title="${copy.cardShapeUpright}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="4" y="3.25" width="8" height="9.5" rx="1.75" fill="none" stroke="currentColor" stroke-width="1.5"></rect><path d="M4 8.25h8" stroke="currentColor" stroke-width="1.5"></path></svg></button>
-              <button type="button" data-width-option="wide" aria-pressed="true" aria-label="${copy.cardShapeWide}" title="${copy.cardShapeWide}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="1.75" y="4.75" width="12.5" height="6.5" rx="1.75" fill="none" stroke="currentColor" stroke-width="1.5"></rect><path d="M6.25 4.75v6.5" stroke="currentColor" stroke-width="1.5"></path></svg></button>
+              <button type="button" data-width-option="narrow" aria-pressed="true" aria-label="${copy.cardShapeUpright}" title="${copy.cardShapeUpright}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="4" y="3.25" width="8" height="9.5" rx="1.75" fill="none" stroke="currentColor" stroke-width="1.5"></rect><path d="M4 8.25h8" stroke="currentColor" stroke-width="1.5"></path></svg></button>
+              <button type="button" data-width-option="wide" aria-pressed="false" aria-label="${copy.cardShapeWide}" title="${copy.cardShapeWide}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="1.75" y="4.75" width="12.5" height="6.5" rx="1.75" fill="none" stroke="currentColor" stroke-width="1.5"></rect><path d="M6.25 4.75v6.5" stroke="currentColor" stroke-width="1.5"></path></svg></button>
             </div>
-            <div class="playground-stage" data-slot><article class="demo-card playground-card" data-card-width="wide">${demoCardContent}</article></div>
+            <div class="playground-stage" data-slot><article class="demo-card playground-card" data-card-width="narrow">${demoCardContent}</article></div>
           </div>
           <section id="playground-view-panel-code" class="playground-view-panel playground-code code-block" role="tabpanel" data-view-panel="code" aria-labelledby="playground-view-tab-code" hidden>
             <div class="code-toolbar playground-code-heading">
@@ -1368,12 +1562,14 @@ export function renderParticlePlayground(locale: Locale) {
             <button id="playground-group-tab-timing" type="button" role="tab" data-group-tab="timing" aria-controls="playground-group-panel-timing" aria-selected="true">${copy.timing}</button>
             <button id="playground-group-tab-horizontal" type="button" role="tab" data-group-tab="horizontal" aria-controls="playground-group-panel-horizontal" aria-selected="false" tabindex="-1">${copy.horizontal}</button>
             <button id="playground-group-tab-vertical" type="button" role="tab" data-group-tab="vertical" aria-controls="playground-group-panel-vertical" aria-selected="false" tabindex="-1">${copy.vertical}</button>
+            <button id="playground-group-tab-particles" type="button" role="tab" data-group-tab="particles" aria-controls="playground-group-panel-particles" aria-selected="false" tabindex="-1">${copy.particles}</button>
             <button id="playground-group-tab-sound" type="button" role="tab" data-group-tab="sound" aria-controls="playground-group-panel-sound" aria-selected="false" tabindex="-1">${copy.sound}</button>
           </div>
           <div class="playground-settings-panels">
-            ${groupPanel('timing', ['duration', 'stagger', 'swirl', 'endScale'])}
-            ${groupPanel('horizontal', ['horizontalDrift', 'horizontalMin', 'horizontalMax'], true)}
-            ${groupPanel('vertical', ['verticalMin', 'verticalMax', 'convergence'], true)}
+            ${groupPanel('timing', ['duration', 'stagger', 'releaseRandomness', 'fadeStart', 'layoutRelease'])}
+            ${groupPanel('horizontal', ['horizontalDrift', 'horizontalMin', 'horizontalMax', 'convergence'], true)}
+            ${groupPanel('vertical', ['verticalMin', 'verticalMax', 'swirl', 'waveTurns'], true)}
+            ${groupPanel('particles', ['particleSize', 'alphaThreshold', 'endScale', 'rotationMin', 'rotationMax'], true)}
             ${soundMarkup}
           </div>
         </form>
@@ -1534,7 +1730,7 @@ export function mountParticlePlayground(root: HTMLElement) {
   const hashState = playgroundStateFromHash();
   let configuration = hashState?.configuration ?? configurationFromPreset('dust');
   let activeOperation = hashState?.operation ?? 'remove';
-  let cardWidth = hashState?.cardWidth ?? 'wide';
+  let cardWidth = hashState?.cardWidth ?? 'narrow';
   let undoSnapshot: PlaygroundUndoSnapshot | null = null;
   const hasCustomizedConfiguration = () =>
     !isUntouchedPresetState(configuration.remove, 'remove') ||
@@ -1754,6 +1950,10 @@ export function mountParticlePlayground(root: HTMLElement) {
     if (state.verticalMin > state.verticalMax) {
       if (changed === 'verticalMin') state.verticalMax = state.verticalMin;
       else state.verticalMin = state.verticalMax;
+    }
+    if (state.rotationMin > state.rotationMax) {
+      if (changed === 'rotationMin') state.rotationMax = state.rotationMin;
+      else state.rotationMin = state.rotationMax;
     }
     status.textContent = copy.updated;
     // A click, an Enter or a select change is a decision, and reloading right after one
@@ -2051,7 +2251,7 @@ export function mountParticlePlayground(root: HTMLElement) {
   reset.addEventListener('click', () => {
     if (busy) return;
     undoSnapshot =
-      hasCustomizedConfiguration() || activeOperation !== 'remove' || cardWidth !== 'wide'
+      hasCustomizedConfiguration() || activeOperation !== 'remove' || cardWidth !== 'narrow'
         ? createUndoSnapshot()
         : null;
     if (previewTimer !== null) window.clearTimeout(previewTimer);
@@ -2062,7 +2262,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     card = createPreviewCard();
     slot.replaceChildren(card);
     registerCard();
-    cardWidth = 'wide';
+    cardWidth = 'narrow';
     applyCardWidth(false);
     activeOperation = 'remove';
     configuration = configurationFromPreset('dust');

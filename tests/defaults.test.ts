@@ -11,6 +11,12 @@ describe('option resolvers', () => {
       verticalTravel: [80, Number.NaN],
       convergence: 2,
       swirl: -10,
+      alphaThreshold: 2,
+      particleSize: 0,
+      releaseRandomness: 2,
+      fadeStart: -1,
+      rotation: [180, -90],
+      layoutRelease: -1,
     });
 
     expect(particles.duration).toBe(0);
@@ -18,6 +24,21 @@ describe('option resolvers', () => {
     expect(particles.verticalTravel).toEqual([-45, 80]);
     expect(particles.convergence).toBe(1);
     expect(particles.swirl).toBe(0);
+    expect(particles.alphaThreshold).toBe(1);
+    expect(particles.particleSize).toBe(0.25);
+    expect(particles.releaseRandomness).toBe(1);
+    expect(particles.fadeStart).toBe(0);
+    expect(particles.rotation).toEqual([-90, 180]);
+    expect(particles.layoutRelease).toBe(0);
+  });
+
+  it('uses curve-specific visual defaults unless they are overridden', () => {
+    expect(resolveParticles({ curve: 'float' })).toMatchObject({ fadeStart: 0.3, waveTurns: 1.6 });
+    expect(resolveParticles({ curve: 'burst' })).toMatchObject({ fadeStart: 0.12, waveTurns: 1 });
+    expect(resolveParticles({ curve: 'drift', fadeStart: 0.8, waveTurns: 3 })).toMatchObject({
+      fadeStart: 0.8,
+      waveTurns: 3,
+    });
   });
 
   it('resolves automatic, exact and explicit particle render quality', () => {

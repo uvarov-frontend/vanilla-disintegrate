@@ -45,6 +45,8 @@ export const disintegrator = new Disintegrator({
 
 `createParticleEffect()` uses the built-in particle renderer. Configure both phases in the playground, copy the generated code, and use it without writing a Canvas or WebGL renderer. The next section is only needed when you want to implement the rendering itself.
 
+See the [Particle API](/docs/reference/particles/) for every motion option, its default, accepted range, and the low-level phase factories.
+
 ## Control particle render quality
 
 `renderQuality` controls the resolution of the built-in WebGL renderer, independently from the capture adapter. The default `auto` mode protects memory and GPU work by limiting the renderer's source texture to 2,000,000 pixels and 2,048 pixels per side, and its expanded animation surface to 4,000,000 pixels.

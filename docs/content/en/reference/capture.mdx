@@ -1,0 +1,119 @@
+---
+title: Capture API
+description: Build a DOM-to-Canvas adapter or configure the supplied SnapDOM integration.
+locale: en
+section: reference
+navTitle: Capture
+order: 90
+---
+
+Snapshot-based effects receive pixels through a replaceable `SnapshotCapture` adapter. The core library does not depend on a particular DOM-to-Canvas engine: the root entry accepts a custom adapter, while `/snapdom` supplies one ready to use.
+
+## `SnapshotCapture`
+
+```ts
+type SnapshotCapture = (
+  element: HTMLElement,
+  context: SnapshotCaptureContext,
+) => HTMLCanvasElement | Promise<HTMLCanvasElement>;
+
+interface SnapshotCaptureContext {
+  operation: 'remove' | 'restore' | 'prepare';
+  signal: AbortSignal;
+  restoreRootOpacity?: string;
+}
+```
+
+The adapter must return a canvas containing the current visual representation of `element`. Its pixel dimensions determine source resolution; the library independently measures the element's CSS bounds and places the animation overlay over them.
+
+| Context field        | Meaning                                                                                        |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| `operation`          | `prepare` for background capture, otherwise the active `remove` or `restore` operation         |
+| `signal`             | Aborts when preparation, the operation, or the owning instance is cancelled                    |
+| `restoreRootOpacity` | Original computed opacity of the root before `restore()` temporarily conceals the live element |
+
+Check `signal.aborted` before expensive work and stop promptly when the underlying engine supports cancellation. During restoration, apply `restoreRootOpacity` to the captured root instead of capturing the temporary concealed state.
+
+```ts
+import Disintegrator, { type SnapshotCapture } from 'vanilla-disintegrate';
+
+const capture: SnapshotCapture = async (element, context) => {
+  if (context.signal.aborted) {
+    throw new DOMException('Capture aborted.', 'AbortError');
+  }
+
+  return captureWithMyEngine(element, {
+    signal: context.signal,
+    rootOpacity: context.restoreRootOpacity,
+  });
+};
+
+const effects = new Disintegrator({
+  preset: 'dust',
+  capture,
+});
+```
+
+Set `needsSnapshot: false` on a custom effect phase that animates DOM, SVG, CSS, WAAPI, or another renderer without source pixels. If both phases are snapshotless, the `/core` entry avoids capture and particle dependencies entirely.
+
+## `createSnapdomCapture`(options?)
+
+```ts
+import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
+
+const capture = createSnapdomCapture({
+  dpr: 2,
+  filter: (node) => !(node instanceof Element) || !node.matches('[data-capture-ignore]'),
+});
+
+const effects = new Disintegrator({ preset: 'dust', capture });
+```
+
+Returns a `SnapshotCapture` backed by SnapDOM. `options` uses SnapDOM's exported `SnapdomOptions` type. Caller values override these integration defaults:
+
+```ts
+{
+  embedFonts: true,
+  fast: true,
+  filterMode: 'remove',
+  outerShadows: false,
+  outerTransforms: true,
+  reconcile: true,
+  scale: 1,
+  dpr: Math.min(Math.max(devicePixelRatio, 1), 2),
+}
+```
+
+When `clip` is not supplied, the adapter clips capture to the element's current document bounds. Images that have not loaded successfully are excluded, and a custom `filter` is applied in addition to that check. During restore it preserves the root's pre-concealment opacity.
+
+SnapDOM does not expose cancellation for an in-flight capture. The adapter rejects work that is already aborted before it starts, but `signal` cannot interrupt SnapDOM after rendering has begun.
+
+## The /snapdom constructor
+
+```ts
+import Disintegrator from 'vanilla-disintegrate/snapdom';
+
+type SnapdomDisintegratorOptions = DisintegratorOptions & {
+  snapdom?: SnapdomOptions;
+};
+
+const effects = new Disintegrator({
+  preset: 'vapor',
+  snapdom: { dpr: 1.5 },
+});
+```
+
+`snapdom` forwards options to the automatically created adapter. Supplying `capture` replaces that adapter completely; in that case `snapdom` has no effect.
+
+The root `vanilla-disintegrate` entry does not import SnapDOM and requires `capture` only when the selected effect phase needs a snapshot.
+
+## Capture resolution and render quality
+
+Capture and rendering are separate stages:
+
+1. The capture adapter creates the source canvas and chooses its pixel density.
+2. The particle renderer applies `renderQuality` when turning that source into WebGL textures and an expanded animation surface.
+
+Increasing `renderQuality` cannot recover detail absent from the captured canvas. Increasing capture DPR creates more source pixels and therefore raises capture time, memory use, texture upload cost, and potentially particle preparation cost.
+
+No DOM-to-Canvas engine is guaranteed to reproduce every browser-rendered pixel. See the limitations section for known differences involving text rasterization, browser zoom, filters, embedded content, and cross-origin resources.

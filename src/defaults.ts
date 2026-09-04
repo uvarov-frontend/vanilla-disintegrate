@@ -10,6 +10,8 @@ import type {
 
 export interface ResolvedParticleOptions {
   readonly renderQuality: 'exact' | Readonly<ParticleRenderBudget>;
+  readonly particleSize: 'auto' | number;
+  readonly alphaThreshold: number;
   readonly curve: NonNullable<ParticleOptions['curve']>;
   readonly duration: number;
   readonly stagger: number;
@@ -19,7 +21,12 @@ export interface ResolvedParticleOptions {
   readonly convergence: number;
   readonly swirl: number;
   readonly endScale: number;
+  readonly rotation: readonly [number, number];
   readonly release: NonNullable<ParticleOptions['release']>;
+  readonly releaseRandomness: number;
+  readonly fadeStart: number;
+  readonly waveTurns: number;
+  readonly layoutRelease: number;
 }
 
 const AUTO_PARTICLE_RENDER_BUDGET: Readonly<ParticleRenderBudget> = Object.freeze({
@@ -62,6 +69,8 @@ export interface ResolvedAudioPreparationOptions {
 
 export const DEFAULT_PARTICLES: ResolvedParticleOptions = {
   renderQuality: AUTO_PARTICLE_RENDER_BUDGET,
+  particleSize: 'auto',
+  alphaThreshold: 0,
   curve: 'settle',
   duration: 720,
   stagger: 180,
@@ -71,7 +80,12 @@ export const DEFAULT_PARTICLES: ResolvedParticleOptions = {
   convergence: 0,
   swirl: 0,
   endScale: 0.92,
+  rotation: [0, 0],
   release: 'left',
+  releaseRandomness: 0.22,
+  fadeStart: 0.3,
+  waveTurns: 1,
+  layoutRelease: 0.6,
 };
 
 export const DEFAULT_LAYOUT: ResolvedLayoutOptions = {
@@ -138,10 +152,26 @@ function resolveRenderQuality(value: ParticleOptions['renderQuality']): Resolved
   };
 }
 
+const CURVE_DETAILS: Readonly<Record<NonNullable<ParticleOptions['curve']>, { fadeStart: number; waveTurns: number }>> =
+  {
+    settle: { fadeStart: 0.3, waveTurns: 1 },
+    float: { fadeStart: 0.3, waveTurns: 1.6 },
+    burst: { fadeStart: 0.12, waveTurns: 1 },
+    drift: { fadeStart: 0.32, waveTurns: 1.25 },
+  };
+
+function resolveParticleSize(value: ParticleOptions['particleSize']): ResolvedParticleOptions['particleSize'] {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0.25, value) : 'auto';
+}
+
 export function resolveParticles(options: ParticleOptions = {}): ResolvedParticleOptions {
+  const curve = options.curve ?? DEFAULT_PARTICLES.curve;
+  const curveDetails = CURVE_DETAILS[curve];
   return {
     renderQuality: resolveRenderQuality(options.renderQuality),
-    curve: options.curve ?? DEFAULT_PARTICLES.curve,
+    particleSize: resolveParticleSize(options.particleSize),
+    alphaThreshold: finiteNumber(options.alphaThreshold, DEFAULT_PARTICLES.alphaThreshold, 0, 1),
+    curve,
     duration: finiteNumber(options.duration, DEFAULT_PARTICLES.duration, 0),
     stagger: finiteNumber(options.stagger, DEFAULT_PARTICLES.stagger, 0),
     horizontalDrift: finiteNumber(options.horizontalDrift, DEFAULT_PARTICLES.horizontalDrift, 0),
@@ -150,7 +180,12 @@ export function resolveParticles(options: ParticleOptions = {}): ResolvedParticl
     convergence: finiteNumber(options.convergence, DEFAULT_PARTICLES.convergence, 0, 1),
     swirl: finiteNumber(options.swirl, DEFAULT_PARTICLES.swirl, 0),
     endScale: finiteNumber(options.endScale, DEFAULT_PARTICLES.endScale, 0),
+    rotation: orderedRange(options.rotation, DEFAULT_PARTICLES.rotation),
     release: options.release ?? DEFAULT_PARTICLES.release,
+    releaseRandomness: finiteNumber(options.releaseRandomness, DEFAULT_PARTICLES.releaseRandomness, 0, 1),
+    fadeStart: finiteNumber(options.fadeStart, curveDetails.fadeStart, 0, 1),
+    waveTurns: finiteNumber(options.waveTurns, curveDetails.waveTurns, 0),
+    layoutRelease: finiteNumber(options.layoutRelease, DEFAULT_PARTICLES.layoutRelease, 0, 1),
   };
 }
 

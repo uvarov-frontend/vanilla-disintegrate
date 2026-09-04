@@ -1,0 +1,151 @@
+---
+title: Particle API
+description: Complete reference for particle factories, motion options, render quality, presets, and WebGL context limits.
+locale: en
+section: reference
+navTitle: Particles
+order: 80
+---
+
+The built-in particle renderer is available from the root, `/snapdom`, and `/particles` entry points. Import `/particles` when you need only the renderer and its types, without `Disintegrator`, capture, or bundled audio.
+
+```ts
+import {
+  configureParticleContexts,
+  createParticleAnimation,
+  createParticleEffect,
+  createParticleRestoreAnimation,
+  particlePresets,
+} from 'vanilla-disintegrate/particles';
+```
+
+## `createParticleEffect`(options?)
+
+Creates a complete `EffectDefinition` with independent remove and restore phases.
+
+```ts
+interface ParticleEffectOptions {
+  remove?: ParticleOptions;
+  restore?: ParticleOptions;
+}
+
+const effect = createParticleEffect({
+  remove: { ...particlePresets.vapor, release: 'top' },
+  restore: { ...particlePresets.scatter, release: 'center' },
+});
+```
+
+When `restore` is omitted, it uses the same options as `remove`. When both fields are omitted, both phases use the particle defaults. The factory configures visuals only; add `sound` separately or wrap the effect and audio in a complete preset.
+
+## `ParticleOptions`
+
+Distances and particle sizes are expressed in CSS pixels, durations in milliseconds, rotation in degrees, and normalized controls in the `0`–`1` range.
+
+| Option              | Type                                                                        | Default            | What it controls                                                                   |
+| ------------------- | --------------------------------------------------------------------------- | ------------------ | ---------------------------------------------------------------------------------- |
+| `renderQuality`     | `'auto' \| 'exact' \| ParticleRenderBudget`                                 | `'auto'`           | Resolution and resource limits of the WebGL renderer                               |
+| `particleSize`      | `'auto' \| number`                                                          | `'auto'`           | Minimum edge length of one particle; numeric values are clamped to at least `0.25` |
+| `alphaThreshold`    | `number`                                                                    | `0`                | Source pixels at or below this alpha value do not create particles                 |
+| `curve`             | `'settle' \| 'float' \| 'burst' \| 'drift'`                                 | `'settle'`         | Travel, acceleration, and restoration profile                                      |
+| `duration`          | `number`                                                                    | `720`              | Base duration of the phase                                                         |
+| `stagger`           | `number`                                                                    | `180`              | Maximum additional start delay distributed across particles                        |
+| `release`           | `'left' \| 'right' \| 'top' \| 'bottom' \| 'center' \| 'edges' \| 'random'` | `'left'`           | Region of the element that releases first                                          |
+| `releaseRandomness` | `number`                                                                    | `0.22`             | Mix between the selected release order (`0`) and random order (`1`)                |
+| `fadeStart`         | `number`                                                                    | Depends on `curve` | Point in each particle's local lifetime where fading begins                        |
+| `layoutRelease`     | `number`                                                                    | `0.6`              | Fraction of particles that must be released before surrounding layout moves        |
+| `horizontalDrift`   | `number`                                                                    | `42`               | Random sideways variation added to each path                                       |
+| `horizontalTravel`  | `readonly [number, number]`                                                 | `[0, 0]`           | Minimum and maximum directed horizontal travel                                     |
+| `verticalTravel`    | `readonly [number, number]`                                                 | `[-100, -45]`      | Minimum and maximum vertical travel; negative values move upward                   |
+| `convergence`       | `number`                                                                    | `0`                | Pull toward the horizontal centre of the element                                   |
+| `swirl`             | `number`                                                                    | `0`                | Amplitude of the vertical wave along a path                                        |
+| `waveTurns`         | `number`                                                                    | Depends on `curve` | Number of oscillations along a path                                                |
+| `endScale`          | `number`                                                                    | `0.92`             | Particle scale at the end of removal                                               |
+| `rotation`          | `readonly [number, number]`                                                 | `[0, 0]`           | Minimum and maximum terminal rotation assigned to particles                        |
+
+`alphaThreshold`, `convergence`, `releaseRandomness`, `fadeStart`, and `layoutRelease` are clamped to `0`–`1`. Negative `duration`, `stagger`, `horizontalDrift`, `swirl`, `waveTurns`, and `endScale` values are clamped to zero. Reversed range endpoints are sorted automatically.
+
+### Curves
+
+| Curve    | Character                              | Default `fadeStart` | Default `waveTurns` |
+| -------- | -------------------------------------- | ------------------- | ------------------- |
+| `settle` | Balanced movement with a smooth finish | `0.3`               | `1`                 |
+| `float`  | Softer floating movement               | `0.3`               | `1.6`               |
+| `burst`  | Faster initial acceleration            | `0.12`              | `1`                 |
+| `drift`  | Long directional movement              | `0.32`              | `1.25`              |
+
+Explicit `fadeStart` and `waveTurns` values override the curve defaults.
+
+### Release order
+
+`left`, `right`, `top`, and `bottom` release particles from the named edge. `center` starts near the centre and moves outward; `edges` starts at the outside and moves inward. `random` has no geometric order. `releaseRandomness` can soften any ordered pattern without changing the selected direction.
+
+### Layout handoff
+
+`layoutRelease` determines when the DOM reflow animation begins during removal. A value of `0` allows layout to move immediately; `1` waits until every particle has been released. The renderer calculates the actual `layoutDelay` from the generated particle field, so it remains aligned with `release` and `releaseRandomness`.
+
+## Render quality
+
+```ts
+type ParticleRenderQuality = 'auto' | 'exact' | ParticleRenderBudget;
+
+interface ParticleRenderBudget {
+  maxSourcePixels: number;
+  maxSourceDimension: number;
+  maxRenderPixels: number;
+}
+```
+
+`auto` uses the following software limits:
+
+```ts
+{
+  maxSourcePixels: 2_000_000,
+  maxSourceDimension: 2048,
+  maxRenderPixels: 4_000_000,
+}
+```
+
+`exact` preserves the capture's full resolution and disables software downscaling. It cannot exceed the device's WebGL texture or viewport limits; an unsupported surface is reported through `onError`. A custom budget lets an application choose its own balance between sharpness, memory, and GPU work.
+
+`renderQuality` affects only the WebGL renderer. The capture adapter independently decides how many pixels are present in the source canvas.
+
+## Low-level phase factories
+
+```ts
+function createParticleAnimation(options?: ParticleOptions): AnimationFactory;
+function createParticleRestoreAnimation(options?: ParticleOptions): AnimationFactory;
+```
+
+`createParticleAnimation()` creates a remove-phase animation factory. `createParticleRestoreAnimation()` creates the corresponding restore-phase factory. Use them when composing an `EffectDefinition` manually; prefer `createParticleEffect()` when both phases use the built-in renderer.
+
+Both factories require a snapshot. If their `AnimationContext.snapshot` is `null`, they return `null`, causing the operation to follow the normal skipped-animation fallback.
+
+## `particlePresets`
+
+```ts
+type BuiltInPreset = 'dust' | 'scatter' | 'vapor' | 'wind';
+
+const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePreset>>>;
+```
+
+`particlePresets` contains deeply frozen visual configurations only. They do not include audio and are intended for `createParticleEffect()` or the low-level factories. `builtInPresets`, exported by the root and `/snapdom` entries, are complete visual-and-audio presets for `Disintegrator`.
+
+## `configureParticleContexts`(limits?)
+
+```ts
+interface ParticleContextLimits {
+  maxContexts?: number;
+  maxIdleContexts?: number;
+}
+
+const applied = configureParticleContexts({
+  maxContexts: 2,
+  maxIdleContexts: 1,
+});
+```
+
+The setting is page-wide and should normally be applied once before an effect starts. The defaults keep at most four live WebGL2 contexts and at most two idle contexts for reuse. Idle contexts are released after 30 seconds; contexts above the idle limit are released immediately.
+
+`maxContexts` is normalized to an integer of at least `1`. `maxIdleContexts` is normalized to a non-negative integer and cannot exceed `maxContexts`. The function returns the limits currently in use.
+
+If the renderer cannot acquire a context, the DOM operation still commits, `finished` resolves with `status: 'skipped'`, and the failure is reported through `onError`.

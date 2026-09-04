@@ -119,6 +119,8 @@ const effects = new Disintegrator({
 
 전달한 함수는 캡처 동작을 완전히 대체합니다. 이 경로에서는 기본 진입점 `vanilla-disintegrate`를 가져오세요. 필수 런타임 의존성이 없습니다. `@zumer/snapdom`은 `/snapdom` 진입점에서만 사용하는 선택적 peer 의존성이므로 여기서는 SnapDOM이 모듈 그래프에 들어오지 않습니다.
 
+어댑터 컨텍스트, 취소 계약과 `createSnapdomCapture()` 기본값은 [캡처 API](/ko/docs/reference/capture/)를 참고하세요.
+
 ## 로컬 또는 CDN으로 연결하기
 
 번들러나 패키지 관리자 없이 Vanilla Disintegrate를 빠르게 통합하려면 CDN으로 불러오거나 [최신 버전이 담긴 압축 파일을 다운로드](https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/vanilla-disintegrate-iife.zip)하여 로컬에서 사용하세요.

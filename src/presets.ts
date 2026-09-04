@@ -10,6 +10,7 @@ function defineParticlePreset(options: ParticlePreset): Readonly<ParticlePreset>
   return Object.freeze({
     ...options,
     horizontalTravel: freezeRange(options.horizontalTravel),
+    rotation: freezeRange(options.rotation),
     verticalTravel: freezeRange(options.verticalTravel),
   });
 }
@@ -17,6 +18,8 @@ function defineParticlePreset(options: ParticlePreset): Readonly<ParticlePreset>
 /** Deeply frozen particle configurations used by the four built-in effects. */
 export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePreset>>> = Object.freeze({
   dust: defineParticlePreset({
+    particleSize: 'auto',
+    alphaThreshold: 0,
     curve: 'settle',
     duration: 850,
     stagger: 130,
@@ -26,9 +29,16 @@ export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePr
     convergence: 0,
     swirl: 34,
     endScale: 0.55,
+    rotation: [0, 0],
     release: 'left',
+    releaseRandomness: 0.22,
+    fadeStart: 0.3,
+    waveTurns: 1,
+    layoutRelease: 0.6,
   }),
   scatter: defineParticlePreset({
+    particleSize: 'auto',
+    alphaThreshold: 0,
     curve: 'burst',
     duration: 1100,
     stagger: 70,
@@ -38,9 +48,16 @@ export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePr
     convergence: 0,
     swirl: 8,
     endScale: 0.4,
+    rotation: [0, 0],
     release: 'left',
+    releaseRandomness: 0.22,
+    fadeStart: 0.12,
+    waveTurns: 1,
+    layoutRelease: 0.6,
   }),
   vapor: defineParticlePreset({
+    particleSize: 'auto',
+    alphaThreshold: 0,
     curve: 'float',
     duration: 750,
     stagger: 80,
@@ -50,9 +67,16 @@ export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePr
     convergence: 0.8,
     swirl: 5,
     endScale: 0.6,
+    rotation: [0, 0],
     release: 'top',
+    releaseRandomness: 0.84,
+    fadeStart: 0.3,
+    waveTurns: 1.6,
+    layoutRelease: 0.6,
   }),
   wind: defineParticlePreset({
+    particleSize: 'auto',
+    alphaThreshold: 0,
     curve: 'drift',
     duration: 2075,
     stagger: 0,
@@ -62,7 +86,12 @@ export const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePr
     convergence: 0,
     swirl: 48,
     endScale: 0.82,
+    rotation: [0, 0],
     release: 'left',
+    releaseRandomness: 0.22,
+    fadeStart: 0.32,
+    waveTurns: 1.25,
+    layoutRelease: 0.6,
   }),
 });
 

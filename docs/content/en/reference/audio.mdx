@@ -4,7 +4,7 @@ description: Configure preset audio, bundled sources, local files, decoded buffe
 locale: en
 section: reference
 navTitle: Audio
-order: 80
+order: 100
 ---
 
 Audio is part of a complete preset and independent from a custom visual effect. Call `remove()` or `restore()` from a user gesture such as a click so the library can resume Web Audio playback.
@@ -36,6 +36,16 @@ const effects = new Disintegrator({
 
 `remove` and `restore` are independent. At least one must be configured; use `false` for an intentionally silent phase.
 
+```ts
+type SoundDefinition = SoundOptions | SoundFactory;
+
+type SoundPair =
+  | { remove: SoundDefinition; restore?: SoundDefinition | false }
+  | { remove?: SoundDefinition | false; restore: SoundDefinition };
+
+type SoundSelection = SoundPair;
+```
+
 ## Prepare before the first interaction
 
 Enabled audio is prepared during browser idle time by default. Use `immediate` when readiness matters more than initial work:
@@ -48,6 +58,11 @@ const effects = new Disintegrator({
 ```
 
 The `sounds` field accepts actual sound definitions or pairs, not visual effect names:
+
+```ts
+type SoundPreparationSelection =
+  SoundDefinition | SoundSelection | readonly (false | SoundDefinition | SoundSelection)[];
+```
 
 ```ts
 import { builtInPresets } from 'vanilla-disintegrate';
@@ -105,6 +120,8 @@ import { builtInSounds } from 'vanilla-disintegrate/sounds';
 audioElement.src = builtInSounds.vapor;
 ```
 
+`builtInSounds` has the type `Readonly<Record<BuiltInSound, string>>`.
+
 The files stay encoded, cacheable assets. They are not embedded as base64 or eagerly decoded into the JavaScript bundle.
 
 ## Supported sources and local files
@@ -133,6 +150,16 @@ The package neither uploads nor persists the file.
 ## Playback options
 
 ```ts
+interface SoundOptions {
+  src: SoundSource;
+  reverse?: boolean;
+  volume?: number;
+  duration?: number;
+  fadeDuration?: number;
+  delay?: number;
+  playbackRate?: number;
+}
+
 const sound = {
   src: new URL('/sounds/snap.ogg', location.href),
   volume: 0.35,
@@ -143,7 +170,7 @@ const sound = {
 };
 ```
 
-`volume` is linear from `0` to `1`. `delay` is milliseconds; `duration` and `fadeDuration` are seconds; `playbackRate` defaults to `1`.
+`reverse` defaults to `false`; `volume` is linear from `0` to `1` and defaults to `1`. `delay` is measured in milliseconds and defaults to `0`. `duration` and `fadeDuration` are seconds: duration follows the visual and is capped by the source length when omitted, while fading defaults to `0`. `playbackRate` defaults to `1` and is normalized to at least `0.01`.
 
 ## Playing a sound backwards
 
@@ -159,6 +186,20 @@ With `reverse`, playback is aligned so the end of the reversed recording lands o
 Use a factory to integrate an existing audio engine:
 
 ```ts
+interface SoundContext {
+  operation: 'remove' | 'restore';
+  element: HTMLElement;
+  signal: AbortSignal;
+}
+
+interface SoundPlayback {
+  finished?: PromiseLike<unknown>;
+  stop?(): void;
+  dispose?(): void;
+}
+
+type SoundFactory = (context: SoundContext) => SoundPlayback | PromiseLike<SoundPlayback | void> | void;
+
 const sound = ({ operation, element, signal }) => {
   const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
   const stop = () => playback.stop();
@@ -175,7 +216,7 @@ const sound = ({ operation, element, signal }) => {
 };
 ```
 
-The factory receives the operation, target element, and abort signal. Return `stop()` for cancellation and `dispose()` for unconditional cleanup.
+The factory receives the operation, target element, and abort signal. `finished` may request early disposal after custom playback settles. Return `stop()` for cancellation and `dispose()` for unconditional cleanup.
 
 ## Failure isolation
 

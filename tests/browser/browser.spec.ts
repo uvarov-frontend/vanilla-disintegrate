@@ -195,6 +195,7 @@ test('animates one localized heading word without reflowing the heading', async 
 
 test('configures and runs the home-page particle playground', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
+  test.setTimeout(45_000);
   await page.goto('http://localhost:4321/');
 
   const root = page.locator('[data-particle-playground]');
@@ -202,6 +203,8 @@ test('configures and runs the home-page particle playground', async ({ page, bro
   await expect(root.locator('[data-preset="dust"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(root.locator('[data-operation="remove"]')).toHaveAttribute('aria-selected', 'true');
   await expect(root.locator('[data-operation="restore"]')).toHaveAttribute('aria-selected', 'false');
+  await expect(root.locator('[data-width-option="narrow"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(root.locator('.playground-card')).toHaveAttribute('data-card-width', 'narrow');
   await expect(root.locator('[data-curve]')).toHaveValue('settle');
   await expect(root.locator('[data-sound-enabled]')).toBeChecked();
   await expect(root.locator('[data-sound-source]')).toHaveValue('dust');
@@ -260,7 +263,7 @@ test('configures and runs the home-page particle playground', async ({ page, bro
   await expect(root.locator('[data-code]')).toContainText('verticalTravel: [-180, -130]');
   await expect(root.locator('[data-code]')).toContainText('volume: 0.5');
   await expect(page).toHaveURL(/#p=[\w-]+$/);
-  expect(await page.evaluate(() => window.location.hash.length)).toBeLessThan(80);
+  expect(await page.evaluate(() => window.location.hash.length)).toBeLessThan(120);
   await expect(root.locator('[data-status]')).toContainText('remove · completed', { timeout: 15_000 });
 
   await root.locator('[data-operation="restore"]').click();
@@ -342,6 +345,45 @@ test('keeps the documentation header above particle overlays', async ({ page, br
   expect(layers).toEqual({ header: '2147483647', overlay: '2147483646' });
 });
 
+test('uses the system colour scheme until the user selects a theme', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('http://localhost:4321/ru/');
+
+  const root = page.locator('html');
+  await expect(root).toHaveAttribute('data-theme-preference', 'system');
+  await expect(root).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('[data-theme-option="system"]')).toHaveAttribute('aria-pressed', 'true');
+
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(root).toHaveAttribute('data-theme', 'dark');
+
+  await page.locator('[data-theme-option="light"]').click();
+  await expect(root).toHaveAttribute('data-theme-preference', 'light');
+  await expect(root).toHaveAttribute('data-theme', 'light');
+  await page.reload();
+  await expect(root).toHaveAttribute('data-theme-preference', 'light');
+  await expect(root).toHaveAttribute('data-theme', 'light');
+});
+
+test('keeps documentation sidebars stationary while the article scrolls', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium');
+  await page.goto('http://localhost:4321/ru/docs/reference/api/');
+
+  const positions = async () =>
+    page.locator('.docs-layout').evaluate(() => ({
+      left: document.querySelector('.docs-sidebar')!.getBoundingClientRect().top,
+      right: document.querySelector('.page-toc')!.getBoundingClientRect().top,
+    }));
+  const before = await positions();
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+  const after = await positions();
+
+  expect(after.left).toBeCloseTo(before.left, 1);
+  expect(after.right).toBeCloseTo(before.right, 1);
+});
+
 test('accepts exact numeric input for every playground range', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   await page.goto('http://localhost:4321/');
@@ -357,9 +399,29 @@ test('accepts exact numeric input for every playground range', async ({ page, br
     return input;
   };
 
-  await expect(ranges).toHaveCount(14);
-  await expect(values).toHaveCount(14);
+  await expect(ranges).toHaveCount(22);
+  await expect(values).toHaveCount(22);
   await expect(root.locator('[data-value]:not([type="number"])')).toHaveCount(0);
+  expect(
+    await root
+      .locator('[data-group-panel]')
+      .evaluateAll((panels) =>
+        Object.fromEntries(
+          panels.map((panel) => [
+            (panel as HTMLElement).dataset.groupPanel,
+            [...panel.querySelectorAll<HTMLElement>('[data-option]')].map((input) => input.dataset.option),
+          ]),
+        ),
+      ),
+  ).toEqual({
+    timing: ['duration', 'stagger', 'releaseRandomness', 'fadeStart', 'layoutRelease'],
+    horizontal: ['horizontalDrift', 'horizontalMin', 'horizontalMax', 'convergence'],
+    vertical: ['verticalMin', 'verticalMax', 'swirl', 'waveTurns'],
+    particles: ['particleSize', 'alphaThreshold', 'endScale', 'rotationMin', 'rotationMax'],
+    sound: ['soundVolume', 'soundPlaybackRate', 'soundDelay', 'soundFadeDuration'],
+  });
+  await expect(root.locator('.playground-selectors [data-curve]')).toHaveCount(1);
+  await expect(root.locator('.playground-selectors [data-release]')).toHaveCount(1);
   expect(
     await root.locator('[data-value="duration"]').evaluate((input) => {
       const wrapper = input.parentElement!;
@@ -376,23 +438,57 @@ test('accepts exact numeric input for every playground range', async ({ page, br
 
   await expect(root.locator('[data-value="convergence"]')).toHaveValue('0.00');
   await expect(root.locator('[data-value="endScale"]')).toHaveValue('0.55');
+  await expect(root.locator('[data-value="particleSize"]')).toHaveValue('0.00');
+  await expect(root.locator('[data-value="releaseRandomness"]')).toHaveValue('0.22');
+  await expect(root.locator('[data-value="fadeStart"]')).toHaveValue('0.30');
+  await expect(root.locator('[data-value="layoutRelease"]')).toHaveValue('0.60');
+  await expect(root.locator('[data-value="waveTurns"]')).toHaveValue('1.00');
   await expect(root.locator('[data-value="soundPlaybackRate"]')).toHaveValue('1.00');
   await expect(root.locator('[data-value="soundFadeDuration"]')).toHaveValue('0.18');
   await expect(root.locator('[data-value="soundVolume"]')).toHaveValue('32');
+  await expect(root.locator('[data-release] option')).toHaveCount(7);
+
+  await root.locator('[data-group-tab="particles"]').click();
   await expect(await enterValue('endScale', '0.4')).toHaveValue('0.40');
   await expect(code).toContainText('endScale: 0.4');
 
+  await root.locator('[data-group-tab="timing"]').click();
   await expect(await enterValue('duration', '926')).toHaveValue('926');
+  await expect(await enterValue('releaseRandomness', '0.5')).toHaveValue('0.50');
+  await expect(await enterValue('fadeStart', '0.45')).toHaveValue('0.45');
+  await expect(await enterValue('layoutRelease', '0.75')).toHaveValue('0.75');
   await expect(code).toContainText('duration: 926');
+  await expect(code).toContainText('releaseRandomness: 0.5');
+  await expect(code).toContainText('fadeStart: 0.45');
+  await expect(code).toContainText('layoutRelease: 0.75');
   await expect(root.locator('[data-preset][aria-pressed="true"]')).toHaveCount(0);
 
+  await root.locator('[data-group-tab="vertical"]').click();
   await expect(await enterValue('swirl', '19')).toHaveValue('19');
+  await expect(await enterValue('waveTurns', '2.5')).toHaveValue('2.50');
   await expect(root.locator('[data-value="duration"]')).toHaveValue('926');
   await expect(code).toContainText('duration: 926');
+  await expect(code).toContainText('waveTurns: 2.5');
+
+  await root.locator('[data-group-tab="particles"]').click();
+  await expect(await enterValue('particleSize', '4')).toHaveValue('4.00');
+  await expect(await enterValue('alphaThreshold', '0.5')).toHaveValue('0.50');
+  await expect(await enterValue('rotationMin', '90')).toHaveValue('90');
+  await expect(await enterValue('rotationMax', '180')).toHaveValue('180');
+  await root.locator('[data-release]').selectOption('bottom');
+  await expect(code).toContainText('particleSize: 4');
+  await expect(code).toContainText('alphaThreshold: 0.5');
+  await expect(code).toContainText("release: 'bottom'");
+  await expect(code).toContainText('rotation: [90, 180]');
   await expect(page).toHaveURL(/#p=[\w-]+$/);
 
   await page.reload();
   await expect(root.locator('[data-value="duration"]')).toHaveValue('926');
+  await expect(root.locator('[data-value="particleSize"]')).toHaveValue('4.00');
+  await expect(root.locator('[data-value="fadeStart"]')).toHaveValue('0.45');
+  await expect(root.locator('[data-value="layoutRelease"]')).toHaveValue('0.75');
+  await expect(root.locator('[data-value="waveTurns"]')).toHaveValue('2.50');
+  await expect(root.locator('[data-release]')).toHaveValue('bottom');
   await expect(code).toContainText('duration: 926');
 
   await root.locator('[data-group-tab="sound"]').click();
@@ -478,8 +574,12 @@ test('keeps independent presets across operation tabs and hash reloads', async (
   await expect(code).toContainText('restore: particlePresets.scatter');
   await expect(code).toContainText('duration: 1450');
   await expect(code).toContainText('createParticleEffect');
+  await expect(root).toHaveAttribute('aria-busy', 'true');
+  await expect(root).toHaveAttribute('aria-busy', 'false');
 
   await root.locator('[data-operation="remove"]').click();
+  await expect(root).toHaveAttribute('aria-busy', 'true');
+  await expect(root).toHaveAttribute('aria-busy', 'false');
   await expect(root.locator('[data-preset][aria-pressed="true"]')).toHaveCount(0);
   await root.locator('[data-preset="vapor"]').click();
   await expect(code).toContainText('remove: particlePresets.vapor');
@@ -487,16 +587,16 @@ test('keeps independent presets across operation tabs and hash reloads', async (
   await expect(code).toContainText('createParticleEffect');
   await expect(code).not.toContainText("preset: '");
   await expect(page).toHaveURL(/#p=[\w-]+$/);
-  expect(await page.evaluate(() => window.location.hash.length)).toBeLessThan(80);
+  expect(await page.evaluate(() => window.location.hash.length)).toBeLessThan(120);
 
   const previousHash = await page.evaluate(() => window.location.hash);
   await root.locator('[data-operation="restore"]').click();
-  await root.locator('[data-width-option="narrow"]').click();
+  await root.locator('[data-width-option="wide"]').click();
   await expect(root.locator('[data-operation="restore"]')).toHaveAttribute('aria-selected', 'true');
-  await expect(root.locator('[data-width-option="narrow"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(root.locator('[data-width-option="wide"]')).toHaveAttribute('aria-pressed', 'true');
   await root.locator('[data-copy="link"]').dispatchEvent('click');
   await expect.poll(() => page.evaluate(() => window.location.hash)).not.toBe(previousHash);
-  await expect.poll(() => page.evaluate(() => window.location.hash.length)).toBeLessThan(80);
+  await expect.poll(() => page.evaluate(() => window.location.hash.length)).toBeLessThan(120);
 
   await page.reload();
   await expect(scatter).toHaveAttribute('aria-pressed', 'true');
@@ -504,7 +604,7 @@ test('keeps independent presets across operation tabs and hash reloads', async (
   await expect(code).toContainText('restore: particlePresets.scatter');
   await expect(code).toContainText('createParticleEffect');
   await expect(root.locator('[data-operation="restore"]')).toHaveAttribute('aria-selected', 'true');
-  await expect(root.locator('[data-width-option="narrow"]')).toHaveAttribute('aria-pressed', 'true');
+  await expect(root.locator('[data-width-option="wide"]')).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('restores an isolated playground snapshot with undo', async ({ page, browserName }) => {
@@ -526,7 +626,7 @@ test('restores an isolated playground snapshot with undo', async ({ page, browse
 
     setDuration('1450');
     button('[data-operation="restore"]').click();
-    button('[data-width-option="narrow"]').click();
+    button('[data-width-option="wide"]').click();
     button('[data-preset="scatter"]').click();
     button('[data-operation="remove"]').click();
     setDuration('1000');
@@ -544,9 +644,9 @@ test('restores an isolated playground snapshot with undo', async ({ page, browse
   });
 
   expect(states).toEqual({
-    afterPresetUndo: { operation: 'restore', narrow: 'true' },
-    afterReset: { operation: 'remove', narrow: 'false' },
-    afterResetUndo: { operation: 'restore', narrow: 'true' },
+    afterPresetUndo: { operation: 'restore', narrow: 'false' },
+    afterReset: { operation: 'remove', narrow: 'true' },
+    afterResetUndo: { operation: 'restore', narrow: 'false' },
     restoredDuration: '1450',
   });
 });
@@ -638,10 +738,15 @@ test('recognizes preset values after edits and keeps audio toggles independent',
   await durationValue.press('Enter');
   expect(
     await root.evaluate((element) => ({
+      particleSize: (element.querySelector('[data-option="particleSize"]') as HTMLInputElement).value,
+      alphaThreshold: (element.querySelector('[data-option="alphaThreshold"]') as HTMLInputElement).value,
       curve: (element.querySelector('[data-curve]') as HTMLSelectElement).value,
       release: (element.querySelector('[data-release]') as HTMLSelectElement).value,
+      releaseRandomness: (element.querySelector('[data-option="releaseRandomness"]') as HTMLInputElement).value,
       duration: (element.querySelector('[data-option="duration"]') as HTMLInputElement).value,
       stagger: (element.querySelector('[data-option="stagger"]') as HTMLInputElement).value,
+      fadeStart: (element.querySelector('[data-option="fadeStart"]') as HTMLInputElement).value,
+      layoutRelease: (element.querySelector('[data-option="layoutRelease"]') as HTMLInputElement).value,
       horizontalDrift: (element.querySelector('[data-option="horizontalDrift"]') as HTMLInputElement).value,
       horizontalMin: (element.querySelector('[data-option="horizontalMin"]') as HTMLInputElement).value,
       horizontalMax: (element.querySelector('[data-option="horizontalMax"]') as HTMLInputElement).value,
@@ -649,13 +754,21 @@ test('recognizes preset values after edits and keeps audio toggles independent',
       verticalMax: (element.querySelector('[data-option="verticalMax"]') as HTMLInputElement).value,
       convergence: (element.querySelector('[data-option="convergence"]') as HTMLInputElement).value,
       swirl: (element.querySelector('[data-option="swirl"]') as HTMLInputElement).value,
+      waveTurns: (element.querySelector('[data-option="waveTurns"]') as HTMLInputElement).value,
       endScale: (element.querySelector('[data-option="endScale"]') as HTMLInputElement).value,
+      rotationMin: (element.querySelector('[data-option="rotationMin"]') as HTMLInputElement).value,
+      rotationMax: (element.querySelector('[data-option="rotationMax"]') as HTMLInputElement).value,
     })),
   ).toEqual({
+    particleSize: '0',
+    alphaThreshold: '0',
     curve: 'settle',
     release: 'left',
+    releaseRandomness: '0.22',
     duration: '850',
     stagger: '130',
+    fadeStart: '0.3',
+    layoutRelease: '0.6',
     horizontalDrift: '70',
     horizontalMin: '40',
     horizontalMax: '190',
@@ -663,7 +776,10 @@ test('recognizes preset values after edits and keeps audio toggles independent',
     verticalMax: '-30',
     convergence: '0',
     swirl: '34',
+    waveTurns: '1',
     endScale: '0.55',
+    rotationMin: '0',
+    rotationMax: '0',
   });
   await expect(dust).toHaveAttribute('aria-pressed', 'true');
   await expect(code).toContainText("preset: 'dust'");

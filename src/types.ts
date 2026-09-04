@@ -10,7 +10,7 @@ export type BuiltInPreset = 'dust' | 'scatter' | 'vapor' | 'wind';
 /** Names of the audio sources bundled independently from particle effects. */
 export type BuiltInSound = BuiltInPreset;
 /** How particles are released across the captured element. */
-export type ParticleRelease = 'left' | 'right' | 'top' | 'random';
+export type ParticleRelease = 'left' | 'right' | 'top' | 'bottom' | 'center' | 'edges' | 'random';
 /**
  * Easing curve the built-in WebGL renderer applies to particle travel. It shapes
  * how a particle accelerates and fades, and is independent of the geometry
@@ -63,6 +63,10 @@ export type SnapshotCapture = (
 export interface ParticleOptions {
   /** Resolution policy. Defaults to the resource-bounded `auto` mode. */
   readonly renderQuality?: ParticleRenderQuality;
+  /** Minimum particle edge length in CSS pixels, or adaptive sizing. Defaults to `auto`. */
+  readonly particleSize?: 'auto' | number;
+  /** Source alpha values at or below this `0`–`1` threshold do not produce particles. */
+  readonly alphaThreshold?: number;
   /** Travel curve. Defaults to `settle`. */
   readonly curve?: ParticleCurve;
   /** Base animation duration in milliseconds. */
@@ -81,8 +85,18 @@ export interface ParticleOptions {
   readonly swirl?: number;
   /** Particle scale at the end of its movement. */
   readonly endScale?: number;
+  /** Minimum and maximum terminal rotation in degrees for detached particles. */
+  readonly rotation?: readonly [number, number];
   /** How particles are released across the element. Defaults to `left`. */
   readonly release?: ParticleRelease;
+  /** Mix between an ordered release (`0`) and random release (`1`). */
+  readonly releaseRandomness?: number;
+  /** Local progress at which detached particles begin fading, from `0` to `1`. */
+  readonly fadeStart?: number;
+  /** Number of oscillations along a particle path. Defaults to the selected curve. */
+  readonly waveTurns?: number;
+  /** Fraction of released particles required before layout reflow, from `0` to `1`. */
+  readonly layoutRelease?: number;
 }
 
 /** A complete motion configuration with an optional render policy, such as an entry in `particlePresets`. */

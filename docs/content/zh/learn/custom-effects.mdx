@@ -45,6 +45,8 @@ export const disintegrator = new Disintegrator({
 
 `createParticleEffect()` 使用内置粒子渲染器。在游乐场中配置两个阶段并复制生成的代码，无需自行编写 Canvas 或 WebGL 渲染器。只有在需要实现渲染过程本身时，才需要阅读下一节。
 
+所有运动参数、默认值、有效范围和底层阶段工厂请参阅[粒子 API](/zh/docs/reference/particles/)。
+
 ## 控制粒子渲染质量
 
 `renderQuality` 独立于捕获适配器，用来控制内置 WebGL 渲染器的分辨率。默认的 `auto` 模式会限制内存和 GPU 开销：渲染器的源纹理最多包含 2,000,000 个像素，单边最多 2,048 像素；扩展动画表面最多包含 4,000,000 个像素。

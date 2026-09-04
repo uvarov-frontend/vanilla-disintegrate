@@ -45,6 +45,8 @@ export const disintegrator = new Disintegrator({
 
 `createParticleEffect()`는 내장 파티클 렌더러를 사용합니다. 플레이그라운드에서 두 단계를 설정하고 생성된 코드를 복사하면 Canvas 또는 WebGL 렌더러를 직접 작성하지 않아도 됩니다. 렌더링 자체를 구현하려는 경우에만 다음 절이 필요합니다.
 
+모든 움직임 옵션의 기본값과 허용 범위, 저수준 단계 팩토리는 [파티클 API](/ko/docs/reference/particles/)를 참고하세요.
+
 ## 파티클 렌더링 품질 제어
 
 `renderQuality`는 캡처 어댑터와 별개로 내장 WebGL 렌더러의 해상도를 제어합니다. 기본 `auto` 모드는 메모리와 GPU 사용량을 제한합니다. 렌더러의 소스 텍스처는 최대 2,000,000픽셀, 한 변은 최대 2,048픽셀이며 확장된 애니메이션 표면은 최대 4,000,000픽셀입니다.

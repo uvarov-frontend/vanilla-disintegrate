@@ -260,15 +260,17 @@ function setupAnalytics() {
     analyticsWindow.ym(analyticsCounterId, 'init', {
       accurateTrackBounce: true,
       clickmap: true,
+      referrer: document.referrer,
       ssr: true,
       trackHash: true,
       trackLinks: true,
+      url: window.location.href,
       webvisor: true,
     });
     const script = document.createElement('script');
     script.async = true;
     script.dataset.yandexMetrica = '';
-    script.src = 'https://mc.yandex.ru/metrika/tag.js';
+    script.src = `https://mc.webvisor.org/metrika/tag_ww.js?id=${String(analyticsCounterId)}`;
     document.head.append(script);
   };
   const select = (choice: AnalyticsChoice, reload = false) => {

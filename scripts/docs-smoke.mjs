@@ -48,6 +48,8 @@ const pages = [
   ['/docs/learn/installation/', 'en', 'Install and run your first effect'],
   ['/ru/docs/learn/installation/', 'ru', 'Установка и первый эффект'],
   ['/ru/docs/learn/limitations/', 'ru', 'Ограничения и особенности'],
+  ['/ru/docs/reference/particles/', 'ru', 'API частиц'],
+  ['/zh/docs/reference/capture/', 'zh', '捕获 API'],
   ['/zh/docs/learn/effects/', 'zh', '内置预设'],
   ['/ko/docs/reference/api/', 'ko', 'API 레퍼런스'],
 ];
@@ -61,6 +63,8 @@ const contentPaths = [
   'learn/frameworks',
   'learn/limitations',
   'reference/api',
+  'reference/particles',
+  'reference/capture',
   'reference/audio',
 ];
 const locales = ['en', 'ru', 'zh', 'ko'];
@@ -201,8 +205,21 @@ try {
       if (contentPath === 'reference/api') {
         assert.ok(html.includes('<code>preset</code>'), `${path} must document complete presets`);
         assert.ok(html.includes('<code>definePreset()</code>'), `${path} must document custom presets`);
+        assert.ok(html.includes('<code>LayoutOptions</code>'), `${path} must document layout options`);
+        assert.ok(html.includes('<code>AnimationContext</code>'), `${path} must document custom effect context`);
         assert.ok(html.includes('prepare'), `${path} must document preparation error context`);
         assert.ok(html.includes('rejected'), `${path} must document rejected operations`);
+      }
+      if (contentPath === 'reference/particles') {
+        assert.ok(html.includes('<code>ParticleOptions</code>'), `${path} must document particle options`);
+        assert.ok(html.includes('<code>releaseRandomness</code>'), `${path} must document release randomness`);
+        assert.ok(html.includes('<code>layoutRelease</code>'), `${path} must document layout handoff`);
+        assert.ok(html.includes('<code>configureParticleContexts</code>'), `${path} must document context limits`);
+      }
+      if (contentPath === 'reference/capture') {
+        assert.ok(html.includes('<code>SnapshotCapture</code>'), `${path} must document custom capture`);
+        assert.ok(html.includes('<code>restoreRootOpacity</code>'), `${path} must document restore capture`);
+        assert.ok(html.includes('<code>createSnapdomCapture</code>'), `${path} must document the SnapDOM adapter`);
       }
       if (contentPath === 'reference/audio') {
         assert.ok(html.includes('vanilla-disintegrate/sounds'), `${path} must document the sound entry`);
@@ -242,7 +259,7 @@ try {
   assert.ok(home.includes('data-menu-button'), 'home must expose its mobile navigation menu');
   assert.ok(home.includes('data-mobile-nav'), 'home must render its mobile navigation links');
   assert.ok(home.includes('href="/privacy/"'), 'home must link to the privacy controls');
-  assert.ok(!home.includes('metrika/tag.js'), 'analytics loader must remain in the external client bundle');
+  assert.ok(!home.includes('/metrika/tag'), 'analytics loader must remain in the external client bundle');
   assert.ok(installation.includes('data-menu-button'), 'documentation must keep its mobile navigation menu');
   assert.ok(installation.includes('class="mobile-docs-global"'), 'documentation menu must include global links');
   assert.ok(installation.includes('Copyright © 2026 MIT License. | Design and development by'));
@@ -300,12 +317,14 @@ try {
   const sitemap = await sitemapResponse.text();
   assert.equal(sitemapResponse.status, 200);
   assert.match(sitemapResponse.headers.get('content-type') ?? '', /^application\/xml/);
-  assert.equal(sitemap.match(/<url>/g)?.length, 48, 'sitemap must contain every localized public page');
+  assert.equal(sitemap.match(/<url>/g)?.length, 56, 'sitemap must contain every localized public page');
   assert.ok(sitemap.includes(`<loc>${site}/ru/docs/learn/frameworks/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/ru/docs/learn/installation/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/ru/docs/learn/limitations/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/zh/docs/reference/audio/</loc>`));
+  assert.ok(sitemap.includes(`<loc>${site}/ru/docs/reference/particles/</loc>`));
+  assert.ok(sitemap.includes(`<loc>${site}/zh/docs/reference/capture/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/ko/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/ru/privacy/</loc>`));
   assert.ok(sitemap.includes(`hreflang="x-default" href="${site}/docs/learn/installation/"`));

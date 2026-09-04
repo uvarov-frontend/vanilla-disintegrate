@@ -15,7 +15,7 @@ function bridge(): ThemeBridge | null {
 function currentPreference(): ThemePreference {
   const attribute = document.documentElement.dataset.themePreference;
   if (attribute === 'light' || attribute === 'dark' || attribute === 'system') return attribute;
-  return 'dark';
+  return 'system';
 }
 
 /**
@@ -47,14 +47,15 @@ export function setupThemeSwitcher() {
 
   for (const button of buttons) {
     button.addEventListener('click', () => {
-      select((button.dataset.themeOption as ThemePreference | undefined) ?? 'dark', true);
+      select((button.dataset.themeOption as ThemePreference | undefined) ?? 'system', true);
     });
   }
 
   window.addEventListener('storage', (event) => {
     if (event.key !== STORAGE_KEY) return;
     const value = event.newValue;
-    if (value === 'light' || value === 'dark' || value === 'system') select(value, false);
+    if (value === null) select('system', false);
+    else if (value === 'light' || value === 'dark' || value === 'system') select(value, false);
   });
 
   render(currentPreference());

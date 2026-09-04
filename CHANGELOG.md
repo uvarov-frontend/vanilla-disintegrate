@@ -8,6 +8,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Configurable particle `renderQuality` with resource-bounded `auto`, full-resolution `exact`, and explicit source/render pixel budgets.
 - `configureParticleContexts()` to raise or lower how many WebGL2 contexts the particle renderer keeps alive per page.
+- Particle size, alpha filtering, release randomness, fade timing, wave frequency, rotation, layout handoff, and bottom/centre/edge release controls.
 
 ### Fixed
 
