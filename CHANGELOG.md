@@ -4,6 +4,8 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-04
+
 ### Added
 
 - Configurable particle `renderQuality` with resource-bounded `auto`, full-resolution `exact`, and explicit source/render pixel budgets.
@@ -106,7 +108,8 @@ All notable changes to this project are documented here. The format follows [Kee
 - Reworked the public runtime around explicit DOM removal and restoration.
 - Removed obsolete `disintegrate()` and `/core` entry points.
 
-[Unreleased]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.1.4...v1.2.0
 [1.1.4]: https://github.com/uvarov-frontend/vanilla-disintegrate/compare/v1.1.3...v1.1.4
