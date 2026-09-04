@@ -22,7 +22,12 @@ const [descriptionBeforeHighlight, descriptionAfterHighlight] = copy.home.descri
 );
 const [playgroundDescriptionBeforeHighlight, playgroundDescriptionAfterHighlight] =
   copy.home.playgroundDescription.split(copy.home.playgroundDescriptionHighlight);
-const heroAnimatedWord = { en: 'striking', ko: '인상적이며', ru: 'эффектная', zh: '惊艳' } as const;
+const heroAnimatedWords = {
+  en: ['Modern,', 'striking,'],
+  ko: ['현대적이고', '인상적이며,'],
+  ru: ['Современная,', 'эффектная,'],
+  zh: ['现代、', '惊艳、'],
+} as const;
 const cards = {
   en: [
     ['01', 'Built-in presets', 'Choose complete removal, restoration, and matching audio.'],
@@ -79,8 +84,21 @@ const libraryNode = {
     <section class="home-hero">
       <div class="hero-glow" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <h1 aria-label={`${copy.home.title} ${copy.home.accent}`} data-disintegrating-text>
-        <AnimatedText text={copy.home.title} word={heroAnimatedWord[locale]} /><br />
-        <em aria-hidden="true">{copy.home.accent}</em>
+        <button
+          class="hero-heading-trigger"
+          type="button"
+          disabled
+          aria-label={copy.home.headingRemoveEffect}
+          aria-pressed="false"
+          data-disintegrating-text-trigger
+          data-remove-label={copy.home.headingRemoveEffect}
+          data-restore-label={copy.home.headingRestoreEffect}
+          data-snap-cursor-remove-hint={copy.home.headingRemoveHint}
+          data-snap-cursor-restore-hint={copy.home.headingRestoreHint}
+        >
+          <AnimatedText text={copy.home.title} words={heroAnimatedWords[locale]} /><br />
+          <em aria-hidden="true">{copy.home.accent}</em>
+        </button>
       </h1>
       <p class="home-description">
         {descriptionBeforeHighlight}<strong>{copy.home.descriptionHighlight}</strong>{descriptionAfterHighlight}

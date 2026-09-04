@@ -60,27 +60,45 @@ test('does not allocate WebGL merely because the particle entry is imported', as
   expect(requests).toBe(0);
 });
 
-test('animates one localized heading word without reflowing the heading', async ({ page }) => {
+test('animates two localized heading words only after the visitor uses the snap cursor', async ({ page }) => {
+  test.setTimeout(45_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const variants = [
     {
       path: '/ru/',
       title: 'Современная, эффектная,',
-      word: 'эффектная',
+      words: ['Современная,', 'эффектная,'],
       label: 'Современная, эффектная, универсальная и без CSS-зависимостей',
+      action: 'Щёлкнуть перчаткой и удалить выделенное слово',
+      removeHint: 'Щёлкните, чтобы развеять!',
+      restoreHint: 'Нажмите, чтобы обратить!',
     },
-    { path: '/zh/', title: '现代、惊艳、', word: '惊艳', label: '现代、惊艳、 通用，无需 CSS 依赖' },
+    {
+      path: '/zh/',
+      title: '现代、惊艳、',
+      words: ['现代、', '惊艳、'],
+      label: '现代、惊艳、 通用，无需 CSS 依赖',
+      action: '播放灭霸响指并移除高亮词语',
+      removeHint: '点击以消散！',
+      restoreHint: '点击以逆转！',
+    },
     {
       path: '/ko/',
       title: '현대적이고 인상적이며,',
-      word: '인상적이며',
+      words: ['현대적이고', '인상적이며,'],
       label: '현대적이고 인상적이며, 범용적이고 CSS 의존성이 없습니다',
+      action: '타노스 스냅으로 강조된 단어 제거',
+      removeHint: '클릭하여 흩날리기!',
+      restoreHint: '클릭하여 되돌리기!',
     },
     {
       path: '/?lang=en',
       title: 'Modern, striking,',
-      word: 'striking',
+      words: ['Modern,', 'striking,'],
       label: 'Modern, striking, versatile, and CSS-free',
+      action: 'Play the Thanos snap and remove the highlighted word',
+      removeHint: 'Click to scatter!',
+      restoreHint: 'Click to reverse!',
     },
   ] as const;
 
@@ -91,96 +109,191 @@ test('animates one localized heading word without reflowing the heading', async 
     await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'reduced-motion');
     await expect(heading.locator('.disintegrating-text-line')).toHaveText(variant.title);
     const word = heading.locator('[data-disintegrating-text-word]');
-    await expect(word).toHaveCount(1);
-    await expect(word.locator('[data-disintegrating-text-shaped]')).toHaveText(variant.word);
-    await expect(word).toHaveAttribute('data-placeholder', variant.word);
+    await expect(word).toHaveCount(2);
+    await expect(word.locator('[data-disintegrating-text-shaped]')).toHaveText([...variant.words]);
+    expect(await word.evaluateAll((elements) => elements.map((element) => element.dataset.placeholder))).toEqual(
+      variant.words,
+    );
     await expect(word.locator('[data-resident-glyph]')).toHaveCount(0);
+    const localizedTrigger = heading.locator('[data-disintegrating-text-trigger]');
+    await expect(localizedTrigger).toBeDisabled();
+    await expect(localizedTrigger).toHaveAccessibleName(variant.action);
+    await expect(localizedTrigger).toHaveAttribute('data-snap-cursor-remove-hint', variant.removeHint);
+    await expect(localizedTrigger).toHaveAttribute('data-snap-cursor-restore-hint', variant.restoreHint);
+    await expect(page.locator('[data-snap-cursor]')).toHaveCount(0);
   }
 
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.addInitScript(() => {
     const record = {
+      audio: [] as string[],
       detached: 0,
       heights: new Set<number>(),
       overlays: 0,
       sourceDisconnected: 0,
-      widths: new Set<number>(),
+      states: new Set<string>(),
+      widths: new Set<string>(),
     };
     (window as unknown as { __cycle: typeof record }).__cycle = record;
+    HTMLMediaElement.prototype.play = function () {
+      record.audio.push(new URL(this.currentSrc || this.src).pathname);
+      return Promise.reject(new DOMException('Muted by the browser test.', 'NotAllowedError'));
+    };
     window.setInterval(() => {
       const heading = document.querySelector<HTMLElement>('[data-disintegrating-text]');
-      const word = document.querySelector<HTMLElement>('[data-disintegrating-text-word]');
+      const words = [...document.querySelectorAll<HTMLElement>('[data-disintegrating-text-word]')];
       const state = heading?.dataset.disintegratingTextState;
-      if (heading === null || word === null || (state !== 'running' && state !== 'complete')) return;
-      record.widths.add(Math.round(word.getBoundingClientRect().width * 100));
+      if (heading === null || words.length === 0 || state === undefined || state === 'preparing') return;
+      record.states.add(state);
+      record.widths.add(words.map((word) => Math.round(word.getBoundingClientRect().width * 100)).join('|'));
       record.heights.add(Math.round(heading.getBoundingClientRect().height * 100));
-      const source = word.querySelector('[data-disintegrating-text-shaped]');
-      if (word.querySelector('[data-resident-glyph]') === null) record.detached += 1;
-      if (source === null || !source.isConnected) record.sourceDisconnected += 1;
+      for (const word of words) {
+        const source = word.querySelector('[data-disintegrating-text-shaped]');
+        if (word.querySelector('[data-resident-glyph]') === null) record.detached += 1;
+        if (source === null || !source.isConnected) record.sourceDisconnected += 1;
+      }
       record.overlays = Math.max(record.overlays, document.querySelectorAll('body > div[aria-hidden="true"]').length);
     }, 40);
   });
   await page.reload();
   const heading = page.locator('[data-disintegrating-text]');
+  const trigger = heading.locator('[data-disintegrating-text-trigger]');
   const word = heading.locator('[data-disintegrating-text-word]');
   const run = word.locator('[data-disintegrating-text-shaped]');
-  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'running');
-  await expect(word.locator('[data-resident-glyph]')).toHaveCount(1);
-  await expect(run).toHaveCSS('color', 'rgba(0, 0, 0, 0)');
+  const cursor = page.locator('[data-snap-cursor]');
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'ready');
+  await expect(trigger).toBeEnabled();
+  await expect(trigger).toHaveAttribute('aria-pressed', 'false');
+  await expect(cursor).toHaveCount(1);
+  await expect(word.locator('[data-resident-glyph]')).toHaveCount(2);
+  expect(await run.evaluateAll((elements) => elements.map((element) => getComputedStyle(element).color))).toEqual([
+    'rgba(0, 0, 0, 0)',
+    'rgba(0, 0, 0, 0)',
+  ]);
   const before = await heading.boundingBox();
-  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'complete', { timeout: 25_000 });
+
+  await page.waitForTimeout(600);
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'ready');
+  await expect(word.locator('[data-resident-glyph]')).toHaveCount(2);
+
+  const finePointer = await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches);
+  if (finePointer) {
+    await trigger.hover();
+    await expect(cursor).toHaveAttribute('data-visible', '');
+    await expect(cursor).toHaveAttribute('data-hint', '');
+    await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Click to scatter!');
+    await expect(cursor).toHaveCSS('opacity', '1');
+    await expect(trigger).toHaveCSS('cursor', 'none');
+  }
+
+  await trigger.click();
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'snapping');
+  await expect(cursor).toHaveAttribute('data-hint', '');
+  await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Click to scatter!');
+  await expect(trigger).toBeDisabled();
+  if (finePointer) {
+    const transform = await cursor.evaluate((element) => getComputedStyle(element).transform);
+    await page.mouse.move(40, 600);
+    await expect.poll(() => cursor.evaluate((element) => getComputedStyle(element).transform)).not.toBe(transform);
+    await expect(cursor).toHaveAttribute('data-visible', '');
+    await expect(cursor).toHaveAttribute('data-hint', '');
+    await expect(page.locator('html')).toHaveAttribute('data-snap-cursor-active', '');
+    await expect(page.locator('body')).toHaveCSS('cursor', 'none');
+  }
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'removing', { timeout: 2500 });
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'removed', { timeout: 7000 });
+  await expect(trigger).toBeEnabled();
+  await expect(trigger).toHaveAttribute('aria-pressed', 'true');
+  await expect(word.locator('[data-resident-glyph]')).toHaveCount(0);
+  if (finePointer) {
+    await expect(cursor).not.toHaveAttribute('data-visible', '');
+    await expect(page.locator('html')).not.toHaveAttribute('data-snap-cursor-active', '');
+    await trigger.hover();
+    await expect(cursor).toHaveAttribute('data-hint', '');
+    await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Click to reverse!');
+  }
+  const removedBounds = await heading.boundingBox();
+
+  await page.waitForTimeout(600);
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'removed');
+  await expect(word.locator('[data-resident-glyph]')).toHaveCount(0);
+
+  await trigger.click();
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'reversing');
+  await expect(trigger).toBeDisabled();
+  if (finePointer) {
+    await expect(cursor).toHaveAttribute('data-hint', '');
+    await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Click to reverse!');
+  }
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'restoring', { timeout: 3000 });
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'ready', { timeout: 9000 });
+  await expect(trigger).toBeEnabled();
+  await expect(trigger).toHaveAttribute('aria-pressed', 'false');
+  await expect(word.locator('[data-resident-glyph]')).toHaveCount(2);
+
   const cycle = await page.evaluate(() => {
     const record = (
       window as unknown as {
         __cycle: {
+          audio: string[];
           detached: number;
           heights: Set<number>;
           overlays: number;
           sourceDisconnected: number;
-          widths: Set<number>;
+          states: Set<string>;
+          widths: Set<string>;
         };
       }
     ).__cycle;
     return {
+      audio: record.audio,
       detached: record.detached,
       heights: record.heights.size,
       overlays: record.overlays,
       sourceDisconnected: record.sourceDisconnected,
+      states: [...record.states],
       widths: record.widths.size,
     };
   });
+  expect(cycle.audio).toHaveLength(2);
+  expect(cycle.audio[0]).toContain('gauntlet-snap');
+  expect(cycle.audio[1]).toContain('gauntlet-time');
   expect(cycle.overlays).toBeGreaterThan(0);
   expect(cycle.detached).toBeGreaterThan(0);
   expect(cycle.sourceDisconnected).toBe(0);
   expect(cycle.widths).toBe(1);
   expect(cycle.heights).toBe(1);
-  await expect(heading.locator('[data-disintegrating-text-run-state="complete"]')).toHaveCount(1);
-  const bitmap = await word.locator('[data-resident-glyph]').evaluate((resident) => {
-    const canvas = resident as HTMLCanvasElement;
-    const bounds = canvas.getBoundingClientRect();
-    const copy = document.createElement('canvas');
-    copy.width = canvas.width;
-    copy.height = canvas.height;
-    const copyContext = copy.getContext('2d')!;
-    copyContext.globalCompositeOperation = 'copy';
-    copyContext.drawImage(canvas, 0, 0);
-    const sourcePixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
-    const copyPixels = copy.getContext('2d')!.getImageData(0, 0, copy.width, copy.height).data;
-    const identical =
-      sourcePixels.length === copyPixels.length && sourcePixels.every((value, index) => value === copyPixels[index]);
-    copy.width = 0;
-    copy.height = 0;
-    return {
-      backingHeight: canvas.height,
-      backingWidth: canvas.width,
-      cssHeight: bounds.height,
-      cssWidth: bounds.width,
-      identical,
-      physicalLeft: bounds.left * devicePixelRatio,
-      physicalTop: bounds.top * devicePixelRatio,
-      ratio: devicePixelRatio,
-    };
-  });
+  expect(cycle.states).toContain('removed');
+  await expect(heading.locator('[data-disintegrating-text-run-state="ready"]')).toHaveCount(2);
+  const bitmap = await word
+    .locator('[data-resident-glyph]')
+    .first()
+    .evaluate((resident) => {
+      const canvas = resident as HTMLCanvasElement;
+      const bounds = canvas.getBoundingClientRect();
+      const copy = document.createElement('canvas');
+      copy.width = canvas.width;
+      copy.height = canvas.height;
+      const copyContext = copy.getContext('2d')!;
+      copyContext.globalCompositeOperation = 'copy';
+      copyContext.drawImage(canvas, 0, 0);
+      const sourcePixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+      const copyPixels = copy.getContext('2d')!.getImageData(0, 0, copy.width, copy.height).data;
+      const identical =
+        sourcePixels.length === copyPixels.length && sourcePixels.every((value, index) => value === copyPixels[index]);
+      copy.width = 0;
+      copy.height = 0;
+      return {
+        backingHeight: canvas.height,
+        backingWidth: canvas.width,
+        cssHeight: bounds.height,
+        cssWidth: bounds.width,
+        identical,
+        physicalLeft: bounds.left * devicePixelRatio,
+        physicalTop: bounds.top * devicePixelRatio,
+        ratio: devicePixelRatio,
+      };
+    });
   expect(bitmap.identical).toBe(true);
   expect(Math.abs(bitmap.backingWidth / bitmap.cssWidth - bitmap.ratio)).toBeLessThan(0.01);
   expect(Math.abs(bitmap.backingHeight / bitmap.cssHeight - bitmap.ratio)).toBeLessThan(0.01);
@@ -188,7 +301,10 @@ test('animates one localized heading word without reflowing the heading', async 
   expect(bitmap.physicalTop).toBeCloseTo(Math.round(bitmap.physicalTop), 1);
   const after = await heading.boundingBox();
   expect(before).not.toBeNull();
+  expect(removedBounds).not.toBeNull();
   expect(after).not.toBeNull();
+  expect(Math.abs(removedBounds!.width - before!.width)).toBeLessThan(0.5);
+  expect(Math.abs(removedBounds!.height - before!.height)).toBeLessThan(0.5);
   expect(Math.abs(after!.width - before!.width)).toBeLessThan(0.5);
   expect(Math.abs(after!.height - before!.height)).toBeLessThan(0.5);
 });

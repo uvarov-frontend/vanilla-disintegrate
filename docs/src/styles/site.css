@@ -1444,6 +1444,91 @@ code {
   line-height: 0.98;
 }
 
+.hero-heading-trigger {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  user-select: none;
+}
+
+.hero-heading-trigger:disabled {
+  opacity: 1;
+}
+
+.hero-heading-trigger:focus-visible {
+  border-radius: 12px;
+  outline: 3px solid var(--accent);
+  outline-offset: 8px;
+}
+
+.snap-cursor {
+  position: fixed;
+  z-index: 2147483647;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 40px;
+  height: 40px;
+  margin-top: -6px;
+  margin-left: -20px;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.snap-cursor-canvas {
+  display: block;
+  width: 40px;
+  height: 40px;
+  image-rendering: pixelated;
+}
+
+.snap-cursor-hint {
+  position: absolute;
+  top: 30px;
+  left: 42px;
+  display: none;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  background: rgb(var(--surface-low-rgb) / 92%);
+  box-shadow: 0 8px 24px rgb(var(--shadow-rgb) / 18%);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+}
+
+.snap-cursor[data-hint] .snap-cursor-hint {
+  display: block;
+}
+
+.snap-cursor[data-visible] {
+  opacity: 1;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .hero-heading-trigger[data-snap-cursor-ready] {
+    cursor: none;
+  }
+
+  :root[data-snap-cursor-active],
+  :root[data-snap-cursor-active] * {
+    cursor: none !important;
+  }
+}
+
 .home-hero h1 em {
   color: transparent;
   background: linear-gradient(
