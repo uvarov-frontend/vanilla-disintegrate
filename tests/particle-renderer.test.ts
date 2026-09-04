@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { resolveParticles } from '../src/defaults';
 import {
+  configureParticleContexts,
   createParticleAnimation,
   createParticleField,
   createParticleRestoreAnimation,
@@ -317,11 +318,11 @@ describe('particle renderer', () => {
     expect(createParticleRestoreAnimation()({ ...context, operation: 'restore' })).toBeNull();
   });
 
-  it('downscales large snapshots before allocating readback and render surfaces', () => {
+  it('applies automatic, exact and custom source-resolution policies', () => {
     const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext')
       ?.value as typeof HTMLCanvasElement.prototype.getContext;
     const { gl } = createWebGL2Stub();
-    let readbackSize: readonly [number, number] | null = null;
+    const readbackSizes: Array<readonly [number, number]> = [];
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (
       this: HTMLCanvasElement,
       contextId: string,
@@ -333,7 +334,7 @@ describe('particle renderer', () => {
       const readback = context as CanvasRenderingContext2D;
       const getImageData = readback.getImageData.bind(readback);
       readback.getImageData = (x: number, y: number, width: number, height: number) => {
-        readbackSize = [width, height];
+        readbackSizes.push([width, height]);
         return getImageData(x, y, width, height);
       };
       return readback;
@@ -346,17 +347,138 @@ describe('particle renderer', () => {
     const snapshot = document.createElement('canvas');
     snapshot.width = 4000;
     snapshot.height = 3000;
-    const renderer = createParticleAnimation({ duration: 20, stagger: 0 })(
+    const automatic = createParticleAnimation({ duration: 20, stagger: 0 })(
       particleContext(snapshot),
     ) as ParticleRenderer | null;
 
+    const narrowSnapshot = document.createElement('canvas');
+    narrowSnapshot.width = 2200;
+    narrowSnapshot.height = 100;
+
+    const exact = createParticleAnimation({
+      duration: 20,
+      stagger: 0,
+      renderQuality: 'exact',
+    })(particleContext(narrowSnapshot)) as ParticleRenderer | null;
+    const custom = createParticleAnimation({
+      duration: 20,
+      stagger: 0,
+      renderQuality: {
+        maxSourcePixels: 100_000,
+        maxSourceDimension: 1000,
+        maxRenderPixels: 1_000_000,
+      },
+    })(particleContext(narrowSnapshot)) as ParticleRenderer | null;
+    const roundedSnapshot = document.createElement('canvas');
+    roundedSnapshot.width = 1758;
+    roundedSnapshot.height = 1195;
+    const rounded = createParticleAnimation({ duration: 20, stagger: 0 })({
+      ...particleContext(roundedSnapshot),
+      bounds: new DOMRect(0, 0, 394.045, 267.839),
+    }) as ParticleRenderer | null;
+
+    expect(automatic).not.toBeNull();
+    expect(exact).not.toBeNull();
+    expect(custom).not.toBeNull();
+    expect(rounded).not.toBeNull();
+    const automaticSize = readbackSizes[0];
+    expect(automaticSize).toBeDefined();
+    expect((automaticSize?.[0] ?? 0) * (automaticSize?.[1] ?? 0)).toBeLessThanOrEqual(2_000_000);
+    expect(automaticSize?.[0]).toBeLessThanOrEqual(2048);
+    expect(automaticSize?.[1]).toBeLessThanOrEqual(2048);
+    expect((automatic?.canvas.width ?? 0) * (automatic?.canvas.height ?? 0)).toBeLessThanOrEqual(4_000_000);
+    expect(readbackSizes.slice(1, 3)).toEqual([
+      [2200, 100],
+      [1000, 45],
+    ]);
+    expect((custom?.canvas.width ?? 0) * (custom?.canvas.height ?? 0)).toBeLessThanOrEqual(1_000_000);
+    expect((rounded?.canvas.width ?? 0) * (rounded?.canvas.height ?? 0)).toBeLessThanOrEqual(4_000_000);
+    automatic?.dispose();
+    exact?.dispose();
+    custom?.dispose();
+    rounded?.dispose();
+    window.dispatchEvent(new Event('pagehide'));
+  });
+
+  it('aligns the intact source quad to physical renderer pixels', () => {
+    const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext')
+      ?.value as typeof HTMLCanvasElement.prototype.getContext;
+    const { gl } = createWebGL2Stub();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (
+      this: HTMLCanvasElement,
+      contextId: string,
+      options?: unknown,
+    ) {
+      if (contextId === 'webgl2') return gl;
+      return originalGetContext.call(this, contextId, options as never);
+    } as typeof HTMLCanvasElement.prototype.getContext);
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    const snapshot = document.createElement('canvas');
+    snapshot.width = 37;
+    snapshot.height = 19;
+    const context = {
+      ...particleContext(snapshot),
+      bounds: new DOMRect(12.3, 45.6, 18.5, 9.5),
+    };
+    const renderer = createParticleAnimation({ duration: 20, stagger: 0 })(context) as ParticleRenderer | null;
+
     expect(renderer).not.toBeNull();
-    expect(readbackSize).not.toBeNull();
-    expect((readbackSize?.[0] ?? 0) * (readbackSize?.[1] ?? 0)).toBeLessThanOrEqual(2_000_000);
-    expect(readbackSize?.[0]).toBeLessThanOrEqual(2048);
-    expect(readbackSize?.[1]).toBeLessThanOrEqual(2048);
+    const cssWidth = Number.parseFloat(renderer?.canvas.style.width ?? '0');
+    const cssHeight = Number.parseFloat(renderer?.canvas.style.height ?? '0');
+    const scaleX = (renderer?.canvas.width ?? 0) / cssWidth;
+    const scaleY = (renderer?.canvas.height ?? 0) / cssHeight;
+    const sourceX = -Number.parseFloat(renderer?.canvas.style.left ?? '0') * scaleX;
+    const sourceY = -Number.parseFloat(renderer?.canvas.style.top ?? '0') * scaleY;
+    expect(sourceX).toBeCloseTo(Math.round(sourceX), 10);
+    expect(sourceY).toBeCloseTo(Math.round(sourceY), 10);
+    expect(context.bounds.width * scaleX).toBeCloseTo(snapshot.width, 10);
+    expect(context.bounds.height * scaleY).toBeCloseTo(snapshot.height, 10);
     renderer?.dispose();
     window.dispatchEvent(new Event('pagehide'));
+  });
+
+  it('clamps the context ceiling and reports the values in use', () => {
+    try {
+      expect(configureParticleContexts({ maxContexts: 6, maxIdleContexts: 3 })).toEqual({
+        maxContexts: 6,
+        maxIdleContexts: 3,
+      });
+      // Keeping more warm than alive is meaningless, so the idle count follows.
+      expect(configureParticleContexts({ maxContexts: 2 })).toEqual({ maxContexts: 2, maxIdleContexts: 2 });
+      expect(configureParticleContexts({ maxContexts: 0, maxIdleContexts: -4 })).toEqual({
+        maxContexts: 1,
+        maxIdleContexts: 0,
+      });
+      expect(configureParticleContexts({ maxContexts: Number.NaN })).toEqual({ maxContexts: 1, maxIdleContexts: 0 });
+    } finally {
+      configureParticleContexts({ maxContexts: 4, maxIdleContexts: 2 });
+    }
+  });
+
+  it('reports hardware limits instead of degrading exact rendering', () => {
+    const originalGetContext = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'getContext')
+      ?.value as typeof HTMLCanvasElement.prototype.getContext;
+    const { gl, loseContext } = createWebGL2Stub();
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (
+      this: HTMLCanvasElement,
+      contextId: string,
+      options?: unknown,
+    ) {
+      if (contextId === 'webgl2') return gl;
+      return originalGetContext.call(this, contextId, options as never);
+    } as typeof HTMLCanvasElement.prototype.getContext);
+    const snapshot = document.createElement('canvas');
+    snapshot.width = 4200;
+    snapshot.height = 1;
+
+    expect(() => createParticleAnimation({ renderQuality: 'exact' })(particleContext(snapshot))).toThrow(
+      /Exact particle rendering requires a 4200×1 texture/,
+    );
+    expect(loseContext).toHaveBeenCalledOnce();
   });
 
   it('splits large particle fields into Safari-safe vertex buffers without dropping particles', () => {

@@ -39,7 +39,7 @@ The same baseline applies to Chrome for Android 84+ and iOS Safari 15+. These ar
 
 Where WebGL2 is missing or a context cannot be created, built-in preset visuals degrade instead of failing: `remove()` still detaches the element and `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives the reason. Custom effects that do not use WebGL are unaffected, so a WAAPI or CSS phase keeps animating on older engines.
 
-Each concurrently running built-in preset visual leases one WebGL2 context. When an operation ends, its textures are deleted and the context returns to a document-scoped pool. The pool retains at most two idle contexts for up to 30 seconds, destroys excess contexts immediately, and releases everything on `pagehide`.
+Each concurrently running built-in preset visual leases one WebGL2 context. When an operation ends, its textures are deleted and the context returns to a document-scoped pool. By default, the pool keeps at most four contexts alive, retains up to two of them while idle for 30 seconds, destroys excess contexts immediately, and releases everything on `pagehide`. These limits can be adjusted with `configureParticleContexts()` before effects start.
 
 `preparation` progressively enhances the default removal flow. Browsers without `IntersectionObserver`, `ResizeObserver`, or `requestIdleCallback` still run effects; preparation uses the available fallback instead.
 

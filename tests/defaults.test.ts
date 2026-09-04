@@ -20,6 +20,28 @@ describe('option resolvers', () => {
     expect(particles.swirl).toBe(0);
   });
 
+  it('resolves automatic, exact and explicit particle render quality', () => {
+    expect(resolveParticles().renderQuality).toEqual({
+      maxSourcePixels: 2_000_000,
+      maxSourceDimension: 2048,
+      maxRenderPixels: 4_000_000,
+    });
+    expect(resolveParticles({ renderQuality: 'exact' }).renderQuality).toBe('exact');
+    expect(
+      resolveParticles({
+        renderQuality: {
+          maxSourcePixels: 4_000_000.9,
+          maxSourceDimension: 4096.9,
+          maxRenderPixels: 8_000_000.9,
+        },
+      }).renderQuality,
+    ).toEqual({
+      maxSourcePixels: 4_000_000,
+      maxSourceDimension: 4096,
+      maxRenderPixels: 8_000_000,
+    });
+  });
+
   it('resolves layout without allowing undefined values to erase defaults', () => {
     expect(resolveLayout(false).enabled).toBe(false);
     const javascriptInput = { enabled: undefined, duration: undefined } as unknown as LayoutOptions;

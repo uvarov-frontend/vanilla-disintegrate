@@ -1,6 +1,6 @@
 import type { ResolvedParticleOptions } from './defaults';
 import { resolveParticles } from './defaults';
-import type { AnimationFactory, AnimationPlayback, ParticleOptions } from './types';
+import type { AnimationFactory, AnimationPlayback, ParticleContextLimits, ParticleOptions } from './types';
 
 interface ParticlePrograms {
   readonly key: 'remove' | 'restore';
@@ -81,6 +81,8 @@ interface ParticleField {
 }
 
 interface RenderBounds {
+  canvasHeight: number;
+  canvasWidth: number;
   cssWidth: number;
   cssHeight: number;
   left: number;
@@ -96,11 +98,43 @@ const PARTICLE_BUDGET = 180_000;
 // Safari's Metal-backed POINTS path silently stops consuming interleaved
 // attributes beyond this many records in one vertex buffer.
 const PARTICLES_PER_BUFFER = 32_768;
-const MAX_RENDERER_CONTEXTS = 4;
-const MAX_IDLE_CONTEXTS = 2;
-const MAX_SOURCE_PIXELS = 2_000_000;
-const MAX_SOURCE_DIMENSION = 2048;
-const MAX_RENDER_PIXELS = 4_000_000;
+const DEFAULT_MAX_RENDERER_CONTEXTS = 4;
+const DEFAULT_MAX_IDLE_CONTEXTS = 2;
+
+/**
+ * Live WebGL2 contexts are a page-wide resource, not a per-effect one: browsers
+ * keep only a dozen or so alive and silently drop the oldest beyond that. The
+ * ceiling therefore belongs to the page rather than to `ParticleOptions`, where
+ * two effects could ask for different values and neither would be right.
+ */
+const contextLimits = {
+  maxContexts: DEFAULT_MAX_RENDERER_CONTEXTS,
+  maxIdleContexts: DEFAULT_MAX_IDLE_CONTEXTS,
+};
+
+function positiveInteger(value: number | undefined, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, Math.floor(value)) : fallback;
+}
+
+function nonNegativeInteger(value: number | undefined, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : fallback;
+}
+
+/**
+ * Adjusts how many WebGL2 contexts the particle renderer keeps alive per page.
+ *
+ * Lower it on memory-tight devices. Raising it lets more effects animate at once,
+ * up to the point where the browser starts discarding contexts on its own, which
+ * surfaces as an effect losing its surface mid-flight. Returns the values in use.
+ */
+export function configureParticleContexts(limits: ParticleContextLimits = {}) {
+  contextLimits.maxContexts = positiveInteger(limits.maxContexts, contextLimits.maxContexts);
+  contextLimits.maxIdleContexts = Math.min(
+    contextLimits.maxContexts,
+    nonNegativeInteger(limits.maxIdleContexts, contextLimits.maxIdleContexts),
+  );
+  return { ...contextLimits };
+}
 const CONTEXT_IDLE_TTL = 30_000;
 const TRANSITION_WIDTH = 0.018;
 const LAYOUT_RELEASE_FRACTION = 0.6;
@@ -644,7 +678,7 @@ class RendererContextPool {
       this.destroy(context);
     }
 
-    if (this.contexts.size >= MAX_RENDERER_CONTEXTS) return null;
+    if (this.contexts.size >= contextLimits.maxContexts) return null;
     const context = createRendererContext(this.ownerDocument);
     if (context !== null) this.contexts.add(context);
     return context;
@@ -662,7 +696,7 @@ class RendererContextPool {
       this.destroy(context);
       return;
     }
-    if (this.idle.length >= MAX_IDLE_CONTEXTS) {
+    if (this.idle.length >= contextLimits.maxIdleContexts) {
       this.destroy(context);
       return;
     }
@@ -735,33 +769,49 @@ function createBounds(
   const minY = Math.min(0, particles.verticalTravel[0] - particles.swirl);
   const maxY = Math.max(0, particles.verticalTravel[1] + particles.swirl);
   const padding = Math.max(8, Math.min(rect.width, rect.height) * 0.04);
-  const left = minX - padding;
-  const top = minY - padding;
+  // Pixel-grid alignment prevents LINEAR filtering from resmoothing intact frames.
+  const pixelLeft = Math.floor((minX - padding) * scaleX);
+  const pixelTop = Math.floor((minY - padding) * scaleY);
+  const pixelRight = Math.ceil((rect.width + maxX + padding) * scaleX);
+  const pixelBottom = Math.ceil((rect.height + maxY + padding) * scaleY);
+  const canvasWidth = Math.max(1, pixelRight - pixelLeft);
+  const canvasHeight = Math.max(1, pixelBottom - pixelTop);
   return {
-    cssWidth: rect.width + maxX - minX + padding * 2,
-    cssHeight: rect.height + maxY - minY + padding * 2,
-    left,
-    top,
+    canvasHeight,
+    canvasWidth,
+    cssWidth: canvasWidth / scaleX,
+    cssHeight: canvasHeight / scaleY,
+    left: pixelLeft / scaleX,
+    top: pixelTop / scaleY,
     scaleX,
     scaleY,
-    sourceX: -left * scaleX,
-    sourceY: -top * scaleY,
+    sourceX: -pixelLeft,
+    sourceY: -pixelTop,
   };
 }
 
 function resolveSourceSize(width: number, height: number, rect: DOMRectReadOnly, particles: ResolvedParticleOptions) {
-  let scale = Math.min(
+  if (particles.renderQuality === 'exact') return { width, height };
+  const budget = particles.renderQuality;
+  const scale = Math.min(
     1,
-    MAX_SOURCE_DIMENSION / width,
-    MAX_SOURCE_DIMENSION / height,
-    Math.sqrt(MAX_SOURCE_PIXELS / (width * height)),
+    budget.maxSourceDimension / width,
+    budget.maxSourceDimension / height,
+    Math.sqrt(budget.maxSourcePixels / (width * height)),
   );
   let size = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
-  const bounds = createBounds(size, rect, particles);
-  const renderPixels = Math.ceil(bounds.cssWidth * bounds.scaleX) * Math.ceil(bounds.cssHeight * bounds.scaleY);
-  if (renderPixels > MAX_RENDER_PIXELS) {
-    scale *= Math.sqrt(MAX_RENDER_PIXELS / renderPixels);
-    size = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
+
+  while (size.width > 1 || size.height > 1) {
+    const bounds = createBounds(size, rect, particles);
+    const renderPixels = bounds.canvasWidth * bounds.canvasHeight;
+    if (renderPixels <= budget.maxRenderPixels) break;
+    const renderScale = Math.min(0.999, Math.sqrt(budget.maxRenderPixels / renderPixels));
+    const next = {
+      width: Math.max(1, Math.floor(size.width * renderScale)),
+      height: Math.max(1, Math.floor(size.height * renderScale)),
+    };
+    if (next.width === size.width && next.height === size.height) break;
+    size = next;
   }
   return size;
 }
@@ -945,17 +995,22 @@ function createParticleRenderer(
   const { canvas, gl } = rendererContext;
 
   try {
-    const canvasWidth = Math.max(1, Math.ceil(bounds.cssWidth * bounds.scaleX));
-    const canvasHeight = Math.max(1, Math.ceil(bounds.cssHeight * bounds.scaleY));
+    const { canvasHeight, canvasWidth } = bounds;
     const maxTextureSize = Number(gl.getParameter(gl.MAX_TEXTURE_SIZE));
     const maxViewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array;
-    if (
+    const exceedsSoftwareBudget =
+      particles.renderQuality !== 'exact' && canvasWidth * canvasHeight > particles.renderQuality.maxRenderPixels;
+    const exceedsHardware =
       sourceSize.width > maxTextureSize ||
       sourceSize.height > maxTextureSize ||
-      canvasWidth * canvasHeight > MAX_RENDER_PIXELS ||
       canvasWidth > (maxViewport[0] ?? maxTextureSize) ||
-      canvasHeight > (maxViewport[1] ?? maxTextureSize)
-    ) {
+      canvasHeight > (maxViewport[1] ?? maxTextureSize);
+    if (exceedsSoftwareBudget || exceedsHardware) {
+      if (particles.renderQuality === 'exact' && exceedsHardware) {
+        throw new RangeError(
+          `Exact particle rendering requires a ${String(sourceSize.width)}×${String(sourceSize.height)} texture and a ${String(canvasWidth)}×${String(canvasHeight)} viewport, exceeding this WebGL2 device's limits.`,
+        );
+      }
       acquired.pool.release(rendererContext);
       return null;
     }

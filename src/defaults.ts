@@ -3,11 +3,13 @@ import type {
   AudioPreparationStrategy,
   LayoutOptions,
   ParticleOptions,
+  ParticleRenderBudget,
   PreparationOptions,
   SoundPreparationSelection,
 } from './types';
 
 export interface ResolvedParticleOptions {
+  readonly renderQuality: 'exact' | Readonly<ParticleRenderBudget>;
   readonly curve: NonNullable<ParticleOptions['curve']>;
   readonly duration: number;
   readonly stagger: number;
@@ -19,6 +21,12 @@ export interface ResolvedParticleOptions {
   readonly endScale: number;
   readonly release: NonNullable<ParticleOptions['release']>;
 }
+
+const AUTO_PARTICLE_RENDER_BUDGET: Readonly<ParticleRenderBudget> = Object.freeze({
+  maxSourcePixels: 2_000_000,
+  maxSourceDimension: 2048,
+  maxRenderPixels: 4_000_000,
+});
 
 export interface ResolvedLayoutOptions {
   readonly enabled: boolean;
@@ -53,6 +61,7 @@ export interface ResolvedAudioPreparationOptions {
 }
 
 export const DEFAULT_PARTICLES: ResolvedParticleOptions = {
+  renderQuality: AUTO_PARTICLE_RENDER_BUDGET,
   curve: 'settle',
   duration: 720,
   stagger: 180,
@@ -115,8 +124,23 @@ function orderedRange(
   return first <= second ? [first, second] : [second, first];
 }
 
+function positiveInteger(value: number | undefined, fallback: number) {
+  return Math.max(1, Math.floor(finiteNumber(value, fallback, 1)));
+}
+
+function resolveRenderQuality(value: ParticleOptions['renderQuality']): ResolvedParticleOptions['renderQuality'] {
+  if (value === 'exact') return value;
+  const budget = typeof value === 'object' && value !== null ? value : AUTO_PARTICLE_RENDER_BUDGET;
+  return {
+    maxSourcePixels: positiveInteger(budget.maxSourcePixels, AUTO_PARTICLE_RENDER_BUDGET.maxSourcePixels),
+    maxSourceDimension: positiveInteger(budget.maxSourceDimension, AUTO_PARTICLE_RENDER_BUDGET.maxSourceDimension),
+    maxRenderPixels: positiveInteger(budget.maxRenderPixels, AUTO_PARTICLE_RENDER_BUDGET.maxRenderPixels),
+  };
+}
+
 export function resolveParticles(options: ParticleOptions = {}): ResolvedParticleOptions {
   return {
+    renderQuality: resolveRenderQuality(options.renderQuality),
     curve: options.curve ?? DEFAULT_PARTICLES.curve,
     duration: finiteNumber(options.duration, DEFAULT_PARTICLES.duration, 0),
     stagger: finiteNumber(options.stagger, DEFAULT_PARTICLES.stagger, 0),

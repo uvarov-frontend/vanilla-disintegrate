@@ -18,6 +18,27 @@ export type ParticleRelease = 'left' | 'right' | 'top' | 'random';
  */
 export type ParticleCurve = 'settle' | 'float' | 'burst' | 'drift';
 
+/** Explicit software limits for particle source and render surfaces. */
+export interface ParticleRenderBudget {
+  /** Maximum pixel count of the renderer's source texture. */
+  readonly maxSourcePixels: number;
+  /** Maximum width or height of the renderer's source texture. */
+  readonly maxSourceDimension: number;
+  /** Maximum pixels allocated for the expanded WebGL animation surface. */
+  readonly maxRenderPixels: number;
+}
+
+/** Selects the particle renderer's resolution and resource policy. */
+export type ParticleRenderQuality = 'auto' | 'exact' | ParticleRenderBudget;
+
+/** Page-wide ceilings for the particle renderer's WebGL2 context pool. */
+export interface ParticleContextLimits {
+  /** Contexts kept alive at once. Defaults to 4. */
+  readonly maxContexts?: number;
+  /** Contexts kept warm for reuse, capped by `maxContexts`. Defaults to 2. */
+  readonly maxIdleContexts?: number;
+}
+
 declare const removalIdBrand: unique symbol;
 /** Opaque identifier returned by `remove()` when `retain: true` is selected. */
 export type RemovalId = string & { readonly [removalIdBrand]: true };
@@ -40,6 +61,8 @@ export type SnapshotCapture = (
 
 /** Controls the built-in particle renderer returned by `createParticleAnimation()`. */
 export interface ParticleOptions {
+  /** Resolution policy. Defaults to the resource-bounded `auto` mode. */
+  readonly renderQuality?: ParticleRenderQuality;
   /** Travel curve. Defaults to `settle`. */
   readonly curve?: ParticleCurve;
   /** Base animation duration in milliseconds. */
@@ -62,8 +85,8 @@ export interface ParticleOptions {
   readonly release?: ParticleRelease;
 }
 
-/** A complete, reusable particle configuration such as an entry in `particlePresets`. */
-export type ParticlePreset = Required<ParticleOptions>;
+/** A complete motion configuration with an optional render policy, such as an entry in `particlePresets`. */
+export type ParticlePreset = Required<Omit<ParticleOptions, 'renderQuality'>> & Pick<ParticleOptions, 'renderQuality'>;
 
 /** A cancellable result returned by a custom effect renderer. */
 export interface AnimationPlayback {
