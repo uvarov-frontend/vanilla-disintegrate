@@ -54,6 +54,10 @@ function customSoundId(source: PlaygroundSoundSource) {
   return source.startsWith('custom:') ? source.slice('custom:'.length) : null;
 }
 
+function isAbortError(error: unknown) {
+  return (error instanceof DOMException || error instanceof Error) && error.name === 'AbortError';
+}
+
 function findCustomSound(source: PlaygroundSoundSource, sounds: PlaygroundCustomSounds) {
   const id = customSoundId(source);
   return id === null ? null : (sounds.find((sound) => sound.id === id) ?? null);
@@ -62,6 +66,19 @@ function findCustomSound(source: PlaygroundSoundSource, sounds: PlaygroundCustom
 interface PlaygroundConfiguration {
   remove: PlaygroundState;
   restore: PlaygroundState;
+}
+
+interface PlaygroundUndoSnapshot {
+  configuration: PlaygroundConfiguration;
+  operation: PlaygroundOperation;
+  cardWidth: PlaygroundCardWidth;
+}
+
+function cloneConfiguration(configuration: PlaygroundConfiguration): PlaygroundConfiguration {
+  return {
+    remove: { ...configuration.remove },
+    restore: { ...configuration.restore },
+  };
 }
 
 type OptionSource<Property extends string = string> = readonly [Property, string];
@@ -96,6 +113,7 @@ const copies = {
     restoreMode: 'Restoration',
     operation: 'Animation',
     reset: 'Reset',
+    undo: 'Undo',
     settingsLabel: 'Parameter groups',
     timing: 'Timing',
     horizontal: 'Horizontal',
@@ -156,6 +174,7 @@ const copies = {
     restoreMode: 'Восстановление',
     operation: 'Анимация',
     reset: 'Сбросить',
+    undo: 'Вернуть',
     settingsLabel: 'Группы параметров',
     timing: 'Тайминг',
     horizontal: 'Горизонталь',
@@ -216,6 +235,7 @@ const copies = {
     restoreMode: '恢复',
     operation: '动画',
     reset: '重置',
+    undo: '撤销',
     settingsLabel: '参数组',
     timing: '时间',
     horizontal: '水平',
@@ -276,6 +296,7 @@ const copies = {
     restoreMode: '복원',
     operation: '애니메이션',
     reset: '초기화',
+    undo: '되돌리기',
     settingsLabel: '매개변수 그룹',
     timing: '타이밍',
     horizontal: '가로',
@@ -789,6 +810,16 @@ function matchingParticlePreset(state: PlaygroundState): BuiltInPreset | null {
   );
 }
 
+/**
+ * True when a phase is exactly what a preset button produces, particles and sound
+ * alike. Undo has nothing to offer for such a state: the same preset button puts
+ * it back in one click, so only hand-tuned values are worth keeping a step for.
+ */
+function isUntouchedPresetState(state: PlaygroundState, operation: PlaygroundOperation) {
+  const preset = matchingParticlePreset(state);
+  return preset !== null && state.soundEnabled && usesDefaultPresetSound(state, operation, preset);
+}
+
 function matchingConfigurationPreset(configuration: PlaygroundConfiguration): BuiltInPreset | null {
   const removePreset = matchingParticlePreset(configuration.remove);
   return removePreset !== null && matchingParticlePreset(configuration.restore) === removePreset ? removePreset : null;
@@ -1012,29 +1043,45 @@ function effectSource(configuration: PlaygroundConfiguration, customSounds: Play
   const preset = matchingConfigurationPreset(configuration);
   if (preset !== null) return presetSource(preset, configuration, customSounds);
 
+  // A phase that matches a built-in preset exactly is named rather than spelled
+  // out. Each direction is checked on its own, so a vapor removal paired with a
+  // scatter restoration reads as two presets instead of two option literals.
+  const removePresetName = matchingParticlePreset(configuration.remove);
+  const restorePresetName = matchingParticlePreset(configuration.restore);
   const removeOptionSources = particleOptionSources(configuration.remove);
   const restoreOptionSources = particleOptionSources(configuration.restore);
-  const splitOptions = splitSharedOptions(removeOptionSources, restoreOptionSources);
+  // Only phases that still spell their options out can share a constant; a named
+  // preset carries its own values and has nothing to hoist.
+  const splitOptions =
+    removePresetName === null && restorePresetName === null
+      ? splitSharedOptions(removeOptionSources, restoreOptionSources)
+      : { shared: [], remove: removeOptionSources, restore: restoreOptionSources };
   const identicalParticleOptions = splitOptions.remove.length === 0 && splitOptions.restore.length === 0;
   const sharedOptionsName = splitOptions.shared.length > 0 ? 'sharedParticleOptions' : undefined;
   const sharedParticleOptionsDeclaration =
     sharedOptionsName === undefined
       ? ''
       : `const ${sharedOptionsName}: ParticleOptions = ${optionsSource(splitOptions.shared)};\n\n`;
-  // Matching phases still need both keys: the shared constant is what they point at,
-  // otherwise the copied snippet animates removal and leaves restore undefined.
-  const particleEffectOptions =
-    identicalParticleOptions && sharedOptionsName !== undefined
-      ? `    remove: ${sharedOptionsName},
-    restore: ${sharedOptionsName},`
-      : `    remove: ${optionsSource(splitOptions.remove, sharedOptionsName, 3)},
-    restore: ${optionsSource(splitOptions.restore, sharedOptionsName, 3)},`;
+  const phaseSource = (
+    presetName: BuiltInPreset | null,
+    options: readonly OptionSource[],
+    // Matching phases still need both keys: the shared constant is what they point
+    // at, otherwise the copied snippet animates removal and leaves restore undefined.
+  ) =>
+    presetName !== null
+      ? `particlePresets.${presetName}`
+      : identicalParticleOptions && sharedOptionsName !== undefined
+        ? sharedOptionsName
+        : optionsSource(options, sharedOptionsName, 3);
+  const particleEffectOptions = `    remove: ${phaseSource(removePresetName, splitOptions.remove)},
+    restore: ${phaseSource(restorePresetName, splitOptions.restore)},`;
   const enabledOperations = (['remove', 'restore'] as const).filter(
     (operation) => configuration[operation].soundEnabled,
   );
   const soundSource = soundCodeSource(enabledOperations, configuration, customSounds);
+  const presetsImport = removePresetName !== null || restorePresetName !== null ? ', particlePresets' : '';
   const particleOptionsImport = sharedOptionsName === undefined ? '' : ', type ParticleOptions';
-  const importSource = `import Disintegrator, { createParticleEffect${particleOptionsImport} } from 'vanilla-disintegrate/snapdom';`;
+  const importSource = `import Disintegrator, { createParticleEffect${presetsImport}${particleOptionsImport} } from 'vanilla-disintegrate/snapdom';`;
   return `${importSource}
 
 ${sharedParticleOptionsDeclaration}${soundSource.declaration}export const disintegrator = new Disintegrator({
@@ -1243,6 +1290,10 @@ export function renderParticlePlayground(locale: Locale) {
     .map((key) => `<option value="${key}">${soundOptionLabels[locale][key]}</option>`)
     .join('');
   const fileIcon = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8 10.75V3.5m0 0L5.25 6.25M8 3.5l2.75 2.75" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M3 10.5v1.25A1.25 1.25 0 0 0 4.25 13h7.5A1.25 1.25 0 0 0 13 11.75V10.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>`;
+  const previewIcon = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 8s2.25-4 6.25-4 6.25 4 6.25 4-2.25 4-6.25 4-6.25-4-6.25-4Z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"></path><circle cx="8" cy="8" r="1.75" fill="none" stroke="currentColor" stroke-width="1.5"></circle></svg>`;
+  const codeIcon = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m5.75 5.5-3 2.5 3 2.5m4.5-5 3 2.5-3 2.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
+  const resetIcon = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M12.5 8a4.5 4.5 0 1 1-1.32-3.18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path><path d="M12.5 3v2.5H10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
+  const undoIcon = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 7.5h6.25a2.75 2.75 0 0 1 0 5.5H7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path><path d="M6 4.5 3 7.5l3 3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>`;
   const clearIcon = `<svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="m5 5 6 6m0-6-6 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path></svg>`;
   const soundMarkup = `<section id="playground-group-panel-sound" class="playground-settings-panel playground-sound-panel" role="tabpanel" data-group-panel="sound" aria-labelledby="playground-group-tab-sound" hidden>
     <div class="playground-sound-toggles">
@@ -1280,9 +1331,10 @@ export function renderParticlePlayground(locale: Locale) {
         <section class="playground-preview">
           <div class="playground-stage-header">
             <div class="playground-window-controls" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="playground-stage-tools"><button class="playground-icon-button" type="button" data-action="undo" title="${copy.undo}" aria-label="${copy.undo}" disabled>${undoIcon}</button><button class="playground-icon-button" type="button" data-action="reset" title="${copy.reset}" aria-label="${copy.reset}">${resetIcon}</button></div>
             <div class="playground-view-tabs" role="tablist" aria-label="${copy.preview}">
-              <button id="playground-view-tab-preview" type="button" role="tab" data-view-tab="preview" aria-controls="playground-view-panel-preview" aria-selected="true">${copy.preview}</button>
-              <button id="playground-view-tab-code" type="button" role="tab" data-view-tab="code" aria-controls="playground-view-panel-code" aria-selected="false" tabindex="-1">${copy.codeTab}</button>
+              <button id="playground-view-tab-preview" type="button" role="tab" data-view-tab="preview" aria-controls="playground-view-panel-preview" aria-selected="true" title="${copy.preview}" aria-label="${copy.preview}">${previewIcon}<span>${copy.preview}</span></button>
+              <button id="playground-view-tab-code" type="button" role="tab" data-view-tab="code" aria-controls="playground-view-panel-code" aria-selected="false" tabindex="-1" title="${copy.codeTab}" aria-label="${copy.codeTab}">${codeIcon}<span>${copy.codeTab}</span></button>
             </div>
           </div>
           <div id="playground-view-panel-preview" class="playground-view-panel playground-preview-panel" role="tabpanel" data-view-panel="preview" aria-labelledby="playground-view-tab-preview">
@@ -1304,7 +1356,6 @@ export function renderParticlePlayground(locale: Locale) {
             <div class="playground-actions">
               <button class="button-primary" type="button" data-action="remove">${copy.remove}</button>
               <button class="button-secondary" type="button" data-action="restore">${copy.restore}</button>
-              <button class="button-quiet" type="button" data-action="reset">${copy.reset}</button>
             </div>
           </div>
         </section>
@@ -1351,6 +1402,7 @@ export function mountParticlePlayground(root: HTMLElement) {
   const remove = required<HTMLButtonElement>(root, '[data-action="remove"]');
   const restore = required<HTMLButtonElement>(root, '[data-action="restore"]');
   const reset = required<HTMLButtonElement>(root, '[data-action="reset"]');
+  const undo = required<HTMLButtonElement>(root, '[data-action="undo"]');
   const operationButtons = [...root.querySelectorAll<HTMLButtonElement>('[data-operation]')];
   const operationPanel = required<HTMLElement>(root, '#playground-operation-panel');
   const inputs = new Map<NumericKey, HTMLInputElement>();
@@ -1483,6 +1535,15 @@ export function mountParticlePlayground(root: HTMLElement) {
   let configuration = hashState?.configuration ?? configurationFromPreset('dust');
   let activeOperation = hashState?.operation ?? 'remove';
   let cardWidth = hashState?.cardWidth ?? 'wide';
+  let undoSnapshot: PlaygroundUndoSnapshot | null = null;
+  const hasCustomizedConfiguration = () =>
+    !isUntouchedPresetState(configuration.remove, 'remove') ||
+    !isUntouchedPresetState(configuration.restore, 'restore');
+  const createUndoSnapshot = (): PlaygroundUndoSnapshot => ({
+    configuration: cloneConfiguration(configuration),
+    operation: activeOperation,
+    cardWidth,
+  });
   let customSounds: PlaygroundCustomSounds = [];
   // The store is read asynchronously; until it answers, a `custom:` source from the
   // URL is unresolved rather than unknown, so it must not be replaced yet.
@@ -1533,6 +1594,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     restore.disabled = busy || (!card.isConnected && removalId === null);
     restore.textContent = copy.restore;
     reset.disabled = busy;
+    undo.disabled = busy || undoSnapshot === null;
   };
   const reconnectRetainedCard = () => {
     if (card.isConnected) return true;
@@ -1556,6 +1618,11 @@ export function mountParticlePlayground(root: HTMLElement) {
     soundEnabled.checked = state.soundEnabled;
     soundState.textContent = state.soundEnabled ? copy.on : copy.off;
     soundReverse.checked = state.soundReverse;
+    // Reverse, the sound source, and the custom-file picker only matter once
+    // sound plays, same as the numeric sliders below.
+    soundReverse.disabled = !state.soundEnabled;
+    soundSource.disabled = !state.soundEnabled;
+    localAudioInput.disabled = !state.soundEnabled;
     // Every file in IndexedDB is a real option, so the whole library survives a
     // reload and both operations can pick from it.
     for (const stale of soundSource.querySelectorAll('option[value^="custom:"]')) stale.remove();
@@ -1732,6 +1799,16 @@ export function mountParticlePlayground(root: HTMLElement) {
     if (sound === null) return Promise.resolve();
     return instance.prepareAudio(sound);
   };
+  const prepareOperationSoundInBackground = (operation: PlaygroundOperation) => {
+    void prepareOperationSound(operation).catch((error: unknown) => {
+      if (!isAbortError(error)) status.textContent = String(error);
+    });
+  };
+  const prepareBothOperationSoundsInBackground = () => {
+    void Promise.all([prepareOperationSound('remove'), prepareOperationSound('restore')]).catch((error: unknown) => {
+      if (!isAbortError(error)) status.textContent = String(error);
+    });
+  };
 
   slot.append(card);
   registerCard();
@@ -1771,16 +1848,16 @@ export function mountParticlePlayground(root: HTMLElement) {
 
   for (const button of presetButtons) {
     button.addEventListener('click', () => {
-      // Switching rebuilds the configuration and discards the prepared audio, which
-      // would pull the ground out from under a run that is already playing.
+      // Only the tab in view changes. Rebuilding both phases from one preset would
+      // silently discard whatever the other tab had, including a different preset
+      // or hand-tuned values the visitor had not touched yet.
       if (busy) return;
       const preset = button.dataset.preset as BuiltInPreset;
-      for (const operation of ['remove', 'restore'] as const) {
-        const previous = configuredSound(configuration[operation], customSounds);
-        if (previous !== null) instance.discardPreparedAudio(previous);
-      }
-      configuration = configurationFromPreset(preset);
-      void Promise.all([prepareOperationSound('remove'), prepareOperationSound('restore')]);
+      undoSnapshot = hasCustomizedConfiguration() ? createUndoSnapshot() : null;
+      const previous = configuredSound(configuration[activeOperation], customSounds);
+      if (previous !== null) instance.discardPreparedAudio(previous);
+      configuration = { ...configuration, [activeOperation]: stateFromBuiltInPreset(preset, activeOperation) };
+      prepareOperationSoundInBackground(activeOperation);
       flushHash();
       render();
       schedulePreview(true);
@@ -1833,7 +1910,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     const state = configuration[activeOperation];
     state.soundEnabled = soundEnabled.checked;
     status.textContent = copy.updated;
-    if (state.soundEnabled) void prepareOperationSound(activeOperation);
+    if (state.soundEnabled) prepareOperationSoundInBackground(activeOperation);
     flushHash();
     render();
     schedulePreview();
@@ -1847,7 +1924,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     status.textContent = copy.updated;
     flushHash();
     render();
-    void prepareOperationSound(operation);
+    prepareOperationSoundInBackground(operation);
     schedulePreview();
   });
   soundReverse.addEventListener('change', () => {
@@ -1859,7 +1936,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     status.textContent = copy.updated;
     flushHash();
     render();
-    void prepareOperationSound(operation);
+    prepareOperationSoundInBackground(operation);
     schedulePreview();
   });
   localAudioInput.addEventListener('change', async () => {
@@ -1924,7 +2001,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     flushHash();
     render();
     void deletePlaygroundAudio(removed.id).catch(() => undefined);
-    void prepareOperationSound(operation);
+    prepareOperationSoundInBackground(operation);
     schedulePreview();
   });
 
@@ -1952,8 +2029,31 @@ export function mountParticlePlayground(root: HTMLElement) {
       );
     }
   });
+  undo.addEventListener('click', () => {
+    if (busy || undoSnapshot === null) return;
+    const snapshot = undoSnapshot;
+    // Single step: taking it clears it, so a second press cannot walk further back
+    // than the one state that was actually captured.
+    undoSnapshot = null;
+    for (const operation of ['remove', 'restore'] as const) {
+      const previous = configuredSound(configuration[operation], customSounds);
+      if (previous !== null) instance.discardPreparedAudio(previous);
+    }
+    configuration = snapshot.configuration;
+    activeOperation = snapshot.operation;
+    cardWidth = snapshot.cardWidth;
+    applyCardWidth(false);
+    prepareBothOperationSoundsInBackground();
+    flushHash();
+    render();
+    schedulePreview(true);
+  });
   reset.addEventListener('click', () => {
     if (busy) return;
+    undoSnapshot =
+      hasCustomizedConfiguration() || activeOperation !== 'remove' || cardWidth !== 'wide'
+        ? createUndoSnapshot()
+        : null;
     if (previewTimer !== null) window.clearTimeout(previewTimer);
     if (removalId !== null) instance.discard(removalId);
     removalId = null;
@@ -1966,7 +2066,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     applyCardWidth(false);
     activeOperation = 'remove';
     configuration = configurationFromPreset('dust');
-    void Promise.all([prepareOperationSound('remove'), prepareOperationSound('restore')]);
+    prepareBothOperationSoundsInBackground();
     flushHash();
     render();
     prepare();

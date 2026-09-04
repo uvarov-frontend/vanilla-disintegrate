@@ -1,0 +1,21 @@
+---
+interface Props {
+  readonly text: string;
+  readonly word: string;
+}
+
+const { text, word } = Astro.props;
+
+if (word.length === 0) throw new TypeError('An animated word cannot be empty.');
+
+const start = text.indexOf(word);
+if (start < 0) throw new Error(`Cannot find animated word ${JSON.stringify(word)} in ${JSON.stringify(text)}.`);
+const before = text.slice(0, start);
+const after = text.slice(start + word.length);
+---
+
+<span class="disintegrating-text-line" aria-hidden="true"
+  >{before}<span class="disintegrating-text-word" data-disintegrating-text-word data-placeholder={word}
+    ><span class="disintegrating-text-shaped" data-disintegrating-text-shaped>{word}</span></span
+  >{after}</span
+>

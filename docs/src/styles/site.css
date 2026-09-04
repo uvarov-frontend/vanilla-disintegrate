@@ -30,7 +30,7 @@
 
   --text: #f4f1f7;
   --text-soft: #d9d4dd;
-  --muted: #aaa5b3;
+  --muted: #bcb7c6;
   --muted-strong: #bbb5c4;
   --faint: #77727f;
 
@@ -98,7 +98,7 @@
 
   --text: #17141f;
   --text-soft: #38334a;
-  --muted: #5b5468;
+  --muted: #4b4459;
   --muted-strong: #4a4358;
   --faint: #6a6379;
 
@@ -1455,9 +1455,33 @@ code {
   font-style: normal;
 }
 
+.disintegrating-text-line {
+  white-space: pre-wrap;
+}
+
+.disintegrating-text-word {
+  position: relative;
+  display: inline-block;
+  white-space: pre;
+}
+
+/* Preserve the word's layout while its canvas is detached for animation. */
+.disintegrating-text-word::before {
+  visibility: hidden;
+  content: attr(data-placeholder);
+}
+
+.disintegrating-text-shaped {
+  position: absolute;
+  inset: -0.1em;
+  display: block;
+  padding: 0.1em;
+  white-space: pre;
+}
+
 @media (min-width: 791px) {
   .home-hero h1 {
-    font-size: clamp(3.5rem, 6.4vw, 5.8rem);
+    font-size: clamp(3.25rem, 5.2vw, 4.75rem);
     font-weight: 700;
   }
 
@@ -2527,6 +2551,13 @@ code {
   opacity: 0.42;
 }
 
+/* The label itself carries no disabled state; its linked input does, and a
+   label pointed at a disabled control does not open the file picker on click. */
+[data-sound-enabled='false'] .playground-sound-file {
+  opacity: 0.42;
+  pointer-events: none;
+}
+
 .playground-range {
   display: grid;
   gap: 7px;
@@ -2901,7 +2932,7 @@ code {
 }
 
 :is(.interactive-example, .particle-playground) :is(button, select):disabled,
-:is(.interactive-example, .particle-playground) .sound-toggle:has(input:disabled) {
+:is(.interactive-example, .particle-playground) :is(.sound-toggle, .playground-switch):has(input:disabled) {
   opacity: 0.42;
   cursor: not-allowed;
 }
@@ -3297,7 +3328,25 @@ code {
   }
 
   .playground-stage-header {
+    gap: 9px;
     padding-inline: 9px;
+  }
+
+  /* Icons replace the labels here: the row also holds undo, reset and the window
+     dots, and the two Russian labels alone are wider than the whole header. The
+     accessible name stays on the button. */
+  .playground-stage-header .playground-view-tabs svg {
+    display: block;
+  }
+
+  .playground-view-tabs button > span {
+    display: none;
+  }
+
+  /* Same trade in the code toolbar: the icon and the accessible name carry the
+     button, and the label is what forced it onto a second line. */
+  .playground-code-heading button > span:not(.playground-copy-icon) {
+    display: none;
   }
 
   .playground-view-tabs button,
@@ -3381,6 +3430,53 @@ code {
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+
+/* Undo and reset sit in the stage header, left of the view tabs: both change the
+   configuration rather than run anything, so they stay away from the run buttons
+   under the stage. */
+.playground-stage-tools {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+/* Labels carry the meaning while there is room; the icons take over only once the
+   row runs out of it. */
+.playground-view-tabs svg {
+  display: none;
+  width: 16px;
+  height: 16px;
+}
+
+.playground-icon-button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  align-content: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  background: var(--surface-raised);
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.playground-icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.playground-icon-button:not(:disabled):hover {
+  color: var(--text);
+  border-color: var(--border-light);
+}
+
+.playground-icon-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
 }
 
 .playground-operation-tabs,

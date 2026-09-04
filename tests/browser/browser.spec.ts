@@ -60,6 +60,139 @@ test('does not allocate WebGL merely because the particle entry is imported', as
   expect(requests).toBe(0);
 });
 
+test('animates one localized heading word without reflowing the heading', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const variants = [
+    {
+      path: '/ru/',
+      title: 'Современная, эффектная,',
+      word: 'эффектная',
+      label: 'Современная, эффектная, универсальная и без CSS-зависимостей',
+    },
+    { path: '/zh/', title: '现代、惊艳、', word: '惊艳', label: '现代、惊艳、 通用，无需 CSS 依赖' },
+    {
+      path: '/ko/',
+      title: '현대적이고 인상적이며,',
+      word: '인상적이며',
+      label: '현대적이고 인상적이며, 범용적이고 CSS 의존성이 없습니다',
+    },
+    {
+      path: '/?lang=en',
+      title: 'Modern, striking,',
+      word: 'striking',
+      label: 'Modern, striking, versatile, and CSS-free',
+    },
+  ] as const;
+
+  for (const variant of variants) {
+    await page.goto(`http://localhost:4321${variant.path}`);
+    const heading = page.locator('[data-disintegrating-text]');
+    await expect(heading).toHaveAccessibleName(variant.label);
+    await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'reduced-motion');
+    await expect(heading.locator('.disintegrating-text-line')).toHaveText(variant.title);
+    const word = heading.locator('[data-disintegrating-text-word]');
+    await expect(word).toHaveCount(1);
+    await expect(word.locator('[data-disintegrating-text-shaped]')).toHaveText(variant.word);
+    await expect(word).toHaveAttribute('data-placeholder', variant.word);
+    await expect(word.locator('[data-resident-glyph]')).toHaveCount(0);
+  }
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.addInitScript(() => {
+    const record = {
+      detached: 0,
+      heights: new Set<number>(),
+      overlays: 0,
+      sourceDisconnected: 0,
+      widths: new Set<number>(),
+    };
+    (window as unknown as { __cycle: typeof record }).__cycle = record;
+    window.setInterval(() => {
+      const heading = document.querySelector<HTMLElement>('[data-disintegrating-text]');
+      const word = document.querySelector<HTMLElement>('[data-disintegrating-text-word]');
+      const state = heading?.dataset.disintegratingTextState;
+      if (heading === null || word === null || (state !== 'running' && state !== 'complete')) return;
+      record.widths.add(Math.round(word.getBoundingClientRect().width * 100));
+      record.heights.add(Math.round(heading.getBoundingClientRect().height * 100));
+      const source = word.querySelector('[data-disintegrating-text-shaped]');
+      if (word.querySelector('[data-resident-glyph]') === null) record.detached += 1;
+      if (source === null || !source.isConnected) record.sourceDisconnected += 1;
+      record.overlays = Math.max(record.overlays, document.querySelectorAll('body > div[aria-hidden="true"]').length);
+    }, 40);
+  });
+  await page.reload();
+  const heading = page.locator('[data-disintegrating-text]');
+  const word = heading.locator('[data-disintegrating-text-word]');
+  const run = word.locator('[data-disintegrating-text-shaped]');
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'running');
+  await expect(word.locator('[data-resident-glyph]')).toHaveCount(1);
+  await expect(run).toHaveCSS('color', 'rgba(0, 0, 0, 0)');
+  const before = await heading.boundingBox();
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'complete', { timeout: 25_000 });
+  const cycle = await page.evaluate(() => {
+    const record = (
+      window as unknown as {
+        __cycle: {
+          detached: number;
+          heights: Set<number>;
+          overlays: number;
+          sourceDisconnected: number;
+          widths: Set<number>;
+        };
+      }
+    ).__cycle;
+    return {
+      detached: record.detached,
+      heights: record.heights.size,
+      overlays: record.overlays,
+      sourceDisconnected: record.sourceDisconnected,
+      widths: record.widths.size,
+    };
+  });
+  expect(cycle.overlays).toBeGreaterThan(0);
+  expect(cycle.detached).toBeGreaterThan(0);
+  expect(cycle.sourceDisconnected).toBe(0);
+  expect(cycle.widths).toBe(1);
+  expect(cycle.heights).toBe(1);
+  await expect(heading.locator('[data-disintegrating-text-run-state="complete"]')).toHaveCount(1);
+  const bitmap = await word.locator('[data-resident-glyph]').evaluate((resident) => {
+    const canvas = resident as HTMLCanvasElement;
+    const bounds = canvas.getBoundingClientRect();
+    const copy = document.createElement('canvas');
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const copyContext = copy.getContext('2d')!;
+    copyContext.globalCompositeOperation = 'copy';
+    copyContext.drawImage(canvas, 0, 0);
+    const sourcePixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+    const copyPixels = copy.getContext('2d')!.getImageData(0, 0, copy.width, copy.height).data;
+    const identical =
+      sourcePixels.length === copyPixels.length && sourcePixels.every((value, index) => value === copyPixels[index]);
+    copy.width = 0;
+    copy.height = 0;
+    return {
+      backingHeight: canvas.height,
+      backingWidth: canvas.width,
+      cssHeight: bounds.height,
+      cssWidth: bounds.width,
+      identical,
+      physicalLeft: bounds.left * devicePixelRatio,
+      physicalTop: bounds.top * devicePixelRatio,
+      ratio: devicePixelRatio,
+    };
+  });
+  expect(bitmap.identical).toBe(true);
+  expect(Math.abs(bitmap.backingWidth / bitmap.cssWidth - bitmap.ratio)).toBeLessThan(0.01);
+  expect(Math.abs(bitmap.backingHeight / bitmap.cssHeight - bitmap.ratio)).toBeLessThan(0.01);
+  expect(bitmap.physicalLeft).toBeCloseTo(Math.round(bitmap.physicalLeft), 1);
+  expect(bitmap.physicalTop).toBeCloseTo(Math.round(bitmap.physicalTop), 1);
+  const after = await heading.boundingBox();
+  expect(before).not.toBeNull();
+  expect(after).not.toBeNull();
+  expect(Math.abs(after!.width - before!.width)).toBeLessThan(0.5);
+  expect(Math.abs(after!.height - before!.height)).toBeLessThan(0.5);
+});
+
 test('configures and runs the home-page particle playground', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   await page.goto('http://localhost:4321/');
@@ -78,11 +211,15 @@ test('configures and runs the home-page particle playground', async ({ page, bro
   await expect(root.locator('.playground-field-heading').first().locator('small')).toBeVisible();
   await root.locator('[data-group-tab="sound"]').click();
   await expect(root.locator('[data-group-panel="sound"]')).toBeVisible();
-  await root.locator('[data-sound-source]').selectOption('scatter');
-  await root.locator('[data-preset="vapor"]').click();
-  await expect(root.locator('[data-sound-source]')).toHaveValue('vapor');
+  const soundSource = root.locator('[data-sound-source]');
+  const vaporPreset = root.locator('[data-preset="vapor"]');
+  await soundSource.selectOption('scatter');
+  await expect(root).toHaveAttribute('aria-busy', 'true');
+  await expect(root).toHaveAttribute('aria-busy', 'false');
+  await vaporPreset.click();
+  await expect(soundSource).toHaveValue('vapor');
   await root.locator('[data-operation="restore"]').click();
-  await expect(root.locator('[data-sound-source]')).toHaveValue('vapor');
+  await expect(root.locator('[data-sound-source]')).toHaveValue('dust');
   await expect(root.locator('[data-sound-reverse]')).toBeChecked();
   await root.locator('[data-operation="remove"]').click();
   await expect(root.locator('[data-sound-source]')).toHaveValue('vapor');
@@ -103,8 +240,9 @@ test('configures and runs the home-page particle playground', async ({ page, bro
   await root.locator('[data-view-tab="code"]').click();
   await expect(root.locator('[data-view-panel="code"]')).toBeVisible();
   await expect(root.locator('[data-code]')).toContainText("from 'vanilla-disintegrate/snapdom'");
-  await expect(root.locator('[data-code]')).toContainText("preset: 'vapor'");
-  await expect(root.locator('[data-code]')).not.toContainText('createParticleEffect');
+  await expect(root.locator('[data-code]')).toContainText('remove: particlePresets.vapor');
+  await expect(root.locator('[data-code]')).toContainText('restore: particlePresets.dust');
+  await expect(root.locator('[data-code]')).toContainText('createParticleEffect');
   await root.locator('[data-view-tab="preview"]').click();
 
   const setRange = async (key: string, value: string) => {
@@ -126,9 +264,9 @@ test('configures and runs the home-page particle playground', async ({ page, bro
   await expect(root.locator('[data-status]')).toContainText('remove · completed', { timeout: 15_000 });
 
   await root.locator('[data-operation="restore"]').click();
-  await expect(root.locator('[data-option="verticalMin"]')).toHaveValue('-255');
+  await expect(root.locator('[data-option="verticalMin"]')).toHaveValue('-210');
   await setRange('verticalMin', '-120');
-  await expect(root.locator('[data-code]')).toContainText('verticalTravel: [-120, -120]');
+  await expect(root.locator('[data-code]')).toContainText('verticalTravel: [-120, -30]');
   await root.locator('[data-operation="remove"]').click();
   await expect(root.locator('[data-option="verticalMin"]')).toHaveValue('-180');
   await expect(root.locator('[data-status]')).toContainText('remove · completed', { timeout: 15_000 });
@@ -319,7 +457,7 @@ test('keeps localized sound controls in an aligned grid', async ({ page, browser
   });
 });
 
-test('keeps a selected preset across operation tabs and hash reloads', async ({ page, browserName }) => {
+test('keeps independent presets across operation tabs and hash reloads', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   await page.goto('http://localhost:4321/');
 
@@ -337,13 +475,17 @@ test('keeps a selected preset across operation tabs and hash reloads', async ({ 
   await root.locator('[data-operation="restore"]').click();
   await scatter.click();
   await expect(scatter).toHaveAttribute('aria-pressed', 'true');
-  await expect(code).toContainText("preset: 'scatter'");
-  await expect(code).not.toContainText('createParticleEffect');
+  await expect(code).toContainText('restore: particlePresets.scatter');
+  await expect(code).toContainText('duration: 1450');
+  await expect(code).toContainText('createParticleEffect');
 
   await root.locator('[data-operation="remove"]').click();
-  await expect(scatter).toHaveAttribute('aria-pressed', 'true');
-  await expect(code).toContainText("preset: 'scatter'");
-  await expect(code).not.toContainText('createParticleEffect');
+  await expect(root.locator('[data-preset][aria-pressed="true"]')).toHaveCount(0);
+  await root.locator('[data-preset="vapor"]').click();
+  await expect(code).toContainText('remove: particlePresets.vapor');
+  await expect(code).toContainText('restore: particlePresets.scatter');
+  await expect(code).toContainText('createParticleEffect');
+  await expect(code).not.toContainText("preset: '");
   await expect(page).toHaveURL(/#p=[\w-]+$/);
   expect(await page.evaluate(() => window.location.hash.length)).toBeLessThan(80);
 
@@ -358,10 +500,55 @@ test('keeps a selected preset across operation tabs and hash reloads', async ({ 
 
   await page.reload();
   await expect(scatter).toHaveAttribute('aria-pressed', 'true');
-  await expect(code).toContainText("preset: 'scatter'");
-  await expect(code).not.toContainText('createParticleEffect');
+  await expect(code).toContainText('remove: particlePresets.vapor');
+  await expect(code).toContainText('restore: particlePresets.scatter');
+  await expect(code).toContainText('createParticleEffect');
   await expect(root.locator('[data-operation="restore"]')).toHaveAttribute('aria-selected', 'true');
   await expect(root.locator('[data-width-option="narrow"]')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('restores an isolated playground snapshot with undo', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium');
+  await page.goto('http://localhost:4321/');
+
+  const root = page.locator('[data-particle-playground]');
+  const states = await root.evaluate((element) => {
+    const button = (selector: string) => element.querySelector(selector) as HTMLButtonElement;
+    const duration = () => element.querySelector('[data-option="duration"]') as HTMLInputElement;
+    const setDuration = (value: string) => {
+      duration().value = value;
+      duration().dispatchEvent(new InputEvent('input', { bubbles: true }));
+    };
+    const state = () => ({
+      operation: element.getAttribute('data-playground-operation'),
+      narrow: button('[data-width-option="narrow"]').getAttribute('aria-pressed'),
+    });
+
+    setDuration('1450');
+    button('[data-operation="restore"]').click();
+    button('[data-width-option="narrow"]').click();
+    button('[data-preset="scatter"]').click();
+    button('[data-operation="remove"]').click();
+    setDuration('1000');
+    button('[data-action="undo"]').click();
+    const afterPresetUndo = state();
+    button('[data-operation="remove"]').click();
+    const restoredDuration = duration().value;
+    button('[data-operation="restore"]').click();
+
+    button('[data-action="reset"]').click();
+    const afterReset = state();
+    button('[data-action="undo"]').click();
+    const afterResetUndo = state();
+    return { afterPresetUndo, afterReset, afterResetUndo, restoredDuration };
+  });
+
+  expect(states).toEqual({
+    afterPresetUndo: { operation: 'restore', narrow: 'true' },
+    afterReset: { operation: 'remove', narrow: 'false' },
+    afterResetUndo: { operation: 'restore', narrow: 'true' },
+    restoredDuration: '1450',
+  });
 });
 
 test('deduplicates shared custom particle options in generated code', async ({ page, browserName }) => {
@@ -386,12 +573,16 @@ test('deduplicates shared custom particle options in generated code', async ({ p
   };
 
   await root.locator('[data-preset="vapor"]').click();
+  await root.locator('[data-operation="restore"]').click();
+  await root.locator('[data-preset="vapor"]').click();
+  await root.locator('[data-operation="remove"]').click();
   await setRange('duration', '925');
-  await expect(code).toContainText('const sharedParticleOptions: ParticleOptions');
+  await expect(code).not.toContainText('const sharedParticleOptions: ParticleOptions');
   await expect(code).toContainText('duration: 925');
-  await expect(code).toContainText('duration: 750');
+  await expect(code).not.toContainText('duration: 750');
+  await expect(code).toContainText('restore: particlePresets.vapor');
   await expectOccurrences(/curve: 'float'/g, 1);
-  await expectOccurrences(/\.\.\.sharedParticleOptions/g, 2);
+  await expectOccurrences(/\.\.\.sharedParticleOptions/g, 0);
   await expect(code).toContainText('const sharedSoundOptions =');
   await expectOccurrences(/src: 'vapor'/g, 1);
   await expectOccurrences(/\.\.\.sharedSoundOptions/g, 2);
@@ -399,7 +590,7 @@ test('deduplicates shared custom particle options in generated code', async ({ p
   await expectOccurrences(/reverse: true/g, 1);
   await expect(code).not.toContainText('const removeOptions');
   await expect(code).not.toContainText('const restoreOptions');
-  expect(await generatedEffect()).toContain('restore: {');
+  expect(await generatedEffect()).toContain('restore: particlePresets.vapor,');
 
   await root.locator('[data-operation="restore"]').click();
   await setRange('duration', '925');
@@ -439,8 +630,12 @@ test('recognizes preset values after edits and keeps audio toggles independent',
   await setRange('duration', '900');
   await expect(dust).toHaveAttribute('aria-pressed', 'false');
   await expect(code).toContainText('createParticleEffect');
+  await expect(page).toHaveURL(/#p=[\w-]+$/);
+  const customHash = await page.evaluate(() => window.location.hash);
 
-  await setRange('duration', '850');
+  const durationValue = root.locator('[data-value="duration"]');
+  await durationValue.fill('850');
+  await durationValue.press('Enter');
   expect(
     await root.evaluate((element) => ({
       curve: (element.querySelector('[data-curve]') as HTMLSelectElement).value,
@@ -474,6 +669,7 @@ test('recognizes preset values after edits and keeps audio toggles independent',
   await expect(code).toContainText("preset: 'dust'");
   await expect(code).not.toContainText('createParticleEffect');
   await expect(page).toHaveURL(/#p=[\w-]+$/);
+  await expect.poll(() => page.evaluate(() => window.location.hash)).not.toBe(customHash);
 
   await page.reload();
   await expect(dust).toHaveAttribute('aria-pressed', 'true');
@@ -566,6 +762,82 @@ test('runs, reuses and releases a real WebGL2 particle renderer', async ({ page,
   expect(result.statuses).toEqual(['completed', 'completed']);
   expect(result.created).toBe(1);
   expect(result.released).toBe(result.created);
+});
+
+test('keeps exact particle endpoints pixel-identical on expanded geometry', async ({ page, browserName }) => {
+  test.skip(browserName !== 'chromium');
+  const result = await page.evaluate(async () => {
+    const { createParticleAnimation } = await import('../../src/particles');
+    const snapshot = document.createElement('canvas');
+    snapshot.width = 148;
+    snapshot.height = 76;
+    const source = snapshot.getContext('2d')!;
+    source.font = '700 58px sans-serif';
+    source.fillStyle = '#f7f4fb';
+    source.fillText('Aa', 2, 58);
+
+    const playback = createParticleAnimation({
+      duration: 1_000_000,
+      stagger: 0,
+      horizontalDrift: 37,
+      horizontalTravel: [-23, 41],
+      verticalTravel: [-71, 13],
+      swirl: 9,
+      renderQuality: 'exact',
+    })({
+      operation: 'remove',
+      element: document.createElement('div'),
+      layer: document.createElement('div'),
+      visual: null,
+      snapshot,
+      bounds: new DOMRect(12.3, 45.6, 74, 38),
+      signal: new AbortController().signal,
+      reducedMotion: false,
+      random: () => 0.5,
+      addCleanup: () => undefined,
+    }) as import('../../src/particle-renderer').ParticleRenderer | null;
+
+    if (playback === null) return { available: false };
+    playback.animation.pause();
+    playback.animation.currentTime = 0;
+    const rendered = playback.canvas;
+    const cssWidth = Number.parseFloat(rendered.style.width);
+    const cssHeight = Number.parseFloat(rendered.style.height);
+    const scaleX = rendered.width / cssWidth;
+    const scaleY = rendered.height / cssHeight;
+    const sourceX = -Number.parseFloat(rendered.style.left) * scaleX;
+    const sourceY = -Number.parseFloat(rendered.style.top) * scaleY;
+    const copy = document.createElement('canvas');
+    copy.width = snapshot.width;
+    copy.height = snapshot.height;
+    copy
+      .getContext('2d')!
+      .drawImage(rendered, sourceX, sourceY, snapshot.width, snapshot.height, 0, 0, copy.width, copy.height);
+    const sourcePixels = source.getImageData(0, 0, snapshot.width, snapshot.height).data;
+    const renderedPixels = copy.getContext('2d')!.getImageData(0, 0, copy.width, copy.height).data;
+    const identical =
+      sourcePixels.length === renderedPixels.length &&
+      sourcePixels.every((value, index) => value === renderedPixels[index]);
+    playback.dispose();
+    window.dispatchEvent(new PageTransitionEvent('pagehide'));
+    return {
+      available: true,
+      identical,
+      scaleX,
+      scaleY,
+      sourceX,
+      sourceY,
+    };
+  });
+
+  expect(result.available).toBe(true);
+  if (!result.available) return;
+  expect(result.identical).toBe(true);
+  expect(result.scaleX).toBe(2);
+  expect(result.scaleY).toBe(2);
+  if (result.sourceX === undefined || result.sourceY === undefined) throw new Error('Missing exact source geometry.');
+  expect(result.sourceX).toBe(Math.round(result.sourceX));
+  expect(result.sourceY).toBe(Math.round(result.sourceY));
 });
 
 test('caps active WebGL2 contexts and retains at most two while idle', async ({ page, browserName }) => {

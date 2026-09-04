@@ -2,6 +2,7 @@ import { setupThemeSwitcher } from './theme';
 import Disintegrator from '../../../src/snapdom';
 import type { BuiltInPreset, EffectDefinition, EffectOperation, RemovalId, SoundSelection } from '../../../src/types';
 import { createDemoCard } from './demo-card';
+import { animateDisintegratingText } from './disintegrating-text';
 import { mountParticlePlayground, presetNames } from './particle-playground';
 
 type Locale = 'en' | 'ru' | 'zh' | 'ko';
@@ -537,6 +538,17 @@ export function setupSite() {
   setupCodeTabs();
   setupCodeBlocks();
   setupToc();
+
+  const animatedText = document.querySelector<HTMLElement>('[data-disintegrating-text]');
+  const textPlayback = animatedText === null ? null : animateDisintegratingText(animatedText);
+  if (textPlayback !== null) {
+    const cancelOnPageHide = (event: PageTransitionEvent) => {
+      if (!event.persisted) textPlayback.cancel();
+    };
+    window.addEventListener('pagehide', cancelOnPageHide);
+    // Cancellation releases the resident canvas and its observers on disposal.
+    void textPlayback.finished.catch((error: unknown) => console.error('The heading animation failed.', error));
+  }
 
   const demoRoots = [...document.querySelectorAll<HTMLElement>('[data-demo-root]')];
   const firstDemo = demoRoots[0];
