@@ -60,8 +60,8 @@ if (
 const coreGraph = await chunkGraph('../dist/core.js');
 const fullGraph = await chunkGraph('../dist/index.js');
 const particlesGraph = await chunkGraph('../dist/particles.js');
-if (coreGraph.includes('@zumer/snapdom') || coreGraph.includes('webgl2') || coreGraph.includes('.mp3')) {
-  throw new Error('The core entry must not include SnapDOM, WebGL particles or built-in audio.');
+if (coreGraph.includes('@zumer/snapdom') || coreGraph.includes('particleVertex') || coreGraph.includes('.mp3')) {
+  throw new Error('The core entry must not include SnapDOM, the WebGL particle renderer or built-in audio.');
 }
 if (!fullGraph.includes('webgl2') || !fullGraph.includes('.mp3')) {
   throw new Error('The default entry must include the built-in particle effects and audio.');

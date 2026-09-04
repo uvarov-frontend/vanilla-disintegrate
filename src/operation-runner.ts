@@ -4,6 +4,7 @@ import { LayoutAnimator, type LayoutPlayback } from './layout';
 import { disposeSnapshot, SnapshotPreparation } from './preparation';
 import { RetainedElements } from './retained-elements';
 import { soundForOperation } from './sound-selection';
+import { supportsWebGL2 } from './webgl2';
 import type {
   AnimationContext,
   AnimationPlayback,
@@ -16,7 +17,9 @@ import type {
   EffectOperationKind,
   EffectOperationResult,
   EffectOperationStatus,
+  EffectPhase,
   DisintegratorOptions,
+  FallbackEffectDefinition,
   OperationOptions,
   RemovalId,
   RemoveOptions,
@@ -62,6 +65,8 @@ interface RunningOperation {
   readonly retain: boolean;
   readonly detach: RemoveOptions['detach'];
   readonly effect: EffectDefinition;
+  phase: EffectPhase;
+  fallbackPhase: EffectPhase | null;
   readonly soundSelection: false | SoundSelection | undefined;
   readonly sound: SoundDefinition | null;
   readonly callbacks: readonly EffectCallbacks[];
@@ -150,6 +155,7 @@ export class OperationRunner {
   private readonly layout = new LayoutAnimator();
   private readonly active = new Set<RunningOperation>();
   private readonly busy = new WeakMap<HTMLElement, RunningOperation>();
+  private webgl2Available: boolean | null = null;
   private destroyed = false;
 
   constructor(
@@ -157,6 +163,7 @@ export class OperationRunner {
     private readonly preparation: SnapshotPreparation,
     private readonly retained: RetainedElements,
     private readonly sound: SoundPlayer,
+    private readonly fallback: FallbackEffectDefinition | undefined,
   ) {}
 
   rejectIfBusy(kind: EffectOperationKind, element: HTMLElement) {
@@ -170,10 +177,11 @@ export class OperationRunner {
     const active = this.busy.get(element);
     if (active !== undefined) return this.rejectedOperation(kind, active.finished);
 
+    const selected = this.selectPhase(effect, kind, element.ownerDocument);
     const retain = kind === 'remove' && (overrides as RemoveOptions).retain === true;
     const removalId = retain ? this.retained.createId() : null;
     const callbacks = [this.options, overrides] as const;
-    const sound = this.resolveSound(kind, soundSelection, overrides.sound);
+    const sound = selected.isFallback ? null : this.resolveSound(kind, soundSelection, overrides.sound);
     let resolveFinished: (result: EffectOperationResult) => void = () => undefined;
     const finished = new Promise<EffectOperationResult>((resolve) => {
       resolveFinished = resolve;
@@ -185,6 +193,8 @@ export class OperationRunner {
       retain,
       detach: kind === 'remove' ? (overrides as RemoveOptions).detach : undefined,
       effect,
+      phase: selected.phase,
+      fallbackPhase: selected.fallbackPhase,
       soundSelection,
       sound,
       callbacks,
@@ -279,7 +289,7 @@ export class OperationRunner {
   ) {
     const element = running.element;
     if (element === null) return;
-    const phase = running.effect[running.kind];
+    const phase = running.phase;
     const emptyContext: EffectContext = {
       operation: running.kind,
       element,
@@ -463,8 +473,22 @@ export class OperationRunner {
       );
       const layoutSnapshot = this.layout.capture(element, layoutOptions);
       if (running.settled) return;
-      animation = normalizeAnimation(running.effect[running.kind].animate(animationContext), overlay);
-      if (animation === null) throw new Error('The selected effect did not create an animation.');
+      let primaryError: unknown = null;
+      try {
+        animation = normalizeAnimation(running.phase.animate(animationContext), overlay);
+      } catch (error) {
+        primaryError = error;
+      }
+      if (animation === null && running.fallbackPhase !== null) {
+        running.phase = running.fallbackPhase;
+        running.fallbackPhase = null;
+        animation = normalizeAnimation(running.phase.animate(animationContext), overlay);
+        preparedSound = null;
+      }
+      if (animation === null) {
+        if (primaryError instanceof Error) throw primaryError;
+        throw new Error('The selected effect did not create an animation.');
+      }
       if (running.settled) return;
       const overlayRoot = this.resolveOverlayRoot();
       if (running.settled) return;
@@ -583,6 +607,17 @@ export class OperationRunner {
   ) {
     if (override !== undefined) return override === false ? null : override;
     return soundForOperation(selection, operation);
+  }
+
+  private selectPhase(effect: EffectDefinition, kind: EffectOperationKind, ownerDocument: Document) {
+    const phase = effect[kind];
+    const fallback = this.fallback?.[kind] ?? null;
+    if (phase.requires !== 'webgl2' || fallback === null) {
+      return { phase, fallbackPhase: null, isFallback: false };
+    }
+    if (this.webgl2Available === null) this.webgl2Available = supportsWebGL2(ownerDocument);
+    if (this.webgl2Available) return { phase, fallbackPhase: fallback, isFallback: false };
+    return { phase: fallback, fallbackPhase: null, isFallback: true };
   }
 
   private createOverlay(rect: DOMRectReadOnly) {

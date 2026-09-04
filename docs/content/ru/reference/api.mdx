@@ -34,8 +34,8 @@ const custom = new Disintegrator({ effect: createParticleEffect() });
 
 ```ts
 type DisintegratorOptions =
-  | { preset: PresetSelection; effect?: never; sound?: false }
-  | { preset?: never; effect: EffectDefinition; sound?: false | SoundSelection };
+  | { preset: PresetSelection; effect?: never; sound?: false; fallback?: FallbackEffectDefinition }
+  | { preset?: never; effect: EffectDefinition; sound?: false | SoundSelection; fallback?: FallbackEffectDefinition };
 ```
 
 Пресет — неделимый выбор визуала и аудио. Его можно заглушить через `sound: false`, но нельзя совместить с заменяющей анимацией или другим звуком. Пользовательский эффект — объект с полными фазами `remove` и `restore`; без пары звуков он бесшумный.
@@ -49,6 +49,7 @@ type DisintegratorOptions =
 | `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | Готовит снимки зарегистрированных элементов                       |
 | `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'idle'`        | Управляет подготовкой и бюджетом владения декодированным аудио    |
 | `respectReducedMotion` | `boolean`                                                   | `true`          | Пропускает анимацию при запросе уменьшенного движения             |
+| `fallback`             | `FallbackEffectDefinition`                                  | —               | Бесшумно заменяет фазу, которой недоступен WebGL2                 |
 | `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | Превращает элемент в canvas для эффектов, которым нужен снимок    |
 | `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | Принимает fixed-слои анимации                                     |
 | `zIndex`               | `number`                                                    | `2147483646`    | Задаёт уровень слоя                                               |
@@ -143,6 +144,7 @@ const builtInPresets: Readonly<Record<'dust' | 'scatter' | 'vapor' | 'wind', Rea
 import { defineEffect } from 'vanilla-disintegrate/core';
 
 interface EffectPhase {
+  requires?: 'webgl2';
   needsSnapshot?: boolean;
   animate: AnimationFactory;
 }
@@ -159,6 +161,29 @@ const effect = defineEffect({
 ```
 
 `needsSnapshot` по умолчанию равен `true`. `defineEffect()` замораживает эффект и объекты обеих фаз, сохраняя их узкий выведенный TypeScript-тип.
+
+### Резервный эффект WebGL2
+
+`createParticleEffect()` и встроенные пресеты автоматически помечают свои фазы как `requires: 'webgl2'`. Перед захватом библиотека проверяет доступность WebGL2. Если он выключен или недоступен, `fallback` запускается вместо основной фазы и не создаёт ненужный Canvas-снимок.
+
+```ts
+import Disintegrator, { defineEffect } from 'vanilla-disintegrate/snapdom';
+
+const fade = defineEffect({
+  remove: {
+    needsSnapshot: false,
+    animate: ({ element }) => element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180 }),
+  },
+  restore: {
+    needsSnapshot: false,
+    animate: ({ element }) => element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180 }),
+  },
+});
+
+const effects = new Disintegrator({ preset: 'dust', fallback: fade });
+```
+
+Fallback подходит и к пресетам, и к любому пользовательскому эффекту, фаза которого объявляет `requires: 'webgl2'`. Он может использовать CSS, WAAPI, Canvas 2D, SVG или другой рендерер и по умолчанию работает без звука. TypeScript не позволяет передать в `fallback` ещё одну WebGL2-фазу; JavaScript-конфигурация проходит такую же проверку в рантайме. Если рендерер частиц не сможет запуститься после предварительной проверки, библиотека попробует fallback после уже созданного снимка.
 
 Фабрика анимации получает `AnimationContext`:
 

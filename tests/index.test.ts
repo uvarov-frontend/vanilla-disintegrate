@@ -105,8 +105,11 @@ describe('public entries', () => {
       { sound: false } extends Options ? true : false,
       { preset: 'dust'; effect: ReturnType<typeof customEffect> } extends Options ? true : false,
       { preset: 'dust'; sound: { remove: { src: 'wind' } } } extends Options ? true : false,
-    ] = [false, false, false, false, false];
-    expect(invalidTypeContracts).toEqual([false, false, false, false, false]);
+      { effect: ReturnType<typeof customEffect>; fallback: ReturnType<typeof createParticleEffect> } extends Options
+        ? true
+        : false,
+    ] = [false, false, false, false, false, false];
+    expect(invalidTypeContracts).toEqual([false, false, false, false, false, false]);
     expect(() => {
       Reflect.construct(Disintegrator, []);
     }).toThrow('Configure exactly one of preset or effect');
@@ -162,6 +165,8 @@ describe('public entries', () => {
     });
     expect(effect.remove.animate).toBeTypeOf('function');
     expect(effect.restore.animate).toBeTypeOf('function');
+    expect(effect.remove.requires).toBe('webgl2');
+    expect(effect.restore.requires).toBe('webgl2');
     expect('sound' in effect.remove).toBe(false);
     expect('sound' in effect.restore).toBe(false);
     expect(Object.isFrozen(effect)).toBe(true);
@@ -295,6 +300,86 @@ describe('public entries', () => {
     expect(result.status).toBe('skipped');
     expect(element.isConnected).toBe(false);
     effect.destroy();
+  });
+
+  it('runs a silent snapshotless fallback before capture when WebGL2 is unavailable', async () => {
+    const element = target();
+    const capture = vi.fn().mockResolvedValue(snapshot());
+    const primary = defineEffect({
+      remove: { requires: 'webgl2', animate: vi.fn(() => Promise.resolve()) },
+      restore: { requires: 'webgl2', animate: vi.fn(() => Promise.resolve()) },
+    });
+    const fallbackAnimation = vi.fn(() => Promise.resolve());
+    const fallback = defineEffect({
+      remove: { needsSnapshot: false, animate: fallbackAnimation },
+      restore: { needsSnapshot: false, animate: fallbackAnimation },
+    });
+    const effect = new Disintegrator({ capture, effect: primary, fallback, layout: false });
+
+    const result = await effect.remove(element).finished;
+
+    expect(result.status).toBe('completed');
+    expect(capture).not.toHaveBeenCalled();
+    expect(primary.remove.animate).not.toHaveBeenCalled();
+    expect(fallbackAnimation).toHaveBeenCalledOnce();
+    effect.destroy();
+  });
+
+  it('uses the same fallback for a built-in preset and an operation-level WebGL2 effect', async () => {
+    const fallbackAnimation = vi.fn(() => Promise.resolve());
+    const fallback = defineEffect({
+      remove: { needsSnapshot: false, animate: fallbackAnimation },
+      restore: { needsSnapshot: false, animate: fallbackAnimation },
+    });
+    const effect = new Disintegrator({ preset: 'dust', fallback, layout: false, audioPreparation: false });
+
+    await effect.remove(target()).finished;
+    await effect.remove(target(), { effect: createParticleEffect() }).finished;
+
+    expect(fallbackAnimation).toHaveBeenCalledTimes(2);
+    effect.destroy();
+  });
+
+  it('switches to the fallback when a WebGL2 phase fails after the capability probe', async () => {
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((type) => {
+      if (type !== 'webgl2') return null;
+      return { getExtension: () => ({ loseContext: vi.fn() }) } as unknown as RenderingContext;
+    });
+    const capture = vi.fn().mockResolvedValue(snapshot());
+    const primaryAnimation = vi.fn(() => null);
+    const fallbackAnimation = vi.fn(() => Promise.resolve());
+    const effect = new Disintegrator({
+      capture,
+      effect: defineEffect({
+        remove: { requires: 'webgl2', animate: primaryAnimation },
+        restore: { requires: 'webgl2', animate: primaryAnimation },
+      }),
+      fallback: defineEffect({
+        remove: { needsSnapshot: false, animate: fallbackAnimation },
+        restore: { needsSnapshot: false, animate: fallbackAnimation },
+      }),
+      layout: false,
+    });
+
+    const result = await effect.remove(target()).finished;
+
+    expect(result.status).toBe('completed');
+    expect(capture).toHaveBeenCalledOnce();
+    expect(primaryAnimation).toHaveBeenCalledOnce();
+    expect(fallbackAnimation).toHaveBeenCalledOnce();
+    effect.destroy();
+    getContext.mockRestore();
+  });
+
+  it('rejects a fallback that requires WebGL2 at runtime', () => {
+    const fallback = {
+      remove: { requires: 'webgl2', animate: () => Promise.resolve() },
+      restore: { requires: 'webgl2', animate: () => Promise.resolve() },
+    };
+
+    expect(() => new Disintegrator({ effect: customEffect(), fallback: fallback as never })).toThrow(
+      'fallback requires remove and restore phases that do not require WebGL2',
+    );
   });
 
   it('leaves visual effects silent when no independent sound is configured', async () => {

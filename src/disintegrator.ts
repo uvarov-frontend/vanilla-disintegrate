@@ -1,6 +1,6 @@
 import { SoundPlayer } from './audio';
 import { resolveAudioPreparation, resolvePreparation } from './defaults';
-import { resolveEffect } from './effects';
+import { resolveEffect, resolveFallback } from './effects';
 import { OperationRunner } from './operation-runner';
 import { SnapshotPreparation } from './preparation';
 import { resolvePreset } from './preset';
@@ -14,6 +14,7 @@ import type {
   EffectOperationKind,
   EffectTarget,
   EffectTargets,
+  FallbackEffectDefinition,
   OperationOptions,
   PresetDefinition,
   RemoveOptions,
@@ -35,6 +36,7 @@ export class Disintegrator {
   private readonly presets: Readonly<Record<string, PresetDefinition>>;
   private readonly defaultEffect: EffectDefinition;
   private readonly defaultSound: false | SoundSelection;
+  private readonly fallback: FallbackEffectDefinition | undefined;
   private destroyed = false;
 
   /** Creates an independent animation instance. Call `destroy()` when its UI is disposed. */
@@ -53,6 +55,7 @@ export class Disintegrator {
     this.defaultEffect = resolveEffect(options.effect ?? preset?.effect);
     this.defaultSound =
       preset === undefined ? (options.sound ?? false) : options.sound === false ? false : preset.sound;
+    this.fallback = resolveFallback(options.fallback);
     const audioPreparation = resolveAudioPreparation(options.audioPreparation);
     this.preparation = new SnapshotPreparation(
       options.capture,
@@ -60,7 +63,7 @@ export class Disintegrator {
       (error, element) => this.reportBackgroundError(error, element),
     );
     this.sound = new SoundPlayer(audioPreparation.cacheByteBudget, soundSourceResolver(options));
-    this.runner = new OperationRunner(options, this.preparation, this.retained, this.sound);
+    this.runner = new OperationRunner(options, this.preparation, this.retained, this.sound, this.fallback);
     const sounds = audioPreparation.sounds ?? this.defaultSound;
     if (audioPreparation.enabled && sounds !== undefined && sounds !== false) {
       this.sound.schedule(soundDefinitions(sounds), audioPreparation.strategy);

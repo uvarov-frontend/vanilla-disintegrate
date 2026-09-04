@@ -118,7 +118,7 @@ function createParticleRestoreAnimation(options?: ParticleOptions): AnimationFac
 
 `createParticleAnimation()` creates a remove-phase animation factory. `createParticleRestoreAnimation()` creates the corresponding restore-phase factory. Use them when composing an `EffectDefinition` manually; prefer `createParticleEffect()` when both phases use the built-in renderer.
 
-Both factories require a snapshot. If their `AnimationContext.snapshot` is `null`, they return `null`, causing the operation to follow the normal skipped-animation fallback.
+Both factories require a snapshot. If their `AnimationContext.snapshot` is `null`, they return `null`: the operation tries a configured `fallback`, or otherwise skips the animation.
 
 ## `particlePresets`
 
@@ -148,4 +148,4 @@ The setting is page-wide and should normally be applied once before an effect st
 
 `maxContexts` is normalized to an integer of at least `1`. `maxIdleContexts` is normalized to a non-negative integer and cannot exceed `maxContexts`. The function returns the limits currently in use.
 
-If the renderer cannot acquire a context, the DOM operation still commits, `finished` resolves with `status: 'skipped'`, and the failure is reported through `onError`.
+If the renderer cannot acquire a context, the DOM operation still commits. A configured `fallback` runs when available; otherwise `finished` resolves with `status: 'skipped'` and the failure is reported through `onError`.

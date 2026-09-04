@@ -34,30 +34,31 @@ const custom = new Disintegrator({ effect: createParticleEffect() });
 
 ```ts
 type DisintegratorOptions =
-  | { preset: PresetSelection; effect?: never; sound?: false }
-  | { preset?: never; effect: EffectDefinition; sound?: false | SoundSelection };
+  | { preset: PresetSelection; effect?: never; sound?: false; fallback?: FallbackEffectDefinition }
+  | { preset?: never; effect: EffectDefinition; sound?: false | SoundSelection; fallback?: FallbackEffectDefinition };
 ```
 
 프리셋은 시각 효과와 오디오를 합친 원자적 선택입니다. `sound: false`로 음소거할 수 있지만 다른 시각 효과나 대체 오디오와 조합할 수 없습니다. 사용자 효과는 완전한 `remove` 및 `restore` 단계를 가진 객체이며 사운드 쌍을 제공하지 않으면 무음입니다.
 
 공통 옵션:
 
-| 옵션                   | 타입                                                        | 기본값          | 역할                                               |
-| ---------------------- | ----------------------------------------------------------- | --------------- | -------------------------------------------------- |
-| `presets`              | `Record<string, PresetDefinition>`                          | `{}`            | `preset`으로 선택할 완성된 사용자 프리셋을 추가    |
-| `layout`               | `boolean \| LayoutOptions`                                  | `true`          | 삭제 후 이웃 요소를 새 위치로 이동                 |
-| `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | 등록된 요소의 스냅샷을 준비                        |
-| `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'idle'`        | 준비와 디코딩 오디오 소유권 예산을 제어            |
-| `respectReducedMotion` | `boolean`                                                   | `true`          | 사용자가 모션 감소를 요청하면 애니메이션을 건너뜀  |
-| `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | 스냅샷 기반 효과를 위해 요소를 canvas로 변환       |
-| `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | 고정 위치 애니메이션 오버레이를 받음               |
-| `zIndex`               | `number`                                                    | `2147483646`    | 오버레이 스택 레벨을 설정                          |
-| `random`               | `() => number`                                              | `Math.random`   | 작업마다 재현 가능한 의사 난수 스트림을 초기화     |
-| `snapdom`              | `SnapdomOptions`                                            | —               | SnapDOM의 `toCanvas()` 설정, `/snapdom`에서만 사용 |
-| `onTrigger`            | `(context) => void`                                         | —               | 검증 뒤 캡처 전에 실행                             |
-| `onStart`              | `(context) => void`                                         | —               | DOM 변경 뒤 재생이 시작될 때 실행                  |
-| `onComplete`           | `(context) => void`                                         | —               | 시각 단계가 정상적으로 끝난 뒤 실행                |
-| `onError`              | `(error, context) => void`                                  | —               | 격리된 캡처, 애니메이션, 사운드와 콜백 오류를 받음 |
+| 옵션                   | 타입                                                        | 기본값          | 역할                                                   |
+| ---------------------- | ----------------------------------------------------------- | --------------- | ------------------------------------------------------ |
+| `presets`              | `Record<string, PresetDefinition>`                          | `{}`            | `preset`으로 선택할 완성된 사용자 프리셋을 추가        |
+| `layout`               | `boolean \| LayoutOptions`                                  | `true`          | 삭제 후 이웃 요소를 새 위치로 이동                     |
+| `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | 등록된 요소의 스냅샷을 준비                            |
+| `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'idle'`        | 준비와 디코딩 오디오 소유권 예산을 제어                |
+| `respectReducedMotion` | `boolean`                                                   | `true`          | 사용자가 모션 감소를 요청하면 애니메이션을 건너뜀      |
+| `fallback`             | `FallbackEffectDefinition`                                  | —               | WebGL2 렌더러를 사용할 수 없을 때 단계를 무음으로 대체 |
+| `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | 스냅샷 기반 효과를 위해 요소를 canvas로 변환           |
+| `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | 고정 위치 애니메이션 오버레이를 받음                   |
+| `zIndex`               | `number`                                                    | `2147483646`    | 오버레이 스택 레벨을 설정                              |
+| `random`               | `() => number`                                              | `Math.random`   | 작업마다 재현 가능한 의사 난수 스트림을 초기화         |
+| `snapdom`              | `SnapdomOptions`                                            | —               | SnapDOM의 `toCanvas()` 설정, `/snapdom`에서만 사용     |
+| `onTrigger`            | `(context) => void`                                         | —               | 검증 뒤 캡처 전에 실행                                 |
+| `onStart`              | `(context) => void`                                         | —               | DOM 변경 뒤 재생이 시작될 때 실행                      |
+| `onComplete`           | `(context) => void`                                         | —               | 시각 단계가 정상적으로 끝난 뒤 실행                    |
+| `onError`              | `(error, context) => void`                                  | —               | 격리된 캡처, 애니메이션, 사운드와 콜백 오류를 받음     |
 
 ¹ SnapDOM은 `/snapdom`에서만 기본값입니다. 선택한 효과에 스냅샷이 필요하면 루트 및 `/core` 엔트리에 `capture`를 제공해야 합니다.
 
@@ -143,6 +144,7 @@ const builtInPresets: Readonly<Record<'dust' | 'scatter' | 'vapor' | 'wind', Rea
 import { defineEffect } from 'vanilla-disintegrate/core';
 
 interface EffectPhase {
+  requires?: 'webgl2';
   needsSnapshot?: boolean;
   animate: AnimationFactory;
 }
@@ -159,6 +161,29 @@ const effect = defineEffect({
 ```
 
 `needsSnapshot`의 기본값은 `true`입니다. `defineEffect()`는 효과와 두 단계 객체를 동결하면서 TypeScript가 추론한 좁은 타입을 보존합니다.
+
+### WebGL2 폴백 효과
+
+`createParticleEffect()`와 내장 프리셋은 단계에 `requires: 'webgl2'`를 자동으로 표시합니다. 라이브러리는 캡처 전에 WebGL2를 확인합니다. WebGL2가 꺼져 있거나 사용할 수 없으면 `fallback`이 기본 단계를 대신 실행하므로 불필요한 Canvas 스냅샷을 만들지 않습니다.
+
+```ts
+import Disintegrator, { defineEffect } from 'vanilla-disintegrate/snapdom';
+
+const fade = defineEffect({
+  remove: {
+    needsSnapshot: false,
+    animate: ({ element }) => element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180 }),
+  },
+  restore: {
+    needsSnapshot: false,
+    animate: ({ element }) => element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180 }),
+  },
+});
+
+const effects = new Disintegrator({ preset: 'dust', fallback: fade });
+```
+
+폴백은 프리셋뿐 아니라 `requires: 'webgl2'`를 선언한 모든 사용자 효과에도 적용됩니다. CSS, WAAPI, Canvas 2D, SVG 또는 다른 렌더러를 사용할 수 있으며 기본적으로 무음입니다. TypeScript는 `fallback`에 또 다른 WebGL2 단계를 전달하지 못하게 하고, JavaScript 구성에도 런타임에서 같은 검증을 적용합니다. 사전 확인 뒤에도 파티클 렌더러가 시작하지 못하면 라이브러리는 이미 만든 스냅샷 뒤에 폴백을 시도합니다.
 
 애니메이션 팩토리는 `AnimationContext`를 받습니다.
 

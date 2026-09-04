@@ -34,8 +34,8 @@ Exactly one of `preset` and `effect` is required:
 
 ```ts
 type DisintegratorOptions =
-  | { preset: PresetSelection; effect?: never; sound?: false }
-  | { preset?: never; effect: EffectDefinition; sound?: false | SoundSelection };
+  | { preset: PresetSelection; effect?: never; sound?: false; fallback?: FallbackEffectDefinition }
+  | { preset?: never; effect: EffectDefinition; sound?: false | SoundSelection; fallback?: FallbackEffectDefinition };
 ```
 
 A preset is an atomic visual-and-audio choice. It may be muted with `sound: false`, but it cannot be combined with replacement visuals or audio. A custom effect is an object with complete `remove` and `restore` phases; it is silent unless a sound pair is supplied.
@@ -49,6 +49,7 @@ Shared options:
 | `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | Prepares snapshots for registered elements                         |
 | `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'idle'`        | Controls preparation and the decoded-audio ownership budget        |
 | `respectReducedMotion` | `boolean`                                                   | `true`          | Skips animation when the user requests less motion                 |
+| `fallback`             | `FallbackEffectDefinition`                                  | —               | Silently replaces a phase whose WebGL2 renderer is unavailable     |
 | `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | Turns an element into a canvas for snapshot-based effects          |
 | `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | Receives fixed-position animation overlays                         |
 | `zIndex`               | `number`                                                    | `2147483646`    | Sets the overlay stack level                                       |
@@ -143,6 +144,7 @@ const builtInPresets: Readonly<Record<'dust' | 'scatter' | 'vapor' | 'wind', Rea
 import { defineEffect } from 'vanilla-disintegrate/core';
 
 interface EffectPhase {
+  requires?: 'webgl2';
   needsSnapshot?: boolean;
   animate: AnimationFactory;
 }
@@ -159,6 +161,29 @@ const effect = defineEffect({
 ```
 
 `needsSnapshot` defaults to `true`. `defineEffect()` freezes the effect and both phase objects while preserving their narrow inferred TypeScript type.
+
+### WebGL2 fallback effect
+
+`createParticleEffect()` and the built-in presets automatically mark their phases with `requires: 'webgl2'`. The library checks WebGL2 before capture. If it is disabled or unavailable, `fallback` runs instead of the primary phase and avoids creating an unnecessary Canvas snapshot.
+
+```ts
+import Disintegrator, { defineEffect } from 'vanilla-disintegrate/snapdom';
+
+const fade = defineEffect({
+  remove: {
+    needsSnapshot: false,
+    animate: ({ element }) => element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180 }),
+  },
+  restore: {
+    needsSnapshot: false,
+    animate: ({ element }) => element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180 }),
+  },
+});
+
+const effects = new Disintegrator({ preset: 'dust', fallback: fade });
+```
+
+Fallbacks work with presets and with any custom effect whose phase declares `requires: 'webgl2'`. A fallback may use CSS, WAAPI, Canvas 2D, SVG, or another renderer and is silent by default. TypeScript rejects another WebGL2 phase in `fallback`, and JavaScript configurations receive the same runtime validation. If the particle renderer cannot start after the preliminary check, the library tries the fallback after the already-created snapshot.
 
 The animation factory receives `AnimationContext`:
 
