@@ -45,6 +45,11 @@ function textNode(element: HTMLElement) {
   return node;
 }
 
+function canvasFontStretch(style: CSSStyleDeclaration) {
+  const stretch = style.getPropertyValue('font-stretch').trim();
+  return stretch === '100%' ? 'normal' : stretch.endsWith('%') ? undefined : (stretch as CanvasFontStretch);
+}
+
 function configureText(context: CanvasRenderingContext2D, style: CSSStyleDeclaration) {
   if (!('letterSpacing' in context) && Number.parseFloat(style.letterSpacing) !== 0) {
     throw new Error('This browser cannot reproduce the heading letter spacing on Canvas.');
@@ -57,7 +62,8 @@ function configureText(context: CanvasRenderingContext2D, style: CSSStyleDeclara
   context.textBaseline = 'alphabetic';
 
   if ('fontKerning' in context) context.fontKerning = style.fontKerning as CanvasFontKerning;
-  if ('fontStretch' in context) context.fontStretch = style.getPropertyValue('font-stretch') as CanvasFontStretch;
+  const stretch = canvasFontStretch(style);
+  if ('fontStretch' in context && stretch !== undefined) context.fontStretch = stretch;
   if ('fontVariantCaps' in context) context.fontVariantCaps = style.fontVariantCaps as CanvasFontVariantCaps;
   if ('letterSpacing' in context) context.letterSpacing = style.letterSpacing;
   if ('wordSpacing' in context) context.wordSpacing = style.wordSpacing;
