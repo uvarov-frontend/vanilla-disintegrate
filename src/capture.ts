@@ -169,7 +169,7 @@ function createSafariDensityPlugin(options: SnapdomOptions, onScale: (size: Safa
 /** Creates a SnapDOM `toCanvas()` adapter with the library's capture defaults. */
 export function createSnapdomCapture(options: SnapdomOptions = {}): SnapshotCapture {
   const customFilter = options.filter;
-  return (element, context) => {
+  return async (element, context) => {
     // SnapDOM exposes no abort signal, so an in-flight capture cannot be stopped.
     // Refusing an already-aborted one avoids producing an unusable result.
     if (context.signal.aborted) throw new DOMException('Snapshot capture was aborted.', 'AbortError');
@@ -228,22 +228,21 @@ export function createSnapdomCapture(options: SnapdomOptions = {}): SnapshotCapt
     const densityPlugin = createSafariDensityPlugin(captureOptions, (size) => {
       scaledCapture.size = size;
     });
-    return snapdom(element, {
+    const result = await snapdom(element, {
       ...captureOptions,
       plugins: [...(operationPlugins ?? []), densityPlugin],
-    }).then(async (result) => {
-      if (scaledCapture.size === null) return result.toCanvas();
-      const exportOptions = {
-        dpr: 1,
-        height: undefined,
-        scale: 1,
-        width: undefined,
-      } as unknown as CanvasExportOptions;
-      const canvas = await result.toCanvas(exportOptions);
-      canvas.style.width = `${scaledCapture.size.width}px`;
-      canvas.style.height = `${scaledCapture.size.height}px`;
-      return canvas;
     });
+    if (scaledCapture.size === null) return result.toCanvas();
+    const exportOptions = {
+      dpr: 1,
+      height: undefined,
+      scale: 1,
+      width: undefined,
+    } as unknown as CanvasExportOptions;
+    const canvas = await result.toCanvas(exportOptions);
+    canvas.style.width = `${scaledCapture.size.width}px`;
+    canvas.style.height = `${scaledCapture.size.height}px`;
+    return canvas;
   };
 }
 
