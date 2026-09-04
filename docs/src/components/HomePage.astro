@@ -4,6 +4,7 @@ import { renderParticlePlayground } from '../client/particle-playground';
 import { docsHref, type Locale, ui } from '../i18n';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { absoluteUrl } from '../lib/site-url';
+import AnimatedText from './AnimatedText.astro';
 import BundleSizePanel from './BundleSizePanel.astro';
 import Footer from './Footer.astro';
 import Header from './Header.astro';
@@ -21,6 +22,12 @@ const [descriptionBeforeHighlight, descriptionAfterHighlight] = copy.home.descri
 );
 const [playgroundDescriptionBeforeHighlight, playgroundDescriptionAfterHighlight] =
   copy.home.playgroundDescription.split(copy.home.playgroundDescriptionHighlight);
+const heroAnimatedWords = {
+  en: ['Modern,', 'striking,'],
+  ko: ['현대적이고', '인상적이며,'],
+  ru: ['Современная,', 'эффектная,'],
+  zh: ['现代、', '惊艳、'],
+} as const;
 const cards = {
   en: [
     ['01', 'Built-in presets', 'Choose complete removal, restoration, and matching audio.'],
@@ -76,7 +83,23 @@ const libraryNode = {
   <main class="home-main" id="main-content">
     <section class="home-hero">
       <div class="hero-glow" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-      <h1>{copy.home.title}<br /><em>{copy.home.accent}</em></h1>
+      <h1 aria-label={`${copy.home.title} ${copy.home.accent}`} data-disintegrating-text>
+        <button
+          class="hero-heading-trigger"
+          type="button"
+          disabled
+          aria-label={copy.home.headingRemoveEffect}
+          aria-pressed="false"
+          data-disintegrating-text-trigger
+          data-remove-label={copy.home.headingRemoveEffect}
+          data-restore-label={copy.home.headingRestoreEffect}
+          data-snap-cursor-remove-hint={copy.home.headingRemoveHint}
+          data-snap-cursor-restore-hint={copy.home.headingRestoreHint}
+        >
+          <AnimatedText text={copy.home.title} words={heroAnimatedWords[locale]} /><br />
+          <em aria-hidden="true">{copy.home.accent}</em>
+        </button>
+      </h1>
       <p class="home-description">
         {descriptionBeforeHighlight}<strong>{copy.home.descriptionHighlight}</strong>{descriptionAfterHighlight}
       </p>

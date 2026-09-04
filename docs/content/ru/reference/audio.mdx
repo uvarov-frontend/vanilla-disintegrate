@@ -4,7 +4,7 @@ description: Настройка звука пресетов, встроенны�
 locale: ru
 section: reference
 navTitle: Аудио
-order: 80
+order: 100
 ---
 
 Аудио входит в состав готового пресета и не связано с пользовательским визуальным эффектом. Вызывайте `remove()` или `restore()` из пользовательского действия, например клика, чтобы библиотека могла возобновить Web Audio.
@@ -36,6 +36,16 @@ const effects = new Disintegrator({
 
 Направления `remove` и `restore` независимы. Настроено должно быть хотя бы одно; для намеренно бесшумной фазы используйте `false`.
 
+```ts
+type SoundDefinition = SoundOptions | SoundFactory;
+
+type SoundPair =
+  | { remove: SoundDefinition; restore?: SoundDefinition | false }
+  | { remove?: SoundDefinition | false; restore: SoundDefinition };
+
+type SoundSelection = SoundPair;
+```
+
 ## Подготовка до первого действия
 
 По умолчанию включённое аудио готовится в свободное время браузера. Используйте `immediate`, когда готовность важнее начальной нагрузки:
@@ -48,6 +58,11 @@ const effects = new Disintegrator({
 ```
 
 Поле `sounds` принимает определения звука или пары, а не названия визуальных эффектов:
+
+```ts
+type SoundPreparationSelection =
+  SoundDefinition | SoundSelection | readonly (false | SoundDefinition | SoundSelection)[];
+```
 
 ```ts
 import { builtInPresets } from 'vanilla-disintegrate';
@@ -105,6 +120,8 @@ import { builtInSounds } from 'vanilla-disintegrate/sounds';
 audioElement.src = builtInSounds.vapor;
 ```
 
+Тип `builtInSounds` — `Readonly<Record<BuiltInSound, string>>`.
+
 Файлы остаются сжатыми и кэшируемыми ресурсами. Они не встраиваются в JavaScript как base64 и не декодируются заранее.
 
 ## Поддерживаемые источники и локальные файлы
@@ -133,6 +150,16 @@ if (file) {
 ## Настройки воспроизведения
 
 ```ts
+interface SoundOptions {
+  src: SoundSource;
+  reverse?: boolean;
+  volume?: number;
+  duration?: number;
+  fadeDuration?: number;
+  delay?: number;
+  playbackRate?: number;
+}
+
 const sound = {
   src: new URL('/sounds/snap.ogg', location.href),
   volume: 0.35,
@@ -143,7 +170,7 @@ const sound = {
 };
 ```
 
-`volume` задаётся линейно от `0` до `1`. `delay` измеряется в миллисекундах, `duration` и `fadeDuration` — в секундах, а `playbackRate` по умолчанию равен `1`.
+`reverse` по умолчанию равен `false`; линейный `volume` задаётся от `0` до `1` и по умолчанию равен `1`. `delay` измеряется в миллисекундах и по умолчанию равен `0`. `duration` и `fadeDuration` измеряются в секундах: без явной длительности звук следует за визуалом в пределах длины исходника, а затухание по умолчанию равно `0`. `playbackRate` по умолчанию равен `1` и ограничивается снизу значением `0.01`.
 
 ## Обратное воспроизведение
 
@@ -159,6 +186,20 @@ const restore = { src: '/sounds/snap.mp3', reverse: true };
 Фабрика позволяет подключить существующий аудиодвижок:
 
 ```ts
+interface SoundContext {
+  operation: 'remove' | 'restore';
+  element: HTMLElement;
+  signal: AbortSignal;
+}
+
+interface SoundPlayback {
+  finished?: PromiseLike<unknown>;
+  stop?(): void;
+  dispose?(): void;
+}
+
+type SoundFactory = (context: SoundContext) => SoundPlayback | PromiseLike<SoundPlayback | void> | void;
+
 const sound = ({ operation, element, signal }) => {
   const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
   const stop = () => playback.stop();
@@ -175,7 +216,7 @@ const sound = ({ operation, element, signal }) => {
 };
 ```
 
-Фабрика получает операцию, целевой элемент и сигнал отмены. Возвращайте `stop()` для остановки и `dispose()` для обязательной очистки.
+Фабрика получает операцию, целевой элемент и сигнал отмены. `finished` позволяет запросить раннюю очистку после завершения пользовательского воспроизведения. Возвращайте `stop()` для остановки и `dispose()` для обязательной очистки.
 
 ## Изоляция ошибок
 

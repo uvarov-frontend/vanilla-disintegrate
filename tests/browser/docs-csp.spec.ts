@@ -103,7 +103,7 @@ test('keeps default analytics and opt-out CSP-clean', async ({ browser, browserN
     const text = message.text();
     if (/content security policy|violates the following/i.test(text)) violations.push(text);
   });
-  await page.route('https://mc.yandex.ru/metrika/tag.js', async (route) => {
+  await page.route('https://mc.webvisor.org/metrika/tag_ww.js?id=112076480', async (route) => {
     analyticsRequests += 1;
     await route.fulfill({
       body: 'window.__analyticsTagLoaded = true; window.__analyticsConfig = window.ym?.a?.[0]?.[2];',
@@ -114,13 +114,15 @@ test('keeps default analytics and opt-out CSP-clean', async ({ browser, browserN
   const response = await page.goto('http://localhost:4321/');
   expect(response?.status()).toBe(200);
   const headers = response?.headers() ?? {};
-  expect(headers['content-security-policy']).toContain("script-src 'self' https://mc.yandex.ru");
+  expect(headers['content-security-policy']).toMatch(/script-src[^;]*https:\/\/mc\.webvisor\.org/);
   expect(headers['content-security-policy']).toContain("frame-src 'self' blob: https://mc.yandex.ru");
   expect(headers['content-security-policy']).toContain("frame-ancestors 'self' metrika.yandex.ru");
   expect(headers['x-frame-options']).toBeUndefined();
   await expect.poll(() => page.evaluate(() => Reflect.get(window, '__analyticsTagLoaded'))).toBe(true);
   expect(await page.evaluate(() => Reflect.get(window, '__analyticsConfig'))).toMatchObject({
     clickmap: true,
+    referrer: '',
+    url: 'http://localhost:4321/',
     webvisor: true,
   });
   await expect(page.locator('[data-analytics-notice]')).toHaveCount(0);

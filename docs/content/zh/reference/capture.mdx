@@ -1,0 +1,119 @@
+---
+title: 捕获 API
+description: 创建 DOM-to-Canvas 适配器，或配置随库提供的 SnapDOM 集成。
+locale: zh
+section: reference
+navTitle: 捕获
+order: 90
+---
+
+基于快照的效果通过可替换的 `SnapshotCapture` 适配器获得像素。核心库不依赖特定的 DOM-to-Canvas 引擎：根入口接受自定义适配器，`/snapdom` 则提供一个可直接使用的实现。
+
+## `SnapshotCapture`
+
+```ts
+type SnapshotCapture = (
+  element: HTMLElement,
+  context: SnapshotCaptureContext,
+) => HTMLCanvasElement | Promise<HTMLCanvasElement>;
+
+interface SnapshotCaptureContext {
+  operation: 'remove' | 'restore' | 'prepare';
+  signal: AbortSignal;
+  restoreRootOpacity?: string;
+}
+```
+
+适配器必须返回一个包含 `element` 当前视觉内容的 canvas。canvas 的像素尺寸决定源分辨率；库会独立测量元素的 CSS 边界，并将动画覆盖层放置在这些边界上。
+
+| 上下文字段           | 含义                                                            |
+| -------------------- | --------------------------------------------------------------- |
+| `operation`          | 后台捕获时为 `prepare`，否则为当前的 `remove` 或 `restore` 操作 |
+| `signal`             | 准备任务、操作或所属实例被取消时触发中止                        |
+| `restoreRootOpacity` | `restore()` 临时隐藏真实元素之前，根元素的原始计算 opacity      |
+
+在执行昂贵工作前检查 `signal.aborted`；如果底层引擎支持取消，应尽快停止。恢复时应把 `restoreRootOpacity` 应用于被捕获的根元素，避免捕获其临时隐藏状态。
+
+```ts
+import Disintegrator, { type SnapshotCapture } from 'vanilla-disintegrate';
+
+const capture: SnapshotCapture = async (element, context) => {
+  if (context.signal.aborted) {
+    throw new DOMException('Capture aborted.', 'AbortError');
+  }
+
+  return captureWithMyEngine(element, {
+    signal: context.signal,
+    rootOpacity: context.restoreRootOpacity,
+  });
+};
+
+const effects = new Disintegrator({
+  preset: 'dust',
+  capture,
+});
+```
+
+如果自定义效果阶段通过 DOM、SVG、CSS、WAAPI 或其他不需要源像素的渲染器实现，请设置 `needsSnapshot: false`。如果两个阶段都不需要快照，使用 `/core` 可完全避免引入捕获和粒子依赖。
+
+## `createSnapdomCapture`(options?)
+
+```ts
+import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
+
+const capture = createSnapdomCapture({
+  dpr: 2,
+  filter: (node) => !(node instanceof Element) || !node.matches('[data-capture-ignore]'),
+});
+
+const effects = new Disintegrator({ preset: 'dust', capture });
+```
+
+返回由 SnapDOM 实现的 `SnapshotCapture`。`options` 使用 SnapDOM 导出的 `SnapdomOptions` 类型。调用方设置会覆盖以下集成默认值：
+
+```ts
+{
+  embedFonts: true,
+  fast: true,
+  filterMode: 'remove',
+  outerShadows: false,
+  outerTransforms: true,
+  reconcile: true,
+  scale: 1,
+  dpr: Math.min(Math.max(devicePixelRatio, 1), 2),
+}
+```
+
+未提供 `clip` 时，适配器会把捕获范围限制为元素当前的文档边界。未成功加载的图片会被排除，自定义 `filter` 会在此检查之外继续应用。恢复时，适配器会保留根元素在临时隐藏之前的 opacity。
+
+SnapDOM 不支持取消进行中的捕获。适配器会拒绝在开始前已经中止的任务，但渲染开始后，`signal` 无法中断 SnapDOM。
+
+## /snapdom 构造器
+
+```ts
+import Disintegrator from 'vanilla-disintegrate/snapdom';
+
+type SnapdomDisintegratorOptions = DisintegratorOptions & {
+  snapdom?: SnapdomOptions;
+};
+
+const effects = new Disintegrator({
+  preset: 'vapor',
+  snapdom: { dpr: 1.5 },
+});
+```
+
+`snapdom` 会把选项传给自动创建的适配器。显式提供 `capture` 会完全替换该适配器，此时 `snapdom` 不产生作用。
+
+根入口 `vanilla-disintegrate` 不会导入 SnapDOM，并且只有所选效果阶段需要快照时才要求提供 `capture`。
+
+## 捕获分辨率与渲染质量
+
+捕获和渲染是两个独立阶段：
+
+1. 捕获适配器创建源 canvas 并选择其像素密度。
+2. 粒子渲染器在把源内容转换为 WebGL 纹理和扩展动画表面时应用 `renderQuality`。
+
+提高 `renderQuality` 无法恢复源 canvas 中不存在的细节。提高捕获 DPR 会产生更多源像素，因此会增加捕获时间、内存占用、纹理上传开销，并可能增加粒子准备成本。
+
+任何 DOM-to-Canvas 引擎都不能保证逐像素复现浏览器的原始渲染。文本栅格化、浏览器缩放、滤镜、嵌入内容和跨域资源的已知差异请参阅限制章节。

@@ -1,6 +1,6 @@
 import type { ResolvedParticleOptions } from './defaults';
 import { resolveParticles } from './defaults';
-import type { AnimationFactory, AnimationPlayback, ParticleOptions } from './types';
+import type { AnimationFactory, AnimationPlayback, ParticleContextLimits, ParticleOptions } from './types';
 
 interface ParticlePrograms {
   readonly key: 'remove' | 'restore';
@@ -27,6 +27,7 @@ interface ParticleUniforms {
   readonly fadeStart: WebGLUniformLocation | null;
   readonly motionPower: WebGLUniformLocation | null;
   readonly progress: WebGLUniformLocation | null;
+  readonly rotation: WebGLUniformLocation | null;
   readonly source: WebGLUniformLocation | null;
   readonly sourceOffset: WebGLUniformLocation | null;
   readonly textureSize: WebGLUniformLocation | null;
@@ -81,6 +82,8 @@ interface ParticleField {
 }
 
 interface RenderBounds {
+  canvasHeight: number;
+  canvasWidth: number;
   cssWidth: number;
   cssHeight: number;
   left: number;
@@ -96,14 +99,45 @@ const PARTICLE_BUDGET = 180_000;
 // Safari's Metal-backed POINTS path silently stops consuming interleaved
 // attributes beyond this many records in one vertex buffer.
 const PARTICLES_PER_BUFFER = 32_768;
-const MAX_RENDERER_CONTEXTS = 4;
-const MAX_IDLE_CONTEXTS = 2;
-const MAX_SOURCE_PIXELS = 2_000_000;
-const MAX_SOURCE_DIMENSION = 2048;
-const MAX_RENDER_PIXELS = 4_000_000;
+const DEFAULT_MAX_RENDERER_CONTEXTS = 4;
+const DEFAULT_MAX_IDLE_CONTEXTS = 2;
+
+/**
+ * Live WebGL2 contexts are a page-wide resource, not a per-effect one: browsers
+ * keep only a dozen or so alive and silently drop the oldest beyond that. The
+ * ceiling therefore belongs to the page rather than to `ParticleOptions`, where
+ * two effects could ask for different values and neither would be right.
+ */
+const contextLimits = {
+  maxContexts: DEFAULT_MAX_RENDERER_CONTEXTS,
+  maxIdleContexts: DEFAULT_MAX_IDLE_CONTEXTS,
+};
+
+function positiveInteger(value: number | undefined, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, Math.floor(value)) : fallback;
+}
+
+function nonNegativeInteger(value: number | undefined, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : fallback;
+}
+
+/**
+ * Adjusts how many WebGL2 contexts the particle renderer keeps alive per page.
+ *
+ * Lower it on memory-tight devices. Raising it lets more effects animate at once,
+ * up to the point where the browser starts discarding contexts on its own, which
+ * surfaces as an effect losing its surface mid-flight. Returns the values in use.
+ */
+export function configureParticleContexts(limits: ParticleContextLimits = {}) {
+  contextLimits.maxContexts = positiveInteger(limits.maxContexts, contextLimits.maxContexts);
+  contextLimits.maxIdleContexts = Math.min(
+    contextLimits.maxContexts,
+    nonNegativeInteger(limits.maxIdleContexts, contextLimits.maxIdleContexts),
+  );
+  return { ...contextLimits };
+}
 const CONTEXT_IDLE_TTL = 30_000;
 const TRANSITION_WIDTH = 0.018;
-const LAYOUT_RELEASE_FRACTION = 0.6;
 const MIN_THRESHOLD = 0.025;
 const MAX_THRESHOLD = 0.68;
 const CONVERGENCE_FACTOR = 0.58;
@@ -178,10 +212,13 @@ uniform float u_motion_power;
 uniform float u_fade_start;
 uniform float u_wave_turns;
 uniform float u_progress;
+uniform vec2 u_rotation;
 uniform float u_transition;
 out vec2 v_uv_origin;
 out vec2 v_uv_size;
 out float v_alpha;
+out vec2 v_rotation;
+out float v_extent;
 
 void main() {
   float lifetime = max(0.0001, 1.0 - a_threshold);
@@ -190,17 +227,26 @@ void main() {
   float smooth_motion = local * local * (3.0 - 2.0 * local);
   float motion = mix(ease_out, smooth_motion, u_curve_mix);
   float activation = smoothstep(a_threshold - u_transition, a_threshold + u_transition, u_progress);
-  float fade = 1.0 - smoothstep(u_fade_start, 1.0, local);
+  float fade = 1.0 - smoothstep(min(u_fade_start, 0.9999), 1.0, local);
   float tail = 1.0 - smoothstep(0.78, 1.0, u_progress);
-  float wave = sin(local * 6.2831853 * u_wave_turns + a_phase) * a_swirl * (1.0 - local * 0.35);
+  float wave = u_wave_turns == 0.0 ? 0.0 : sin(local * 6.2831853 * u_wave_turns + a_phase) * a_swirl * (1.0 - local * 0.35);
   vec2 source_center = u_source_offset + a_source + vec2(u_block_size * 0.5);
   vec2 pixel = source_center + a_velocity * motion + vec2(0.0, wave);
   vec2 clip = pixel / u_canvas_size * 2.0 - 1.0;
+  float rotation = mix(u_rotation.x, u_rotation.y, a_phase / 6.2831853) * motion;
+  vec2 rotation_basis = vec2(1.0, 0.0);
+  float extent = 1.0;
+  if (rotation != 0.0) {
+    rotation_basis = vec2(cos(rotation), sin(rotation));
+    extent = abs(rotation_basis.x) + abs(rotation_basis.y);
+  }
   gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
-  gl_PointSize = max(1.0, u_block_size * mix(1.0, u_end_scale, motion));
+  gl_PointSize = max(1.0, u_block_size * mix(1.0, u_end_scale, motion) * extent);
   v_uv_origin = a_source / u_texture_size;
   v_uv_size = vec2(u_block_size) / u_texture_size;
   v_alpha = activation * fade * tail;
+  v_rotation = rotation_basis;
+  v_extent = extent;
 }
 `;
 
@@ -248,10 +294,13 @@ uniform float u_motion_power;
 uniform float u_fade_start;
 uniform float u_wave_turns;
 uniform float u_progress;
+uniform vec2 u_rotation;
 uniform float u_transition;
 out vec2 v_uv_origin;
 out vec2 v_uv_size;
 out float v_alpha;
+out vec2 v_rotation;
+out float v_extent;
 
 void main() {
   float arrival = max(0.0001, 1.0 - a_threshold);
@@ -264,15 +313,24 @@ void main() {
   float entrance = smoothstep(0.0, 0.22, u_progress);
   float settle = 1.0 - smoothstep(arrival - u_transition, arrival + u_transition, u_progress);
   float outbound_phase = 1.0 - local;
-  float wave = sin(outbound_phase * 6.2831853 * u_wave_turns + a_phase) * a_swirl * (1.0 - outbound_phase * 0.35);
+  float wave = u_wave_turns == 0.0 ? 0.0 : sin(outbound_phase * 6.2831853 * u_wave_turns + a_phase) * a_swirl * (1.0 - outbound_phase * 0.35);
   vec2 source_center = u_source_offset + a_source + vec2(u_block_size * 0.5);
   vec2 pixel = source_center + a_velocity * outbound + vec2(0.0, wave);
   vec2 clip = pixel / u_canvas_size * 2.0 - 1.0;
+  float rotation = mix(u_rotation.x, u_rotation.y, a_phase / 6.2831853) * outbound;
+  vec2 rotation_basis = vec2(1.0, 0.0);
+  float extent = 1.0;
+  if (rotation != 0.0) {
+    rotation_basis = vec2(cos(rotation), sin(rotation));
+    extent = abs(rotation_basis.x) + abs(rotation_basis.y);
+  }
   gl_Position = vec4(clip.x, -clip.y, 0.0, 1.0);
-  gl_PointSize = max(1.0, u_block_size * mix(1.0, u_end_scale, outbound));
+  gl_PointSize = max(1.0, u_block_size * mix(1.0, u_end_scale, outbound) * extent);
   v_uv_origin = a_source / u_texture_size;
   v_uv_size = vec2(u_block_size) / u_texture_size;
   v_alpha = entrance * appearance * settle;
+  v_rotation = rotation_basis;
+  v_extent = extent;
 }
 `;
 
@@ -282,10 +340,15 @@ uniform sampler2D u_source;
 in highp vec2 v_uv_origin;
 in highp vec2 v_uv_size;
 in float v_alpha;
+in vec2 v_rotation;
+in float v_extent;
 out vec4 out_color;
 
 void main() {
-  vec2 uv = v_uv_origin + vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y) * v_uv_size;
+  vec2 outer = (gl_PointCoord - vec2(0.5)) * v_extent;
+  vec2 point = vec2(v_rotation.x * outer.x + v_rotation.y * outer.y, -v_rotation.y * outer.x + v_rotation.x * outer.y) + vec2(0.5);
+  if (any(lessThan(point, vec2(0.0))) || any(greaterThan(point, vec2(1.0)))) discard;
+  vec2 uv = v_uv_origin + vec2(point.x, 1.0 - point.y) * v_uv_size;
   out_color = texture(u_source, uv) * v_alpha;
 }
 `;
@@ -309,14 +372,14 @@ function clamp(value: number, minimum: number, maximum: number) {
 function resolveCurve(curve: ResolvedParticleOptions['curve']) {
   switch (curve) {
     case 'float':
-      return { curveMix: 0.85, fadeStart: 0.3, motionPower: 2.2, waveTurns: 1.6 };
+      return { curveMix: 0.85, motionPower: 2.2 };
     case 'burst':
-      return { curveMix: 0.45, fadeStart: 0.12, motionPower: 4, waveTurns: 1 };
+      return { curveMix: 0.45, motionPower: 4 };
     case 'drift':
-      return { curveMix: 0, fadeStart: 0.32, motionPower: 2.2, waveTurns: 1.25 };
+      return { curveMix: 0, motionPower: 2.2 };
     case 'settle':
     default:
-      return { curveMix: 0, fadeStart: 0.3, motionPower: 3, waveTurns: 1 };
+      return { curveMix: 0, motionPower: 3 };
   }
 }
 
@@ -486,6 +549,7 @@ function compileParticlePrograms(context: RendererContext, sources: ParticleProg
         fadeStart: gl.getUniformLocation(particle, 'u_fade_start'),
         motionPower: gl.getUniformLocation(particle, 'u_motion_power'),
         progress: gl.getUniformLocation(particle, 'u_progress'),
+        rotation: gl.getUniformLocation(particle, 'u_rotation'),
         source: gl.getUniformLocation(particle, 'u_source'),
         sourceOffset: gl.getUniformLocation(particle, 'u_source_offset'),
         textureSize: gl.getUniformLocation(particle, 'u_texture_size'),
@@ -644,7 +708,7 @@ class RendererContextPool {
       this.destroy(context);
     }
 
-    if (this.contexts.size >= MAX_RENDERER_CONTEXTS) return null;
+    if (this.contexts.size >= contextLimits.maxContexts) return null;
     const context = createRendererContext(this.ownerDocument);
     if (context !== null) this.contexts.add(context);
     return context;
@@ -662,7 +726,7 @@ class RendererContextPool {
       this.destroy(context);
       return;
     }
-    if (this.idle.length >= MAX_IDLE_CONTEXTS) {
+    if (this.idle.length >= contextLimits.maxIdleContexts) {
       this.destroy(context);
       return;
     }
@@ -721,6 +785,18 @@ function acquireRendererContext(ownerDocument: Document) {
   return { context: pool.acquire(), pool };
 }
 
+function resolveParticleBlockSize(
+  source: Pick<HTMLCanvasElement, 'width' | 'height'>,
+  scaleX: number,
+  scaleY: number,
+  particles: ResolvedParticleOptions,
+) {
+  const automatic = Math.max(1, Math.ceil(Math.sqrt((source.width * source.height) / PARTICLE_BUDGET)));
+  if (particles.particleSize === 'auto') return automatic;
+  const requested = Math.max(1, Math.ceil(particles.particleSize * Math.max(scaleX, scaleY)));
+  return Math.max(automatic, requested);
+}
+
 function createBounds(
   source: Pick<HTMLCanvasElement, 'width' | 'height'>,
   rect: DOMRectReadOnly,
@@ -734,34 +810,54 @@ function createBounds(
   const maxX = Math.max(0, particles.horizontalTravel[1] + drift + convergence);
   const minY = Math.min(0, particles.verticalTravel[0] - particles.swirl);
   const maxY = Math.max(0, particles.verticalTravel[1] + particles.swirl);
-  const padding = Math.max(8, Math.min(rect.width, rect.height) * 0.04);
-  const left = minX - padding;
-  const top = minY - padding;
+  const blockSize = resolveParticleBlockSize(source, scaleX, scaleY, particles);
+  const rotates = particles.rotation[0] !== 0 || particles.rotation[1] !== 0;
+  const particleExtent =
+    (blockSize / Math.min(scaleX, scaleY)) * Math.max(1, particles.endScale) * (rotates ? Math.SQRT2 : 1);
+  const padding = Math.max(8, Math.min(rect.width, rect.height) * 0.04, particleExtent);
+  // Pixel-grid alignment prevents LINEAR filtering from resmoothing intact frames.
+  const pixelLeft = Math.floor((minX - padding) * scaleX);
+  const pixelTop = Math.floor((minY - padding) * scaleY);
+  const pixelRight = Math.ceil((rect.width + maxX + padding) * scaleX);
+  const pixelBottom = Math.ceil((rect.height + maxY + padding) * scaleY);
+  const canvasWidth = Math.max(1, pixelRight - pixelLeft);
+  const canvasHeight = Math.max(1, pixelBottom - pixelTop);
   return {
-    cssWidth: rect.width + maxX - minX + padding * 2,
-    cssHeight: rect.height + maxY - minY + padding * 2,
-    left,
-    top,
+    canvasHeight,
+    canvasWidth,
+    cssWidth: canvasWidth / scaleX,
+    cssHeight: canvasHeight / scaleY,
+    left: pixelLeft / scaleX,
+    top: pixelTop / scaleY,
     scaleX,
     scaleY,
-    sourceX: -left * scaleX,
-    sourceY: -top * scaleY,
+    sourceX: -pixelLeft,
+    sourceY: -pixelTop,
   };
 }
 
 function resolveSourceSize(width: number, height: number, rect: DOMRectReadOnly, particles: ResolvedParticleOptions) {
-  let scale = Math.min(
+  if (particles.renderQuality === 'exact') return { width, height };
+  const budget = particles.renderQuality;
+  const scale = Math.min(
     1,
-    MAX_SOURCE_DIMENSION / width,
-    MAX_SOURCE_DIMENSION / height,
-    Math.sqrt(MAX_SOURCE_PIXELS / (width * height)),
+    budget.maxSourceDimension / width,
+    budget.maxSourceDimension / height,
+    Math.sqrt(budget.maxSourcePixels / (width * height)),
   );
   let size = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
-  const bounds = createBounds(size, rect, particles);
-  const renderPixels = Math.ceil(bounds.cssWidth * bounds.scaleX) * Math.ceil(bounds.cssHeight * bounds.scaleY);
-  if (renderPixels > MAX_RENDER_PIXELS) {
-    scale *= Math.sqrt(MAX_RENDER_PIXELS / renderPixels);
-    size = { width: Math.max(1, Math.floor(width * scale)), height: Math.max(1, Math.floor(height * scale)) };
+
+  while (size.width > 1 || size.height > 1) {
+    const bounds = createBounds(size, rect, particles);
+    const renderPixels = bounds.canvasWidth * bounds.canvasHeight;
+    if (renderPixels <= budget.maxRenderPixels) break;
+    const renderScale = Math.min(0.999, Math.sqrt(budget.maxRenderPixels / renderPixels));
+    const next = {
+      width: Math.max(1, Math.floor(size.width * renderScale)),
+      height: Math.max(1, Math.floor(size.height * renderScale)),
+    };
+    if (next.width === size.width && next.height === size.height) break;
+    size = next;
   }
   return size;
 }
@@ -773,18 +869,31 @@ function releaseReadback(canvas: HTMLCanvasElement) {
 }
 
 function resolveThreshold(particles: ResolvedParticleOptions, column: number, row: number, noise: number) {
+  let ordered: number;
   switch (particles.release) {
     case 'top':
-      // Noise dominates so no hard geometric front forms; the row bias releases the top first.
-      return 0.04 + row * 0.12 + noise * 0.62;
+      ordered = row;
+      break;
+    case 'bottom':
+      ordered = 1 - row;
+      break;
     case 'right':
-      return (1 - column) * 0.78 + noise * 0.22;
+      ordered = 1 - column;
+      break;
+    case 'center':
+      ordered = Math.hypot(column - 0.5, row - 0.5) / Math.SQRT1_2;
+      break;
+    case 'edges':
+      ordered = Math.min(column, 1 - column, row, 1 - row) * 2;
+      break;
     case 'random':
-      return noise;
+      ordered = noise;
+      break;
     case 'left':
     default:
-      return column * 0.78 + noise * 0.22;
+      ordered = column;
   }
+  return ordered * (1 - particles.releaseRandomness) + noise * particles.releaseRandomness;
 }
 
 export function createParticleField(
@@ -796,11 +905,12 @@ export function createParticleField(
   scaleY: number,
   random: () => number,
 ): ParticleField {
-  const blockSize = Math.max(1, Math.ceil(Math.sqrt((width * height) / PARTICLE_BUDGET)));
+  const blockSize = resolveParticleBlockSize({ width, height }, scaleX, scaleY, particles);
   const thresholdWidth = Math.ceil(width / blockSize);
   const thresholdHeight = Math.ceil(height / blockSize);
   const blockCount = thresholdWidth * thresholdHeight;
   const visibleBlocks = new Uint8Array(blockCount);
+  const alphaThreshold = particles.alphaThreshold * 255;
   let particleCount = 0;
 
   for (let blockY = 0; blockY < thresholdHeight; blockY += 1) {
@@ -812,7 +922,7 @@ export function createParticleField(
       let visible = false;
       for (let localY = 0; localY < blockHeight && !visible; localY += 1) {
         for (let localX = 0; localX < blockWidth; localX += 1) {
-          if ((pixels[((y + localY) * width + x + localX) * 4 + 3] ?? 0) > 0) {
+          if ((pixels[((y + localY) * width + x + localX) * 4 + 3] ?? 0) > alphaThreshold) {
             visible = true;
             break;
           }
@@ -871,12 +981,14 @@ export function createParticleField(
     }
   }
 
-  const releaseCount = Math.ceil(particleCount * LAYOUT_RELEASE_FRACTION);
+  const releaseCount = Math.ceil(particleCount * particles.layoutRelease);
   let accumulated = 0;
   let releaseThreshold = 0;
-  for (; releaseThreshold < visibleThresholds.length; releaseThreshold += 1) {
-    accumulated += visibleThresholds[releaseThreshold] ?? 0;
-    if (accumulated >= releaseCount) break;
+  if (releaseCount > 0) {
+    for (; releaseThreshold < visibleThresholds.length; releaseThreshold += 1) {
+      accumulated += visibleThresholds[releaseThreshold] ?? 0;
+      if (accumulated >= releaseCount) break;
+    }
   }
 
   return {
@@ -945,17 +1057,22 @@ function createParticleRenderer(
   const { canvas, gl } = rendererContext;
 
   try {
-    const canvasWidth = Math.max(1, Math.ceil(bounds.cssWidth * bounds.scaleX));
-    const canvasHeight = Math.max(1, Math.ceil(bounds.cssHeight * bounds.scaleY));
+    const { canvasHeight, canvasWidth } = bounds;
     const maxTextureSize = Number(gl.getParameter(gl.MAX_TEXTURE_SIZE));
     const maxViewport = gl.getParameter(gl.MAX_VIEWPORT_DIMS) as Int32Array;
-    if (
+    const exceedsSoftwareBudget =
+      particles.renderQuality !== 'exact' && canvasWidth * canvasHeight > particles.renderQuality.maxRenderPixels;
+    const exceedsHardware =
       sourceSize.width > maxTextureSize ||
       sourceSize.height > maxTextureSize ||
-      canvasWidth * canvasHeight > MAX_RENDER_PIXELS ||
       canvasWidth > (maxViewport[0] ?? maxTextureSize) ||
-      canvasHeight > (maxViewport[1] ?? maxTextureSize)
-    ) {
+      canvasHeight > (maxViewport[1] ?? maxTextureSize);
+    if (exceedsSoftwareBudget || exceedsHardware) {
+      if (particles.renderQuality === 'exact' && exceedsHardware) {
+        throw new RangeError(
+          `Exact particle rendering requires a ${String(sourceSize.width)}×${String(sourceSize.height)} texture and a ${String(canvasWidth)}×${String(canvasHeight)} viewport, exceeding this WebGL2 device's limits.`,
+        );
+      }
       acquired.pool.release(rendererContext);
       return null;
     }
@@ -1022,8 +1139,13 @@ function createParticleRenderer(
     gl.uniform1f(particleUniforms.endScale, particles.endScale);
     gl.uniform1f(particleUniforms.curveMix, curve.curveMix);
     gl.uniform1f(particleUniforms.motionPower, curve.motionPower);
-    gl.uniform1f(particleUniforms.fadeStart, curve.fadeStart);
-    gl.uniform1f(particleUniforms.waveTurns, curve.waveTurns);
+    gl.uniform2f(
+      particleUniforms.rotation,
+      (particles.rotation[0] * Math.PI) / 180,
+      (particles.rotation[1] * Math.PI) / 180,
+    );
+    gl.uniform1f(particleUniforms.fadeStart, particles.fadeStart);
+    gl.uniform1f(particleUniforms.waveTurns, particles.waveTurns);
     gl.uniform1f(particleUniforms.transition, TRANSITION_WIDTH);
     bindTexture(particleUniforms.source, sourceTexture, 0);
 

@@ -40,14 +40,22 @@ if (
 ) {
   throw new Error('The core entry did not expose Disintegrator, defineEffect and definePreset.');
 }
-if (typeof particles.createParticleAnimation !== 'function' || particles.particlePresets === undefined) {
-  throw new Error('The particles entry did not expose the particle renderer and presets.');
+if (
+  typeof particles.configureParticleContexts !== 'function' ||
+  typeof particles.createParticleAnimation !== 'function' ||
+  particles.particlePresets === undefined
+) {
+  throw new Error('The particles entry did not expose context configuration, the particle renderer and presets.');
 }
 if (Object.keys(sounds.builtInSounds ?? {}).join(',') !== 'dust,scatter,vapor,wind') {
   throw new Error('The sounds entry did not expose the built-in audio sources.');
 }
-if (typeof snapdomEntry.Disintegrator !== 'function' || typeof snapdomEntry.createSnapdomCapture !== 'function') {
-  throw new Error('The SnapDOM entry did not expose Disintegrator and createSnapdomCapture.');
+if (
+  typeof snapdomEntry.Disintegrator !== 'function' ||
+  typeof snapdomEntry.configureParticleContexts !== 'function' ||
+  typeof snapdomEntry.createSnapdomCapture !== 'function'
+) {
+  throw new Error('The SnapDOM entry did not expose Disintegrator, context configuration and createSnapdomCapture.');
 }
 const coreGraph = await chunkGraph('../dist/core.js');
 const fullGraph = await chunkGraph('../dist/index.js');
@@ -79,7 +87,11 @@ if (packageManifest.peerDependenciesMeta?.['@zumer/snapdom']?.optional !== true)
 if (!packageManifest.files?.includes('vanilla-disintegrate-iife.zip')) {
   throw new Error('The downloadable IIFE example must be included in the published package.');
 }
-if (typeof full.defineEffect !== 'function' || 'disintegrate' in full.Disintegrator.prototype) {
+if (
+  typeof full.configureParticleContexts !== 'function' ||
+  typeof full.defineEffect !== 'function' ||
+  'disintegrate' in full.Disintegrator.prototype
+) {
   throw new Error('The public effect API does not match the remove/restore lifecycle.');
 }
 if (Object.keys(full.builtInPresets ?? {}).join(',') !== 'dust,scatter,vapor,wind') {

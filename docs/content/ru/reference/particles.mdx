@@ -1,0 +1,151 @@
+---
+title: API частиц
+description: Полный справочник фабрик частиц, параметров движения, качества рендера, пресетов и лимитов WebGL-контекстов.
+locale: ru
+section: reference
+navTitle: Частицы
+order: 80
+---
+
+Встроенный рендерер частиц доступен из корневого entry point, `/snapdom` и `/particles`. Импортируйте `/particles`, когда нужен только рендерер и его типы — без `Disintegrator`, захвата и встроенного аудио.
+
+```ts
+import {
+  configureParticleContexts,
+  createParticleAnimation,
+  createParticleEffect,
+  createParticleRestoreAnimation,
+  particlePresets,
+} from 'vanilla-disintegrate/particles';
+```
+
+## `createParticleEffect`(options?)
+
+Создаёт полный `EffectDefinition` с независимыми фазами удаления и восстановления.
+
+```ts
+interface ParticleEffectOptions {
+  remove?: ParticleOptions;
+  restore?: ParticleOptions;
+}
+
+const effect = createParticleEffect({
+  remove: { ...particlePresets.vapor, release: 'top' },
+  restore: { ...particlePresets.scatter, release: 'center' },
+});
+```
+
+Если `restore` не указан, он использует те же настройки, что и `remove`. Если не указано ни одно поле, обе фазы используют настройки частиц по умолчанию. Фабрика настраивает только визуал: добавьте `sound` отдельно либо объедините эффект и аудио в полном пресете.
+
+## `ParticleOptions`
+
+Расстояния и размеры частиц задаются в CSS-пикселях, длительность — в миллисекундах, поворот — в градусах, а нормализованные параметры — в диапазоне `0`–`1`.
+
+| Параметр            | Тип                                                                         | По умолчанию       | Что регулирует                                                                            |
+| ------------------- | --------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------- |
+| `renderQuality`     | `'auto' \| 'exact' \| ParticleRenderBudget`                                 | `'auto'`           | Разрешение и ресурсные ограничения WebGL-рендерера                                        |
+| `particleSize`      | `'auto' \| number`                                                          | `'auto'`           | Минимальную сторону частицы; число ограничивается снизу значением `0.25`                  |
+| `alphaThreshold`    | `number`                                                                    | `0`                | Пиксели исходника с такой или меньшей прозрачностью не создают частицы                    |
+| `curve`             | `'settle' \| 'float' \| 'burst' \| 'drift'`                                 | `'settle'`         | Профиль движения, ускорения и восстановления                                              |
+| `duration`          | `number`                                                                    | `720`              | Базовую длительность фазы                                                                 |
+| `stagger`           | `number`                                                                    | `180`              | Максимальную дополнительную задержку старта, распределённую между частицами               |
+| `release`           | `'left' \| 'right' \| 'top' \| 'bottom' \| 'center' \| 'edges' \| 'random'` | `'left'`           | Область элемента, с которой начинается распад                                             |
+| `releaseRandomness` | `number`                                                                    | `0.22`             | Смесь выбранного порядка (`0`) со случайным (`1`)                                         |
+| `fadeStart`         | `number`                                                                    | Зависит от `curve` | Момент локальной жизни частицы, когда начинается затухание                                |
+| `layoutRelease`     | `number`                                                                    | `0.6`              | Долю выпущенных частиц, после которой двигается окружающая раскладка                      |
+| `horizontalDrift`   | `number`                                                                    | `42`               | Случайное боковое отклонение каждого пути                                                 |
+| `horizontalTravel`  | `readonly [number, number]`                                                 | `[0, 0]`           | Минимальное и максимальное направленное смещение по горизонтали                           |
+| `verticalTravel`    | `readonly [number, number]`                                                 | `[-100, -45]`      | Минимальное и максимальное смещение по вертикали; отрицательные значения направлены вверх |
+| `convergence`       | `number`                                                                    | `0`                | Притяжение к горизонтальному центру элемента                                              |
+| `swirl`             | `number`                                                                    | `0`                | Амплитуду вертикальной волны вдоль пути                                                   |
+| `waveTurns`         | `number`                                                                    | Зависит от `curve` | Число колебаний вдоль пути                                                                |
+| `endScale`          | `number`                                                                    | `0.92`             | Масштаб частицы в конце удаления                                                          |
+| `rotation`          | `readonly [number, number]`                                                 | `[0, 0]`           | Минимальный и максимальный конечный поворот частиц                                        |
+
+`alphaThreshold`, `convergence`, `releaseRandomness`, `fadeStart` и `layoutRelease` ограничиваются диапазоном `0`–`1`. Отрицательные `duration`, `stagger`, `horizontalDrift`, `swirl`, `waveTurns` и `endScale` приводятся к нулю. Границы диапазона в обратном порядке автоматически сортируются.
+
+### Кривые
+
+| Кривая   | Характер                                        | `fadeStart` по умолчанию | `waveTurns` по умолчанию |
+| -------- | ----------------------------------------------- | ------------------------ | ------------------------ |
+| `settle` | Сбалансированное движение с плавным завершением | `0.3`                    | `1`                      |
+| `float`  | Более мягкое парящее движение                   | `0.3`                    | `1.6`                    |
+| `burst`  | Более резкое начальное ускорение                | `0.12`                   | `1`                      |
+| `drift`  | Долгое направленное движение                    | `0.32`                   | `1.25`                   |
+
+Явно заданные `fadeStart` и `waveTurns` заменяют значения кривой.
+
+### Порядок распада
+
+`left`, `right`, `top` и `bottom` выпускают частицы от соответствующего края. `center` начинает от центра и движется наружу, а `edges` — от внешних краёв внутрь. У `random` нет геометрического порядка. `releaseRandomness` позволяет смягчить любой упорядоченный рисунок, не меняя выбранное направление.
+
+### Передача управления раскладке
+
+`layoutRelease` определяет момент запуска анимации перестроения DOM при удалении. Значение `0` разрешает раскладке двигаться сразу, а `1` ждёт выпуска всех частиц. Рендерер рассчитывает фактический `layoutDelay` по созданному полю частиц, поэтому он остаётся согласован с `release` и `releaseRandomness`.
+
+## Качество рендера
+
+```ts
+type ParticleRenderQuality = 'auto' | 'exact' | ParticleRenderBudget;
+
+interface ParticleRenderBudget {
+  maxSourcePixels: number;
+  maxSourceDimension: number;
+  maxRenderPixels: number;
+}
+```
+
+`auto` использует следующие программные лимиты:
+
+```ts
+{
+  maxSourcePixels: 2_000_000,
+  maxSourceDimension: 2048,
+  maxRenderPixels: 4_000_000,
+}
+```
+
+`exact` сохраняет полное разрешение снимка и отключает программное уменьшение. Режим не может превысить ограничения устройства на текстуру или viewport WebGL; неподдерживаемая поверхность сообщается через `onError`. Пользовательский бюджет позволяет приложению самостоятельно выбрать баланс между чёткостью, памятью и работой GPU.
+
+`renderQuality` влияет только на WebGL-рендерер. Количество пикселей в исходном canvas независимо определяет адаптер захвата.
+
+## Низкоуровневые фабрики фаз
+
+```ts
+function createParticleAnimation(options?: ParticleOptions): AnimationFactory;
+function createParticleRestoreAnimation(options?: ParticleOptions): AnimationFactory;
+```
+
+`createParticleAnimation()` создаёт фабрику анимации удаления, а `createParticleRestoreAnimation()` — соответствующую фабрику восстановления. Используйте их при ручной сборке `EffectDefinition`; если обе фазы работают на встроенном рендерере, удобнее `createParticleEffect()`.
+
+Обе фабрики требуют снимок. Если `AnimationContext.snapshot` равен `null`, они возвращают `null`, после чего операция выполняет стандартный сценарий пропуска анимации.
+
+## `particlePresets`
+
+```ts
+type BuiltInPreset = 'dust' | 'scatter' | 'vapor' | 'wind';
+
+const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePreset>>>;
+```
+
+`particlePresets` содержит только глубоко замороженные визуальные конфигурации. В них нет аудио: они предназначены для `createParticleEffect()` или низкоуровневых фабрик. Экспортируемые корневым entry point и `/snapdom` значения `builtInPresets` — это полные визуально-звуковые пресеты для `Disintegrator`.
+
+## `configureParticleContexts`(limits?)
+
+```ts
+interface ParticleContextLimits {
+  maxContexts?: number;
+  maxIdleContexts?: number;
+}
+
+const applied = configureParticleContexts({
+  maxContexts: 2,
+  maxIdleContexts: 1,
+});
+```
+
+Настройка действует на всю страницу, и обычно её нужно применить один раз до запуска эффектов. По умолчанию сохраняется не более четырёх живых WebGL2-контекстов и не более двух простаивающих контекстов для повторного использования. Простаивающие контексты освобождаются через 30 секунд, а контексты сверх лимита — сразу.
+
+`maxContexts` приводится к целому числу не меньше `1`. `maxIdleContexts` приводится к неотрицательному целому и не может превышать `maxContexts`. Функция возвращает действующие лимиты.
+
+Если рендерер не может получить контекст, операция с DOM всё равно выполняется, `finished` завершается со `status: 'skipped'`, а ошибка передаётся в `onError`.

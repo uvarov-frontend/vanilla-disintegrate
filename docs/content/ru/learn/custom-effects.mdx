@@ -14,63 +14,80 @@ order: 60
 Плейграунд на главной создаёт готовый пользовательский эффект с отдельными настройками частиц и звука для удаления и восстановления. Например, такой код сочетает удаление `scatter` с восстановлением `vapor`:
 
 ```ts
-import Disintegrator, { createParticleEffect, type ParticleOptions } from 'vanilla-disintegrate/snapdom';
+import Disintegrator, { createParticleEffect, particlePresets } from 'vanilla-disintegrate/snapdom';
 
-const removeOptions: ParticleOptions = {
-  curve: 'burst',
-  release: 'left',
-  duration: 1100,
-  stagger: 70,
-  horizontalDrift: 42,
-  horizontalTravel: [-125, 125],
-  verticalTravel: [-105, 36],
-  convergence: 0,
-  swirl: 8,
-  endScale: 0.4,
+const sharedSoundOptions = {
+  volume: 0.32,
+  playbackRate: 1,
+  delay: 0,
+  fadeDuration: 0.18,
 };
-
-const restoreOptions: ParticleOptions = {
-  curve: 'float',
-  release: 'top',
-  duration: 750,
-  stagger: 80,
-  horizontalDrift: 80,
-  horizontalTravel: [-10, 10],
-  verticalTravel: [-255, -130],
-  convergence: 0.8,
-  swirl: 5,
-  endScale: 0.6,
-};
-
-export const effect = createParticleEffect({
-  remove: removeOptions,
-  restore: restoreOptions,
-});
 
 export const disintegrator = new Disintegrator({
-  effect,
+  effect: createParticleEffect({
+    remove: particlePresets.scatter,
+    restore: particlePresets.vapor,
+  }),
   sound: {
     remove: {
+      ...sharedSoundOptions,
       src: 'scatter',
       reverse: false,
-      volume: 0.32,
-      playbackRate: 1,
-      delay: 0,
-      fadeDuration: 0.18,
     },
     restore: {
+      ...sharedSoundOptions,
       src: 'vapor',
       reverse: true,
-      volume: 0.32,
-      playbackRate: 1,
-      delay: 0,
-      fadeDuration: 0.18,
     },
   },
 });
 ```
 
 `createParticleEffect()` использует встроенный рендерер частиц. Настройте обе фазы в плейграунде, скопируйте полученный код и используйте его без самостоятельной реализации рендерера на Canvas или WebGL. Следующий раздел нужен, только если вы хотите реализовать саму отрисовку.
+
+Все параметры движения, их значения по умолчанию, допустимые диапазоны и низкоуровневые фабрики фаз описаны в [API частиц](/ru/docs/reference/particles/).
+
+## Управлять качеством рендеринга частиц
+
+`renderQuality` управляет разрешением встроенного WebGL-рендерера независимо от адаптера захвата. Режим `auto` по умолчанию ограничивает расход памяти и нагрузку на GPU: исходная текстура рендерера содержит не больше 2 000 000 пикселей и 2 048 пикселей по одной стороне, а расширенная поверхность анимации — не больше 4 000 000 пикселей.
+
+Используйте `exact`, если сохранение полного разрешения снимка важнее этих программных лимитов:
+
+```ts
+const exactEffect = createParticleEffect({
+  remove: { ...particlePresets.vapor, renderQuality: 'exact' },
+  restore: { ...particlePresets.scatter, renderQuality: 'exact' },
+});
+```
+
+Либо задайте собственный бюджет:
+
+```ts
+const boundedEffect = createParticleEffect({
+  remove: {
+    ...particlePresets.vapor,
+    renderQuality: {
+      maxSourcePixels: 4_000_000,
+      maxSourceDimension: 4096,
+      maxRenderPixels: 8_000_000,
+    },
+  },
+});
+```
+
+`exact` отключает программное уменьшение, но не может обойти аппаратные ограничения WebGL на текстуру и viewport. Если устройство не поддерживает требуемую точную поверхность, ошибка попадёт в `onError` вместо скрытого ухудшения качества. Для неизвестных или больших элементов выбирайте `auto`: расход при полном разрешении растёт примерно пропорционально квадрату device pixel ratio.
+
+## Изменить потолок контекстов WebGL
+
+```ts
+import { configureParticleContexts } from 'vanilla-disintegrate/snapdom';
+
+configureParticleContexts({ maxContexts: 2, maxIdleContexts: 1 });
+```
+
+Рендерер частиц держит одновременно не больше 4 контекстов WebGL2 на всю страницу, из них до 2 остаются прогретыми для повторного использования после завершения эффекта. Этот потолок общий для страницы, а не для каждого эффекта отдельно: браузер и так ограничивает число живых контекстов на странице, а если бы два эффекта запрашивали разные значения, единственно верного ответа не нашлось бы.
+
+Эффект, которому не хватило контекста из-за упора в потолок, проходит тот же путь, что и браузер без WebGL2: `remove()` всё равно открепляет элемент, `restore()` всё равно показывает его, операция завершается со статусом `skipped`, а в `onError` попадает общая ошибка «не создал анимацию» — без указания на то, что причина именно в нехватке контекстов. Вызовите `configureParticleContexts()` один раз, до первого запуска любого эффекта, чтобы изменить потолок на весь срок жизни страницы. Понижайте его на устройствах с ограниченной памятью; повышайте только до предела, который допускает сам браузер, — превышение лишь переносит место, где контексты будут отброшены.
 
 ## Эффект из снимка и частиц
 

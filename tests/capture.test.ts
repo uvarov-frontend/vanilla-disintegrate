@@ -26,14 +26,14 @@ beforeEach(() => {
 });
 
 describe('SnapDOM capture adapter', () => {
-  it('refuses an already-aborted capture without running the SnapDOM pipeline', () => {
+  it('refuses an already-aborted capture without running the SnapDOM pipeline', async () => {
     const controller = new AbortController();
     controller.abort();
     const capture = createSnapdomCapture();
 
-    expect(() =>
+    await expect(
       capture(document.createElement('article'), { operation: 'prepare', signal: controller.signal }),
-    ).toThrow(expect.objectContaining({ name: 'AbortError' }));
+    ).rejects.toMatchObject({ name: 'AbortError' });
     expect(toCanvas).not.toHaveBeenCalled();
   });
 

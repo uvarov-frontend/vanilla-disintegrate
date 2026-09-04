@@ -13,10 +13,10 @@
   function stored() {
     try {
       var value = window.localStorage.getItem(STORAGE_KEY);
-      return value === 'light' || value === 'dark' || value === 'system' ? value : 'dark';
+      return value === 'light' || value === 'dark' || value === 'system' ? value : 'system';
     } catch {
-      // Private browsing and blocked storage use the site's dark default.
-      return 'dark';
+      // Private browsing and blocked storage still follow the operating-system theme.
+      return 'system';
     }
   }
 

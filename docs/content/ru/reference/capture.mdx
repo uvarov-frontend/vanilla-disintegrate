@@ -1,0 +1,119 @@
+---
+title: API захвата
+description: Создание DOM-to-Canvas-адаптера и настройка готовой интеграции со SnapDOM.
+locale: ru
+section: reference
+navTitle: Захват
+order: 90
+---
+
+Эффекты на основе снимка получают пиксели через заменяемый адаптер `SnapshotCapture`. Ядро библиотеки не зависит от конкретного DOM-to-Canvas-движка: корневой entry point принимает пользовательский адаптер, а `/snapdom` предоставляет готовый.
+
+## `SnapshotCapture`
+
+```ts
+type SnapshotCapture = (
+  element: HTMLElement,
+  context: SnapshotCaptureContext,
+) => HTMLCanvasElement | Promise<HTMLCanvasElement>;
+
+interface SnapshotCaptureContext {
+  operation: 'remove' | 'restore' | 'prepare';
+  signal: AbortSignal;
+  restoreRootOpacity?: string;
+}
+```
+
+Адаптер должен вернуть canvas с текущим визуальным представлением `element`. Размеры canvas в пикселях задают исходное разрешение; библиотека независимо измеряет CSS-границы элемента и размещает поверх них слой анимации.
+
+| Поле контекста       | Значение                                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------- |
+| `operation`          | `prepare` для фонового захвата либо активная операция `remove` или `restore`                  |
+| `signal`             | Прерывается при отмене подготовки, операции или владеющего экземпляра                         |
+| `restoreRootOpacity` | Исходная вычисленная прозрачность корня до того, как `restore()` временно скрыл живой элемент |
+
+Проверяйте `signal.aborted` до дорогой работы и быстро останавливайтесь, если используемый движок поддерживает отмену. При восстановлении применяйте `restoreRootOpacity` к захватываемому корню, чтобы не снимать его временно скрытое состояние.
+
+```ts
+import Disintegrator, { type SnapshotCapture } from 'vanilla-disintegrate';
+
+const capture: SnapshotCapture = async (element, context) => {
+  if (context.signal.aborted) {
+    throw new DOMException('Capture aborted.', 'AbortError');
+  }
+
+  return captureWithMyEngine(element, {
+    signal: context.signal,
+    rootOpacity: context.restoreRootOpacity,
+  });
+};
+
+const effects = new Disintegrator({
+  preset: 'dust',
+  capture,
+});
+```
+
+Установите `needsSnapshot: false` для фазы пользовательского эффекта, которая анимирует DOM, SVG, CSS, WAAPI или другой рендерер без исходных пикселей. Если снимок не нужен обеим фазам, entry point `/core` полностью исключает зависимости захвата и частиц.
+
+## `createSnapdomCapture`(options?)
+
+```ts
+import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
+
+const capture = createSnapdomCapture({
+  dpr: 2,
+  filter: (node) => !(node instanceof Element) || !node.matches('[data-capture-ignore]'),
+});
+
+const effects = new Disintegrator({ preset: 'dust', capture });
+```
+
+Возвращает `SnapshotCapture` на основе SnapDOM. Для `options` используется экспортируемый SnapDOM тип `SnapdomOptions`. Значения пользователя переопределяют следующие настройки интеграции:
+
+```ts
+{
+  embedFonts: true,
+  fast: true,
+  filterMode: 'remove',
+  outerShadows: false,
+  outerTransforms: true,
+  reconcile: true,
+  scale: 1,
+  dpr: Math.min(Math.max(devicePixelRatio, 1), 2),
+}
+```
+
+Если `clip` не передан, адаптер ограничивает снимок текущими границами элемента в документе. Не загрузившиеся изображения исключаются, а пользовательский `filter` применяется дополнительно к этой проверке. При восстановлении адаптер сохраняет прозрачность корня до его временного скрытия.
+
+SnapDOM не предоставляет отмену уже запущенного захвата. Адаптер отклоняет работу, отменённую до старта, но `signal` не может прервать SnapDOM после начала рендера.
+
+## Конструктор /snapdom
+
+```ts
+import Disintegrator from 'vanilla-disintegrate/snapdom';
+
+type SnapdomDisintegratorOptions = DisintegratorOptions & {
+  snapdom?: SnapdomOptions;
+};
+
+const effects = new Disintegrator({
+  preset: 'vapor',
+  snapdom: { dpr: 1.5 },
+});
+```
+
+`snapdom` передаёт настройки автоматически созданному адаптеру. Явный `capture` полностью заменяет этот адаптер; в таком случае `snapdom` ни на что не влияет.
+
+Корневой entry point `vanilla-disintegrate` не импортирует SnapDOM и требует `capture`, только когда выбранной фазе эффекта нужен снимок.
+
+## Разрешение захвата и качество рендера
+
+Захват и рендеринг — два отдельных этапа:
+
+1. Адаптер захвата создаёт исходный canvas и выбирает его плотность пикселей.
+2. Рендерер частиц применяет `renderQuality` при создании WebGL-текстур и расширенной поверхности анимации.
+
+Повышение `renderQuality` не восстановит детали, которых нет в захваченном canvas. Повышение DPR захвата создаёт больше исходных пикселей, поэтому увеличивает время захвата, расход памяти, стоимость загрузки текстуры и потенциально стоимость подготовки частиц.
+
+Ни один DOM-to-Canvas-движок не гарантирует воспроизведение каждого отрисованного браузером пикселя. Известные различия при растеризации текста, масштабе браузера, фильтрах, встроенном содержимом и cross-origin-ресурсах перечислены в разделе ограничений.

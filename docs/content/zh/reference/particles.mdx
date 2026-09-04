@@ -1,0 +1,151 @@
+---
+title: 粒子 API
+description: 粒子工厂、运动参数、渲染质量、预设和 WebGL 上下文限制的完整参考。
+locale: zh
+section: reference
+navTitle: 粒子
+order: 80
+---
+
+内置粒子渲染器可从根入口、`/snapdom` 和 `/particles` 导入。如果只需要渲染器及其类型，而不需要 `Disintegrator`、捕获和内置音频，请使用 `/particles`。
+
+```ts
+import {
+  configureParticleContexts,
+  createParticleAnimation,
+  createParticleEffect,
+  createParticleRestoreAnimation,
+  particlePresets,
+} from 'vanilla-disintegrate/particles';
+```
+
+## `createParticleEffect`(options?)
+
+创建一个完整的 `EffectDefinition`，删除与恢复阶段可以分别配置。
+
+```ts
+interface ParticleEffectOptions {
+  remove?: ParticleOptions;
+  restore?: ParticleOptions;
+}
+
+const effect = createParticleEffect({
+  remove: { ...particlePresets.vapor, release: 'top' },
+  restore: { ...particlePresets.scatter, release: 'center' },
+});
+```
+
+省略 `restore` 时，它会使用与 `remove` 相同的配置。两个字段都省略时，两个阶段都使用粒子默认值。该工厂只配置视觉效果；声音应单独通过 `sound` 添加，或者将效果和音频组合成完整预设。
+
+## `ParticleOptions`
+
+距离和粒子大小使用 CSS 像素，时长使用毫秒，旋转使用角度，归一化参数使用 `0`–`1` 范围。
+
+| 参数                | 类型                                                                        | 默认值         | 控制内容                                       |
+| ------------------- | --------------------------------------------------------------------------- | -------------- | ---------------------------------------------- |
+| `renderQuality`     | `'auto' \| 'exact' \| ParticleRenderBudget`                                 | `'auto'`       | WebGL 渲染器的分辨率与资源限制                 |
+| `particleSize`      | `'auto' \| number`                                                          | `'auto'`       | 单个粒子的最小边长；数值最小为 `0.25`          |
+| `alphaThreshold`    | `number`                                                                    | `0`            | Alpha 不高于该值的源像素不会生成粒子           |
+| `curve`             | `'settle' \| 'float' \| 'burst' \| 'drift'`                                 | `'settle'`     | 位移、加速与恢复的运动曲线                     |
+| `duration`          | `number`                                                                    | `720`          | 阶段的基础时长                                 |
+| `stagger`           | `number`                                                                    | `180`          | 分配给各粒子的最大额外启动延迟                 |
+| `release`           | `'left' \| 'right' \| 'top' \| 'bottom' \| 'center' \| 'edges' \| 'random'` | `'left'`       | 元素中最先释放粒子的区域                       |
+| `releaseRandomness` | `number`                                                                    | `0.22`         | 所选释放顺序（`0`）与随机顺序（`1`）的混合比例 |
+| `fadeStart`         | `number`                                                                    | 取决于 `curve` | 每个粒子在自身生命周期中开始淡出的时点         |
+| `layoutRelease`     | `number`                                                                    | `0.6`          | 周围布局开始移动前需要释放的粒子比例           |
+| `horizontalDrift`   | `number`                                                                    | `42`           | 添加到每条路径的随机横向偏移                   |
+| `horizontalTravel`  | `readonly [number, number]`                                                 | `[0, 0]`       | 有方向水平位移的最小值与最大值                 |
+| `verticalTravel`    | `readonly [number, number]`                                                 | `[-100, -45]`  | 垂直位移的最小值与最大值；负值表示向上         |
+| `convergence`       | `number`                                                                    | `0`            | 粒子向元素水平中心汇聚的强度                   |
+| `swirl`             | `number`                                                                    | `0`            | 路径上垂直波动的振幅                           |
+| `waveTurns`         | `number`                                                                    | 取决于 `curve` | 路径上的振荡次数                               |
+| `endScale`          | `number`                                                                    | `0.92`         | 删除结束时的粒子缩放比例                       |
+| `rotation`          | `readonly [number, number]`                                                 | `[0, 0]`       | 分配给粒子的最终旋转角度范围                   |
+
+`alphaThreshold`、`convergence`、`releaseRandomness`、`fadeStart` 和 `layoutRelease` 会限制在 `0`–`1`。负数的 `duration`、`stagger`、`horizontalDrift`、`swirl`、`waveTurns` 和 `endScale` 会归零。顺序颠倒的范围端点会自动排序。
+
+### 曲线
+
+| 曲线     | 特点               | 默认 `fadeStart` | 默认 `waveTurns` |
+| -------- | ------------------ | ---------------- | ---------------- |
+| `settle` | 均衡移动并平滑结束 | `0.3`            | `1`              |
+| `float`  | 更柔和的漂浮运动   | `0.3`            | `1.6`            |
+| `burst`  | 更快的初始加速     | `0.12`           | `1`              |
+| `drift`  | 较长的定向运动     | `0.32`           | `1.25`           |
+
+显式设置的 `fadeStart` 和 `waveTurns` 会覆盖曲线默认值。
+
+### 释放顺序
+
+`left`、`right`、`top` 和 `bottom` 从对应边缘开始释放。`center` 从中心向外扩展，`edges` 从外侧向内推进。`random` 不使用几何顺序。`releaseRandomness` 可以在不改变所选方向的情况下，为任何有序模式加入随机性。
+
+### 布局切换
+
+`layoutRelease` 决定删除时 DOM 重排动画何时开始。值为 `0` 时布局可以立即移动；值为 `1` 时会等到所有粒子都已释放。渲染器根据生成的粒子场计算实际 `layoutDelay`，因此它会与 `release` 和 `releaseRandomness` 保持同步。
+
+## 渲染质量
+
+```ts
+type ParticleRenderQuality = 'auto' | 'exact' | ParticleRenderBudget;
+
+interface ParticleRenderBudget {
+  maxSourcePixels: number;
+  maxSourceDimension: number;
+  maxRenderPixels: number;
+}
+```
+
+`auto` 使用以下软件限制：
+
+```ts
+{
+  maxSourcePixels: 2_000_000,
+  maxSourceDimension: 2048,
+  maxRenderPixels: 4_000_000,
+}
+```
+
+`exact` 保留捕获结果的完整分辨率并关闭软件降采样。它无法突破设备的 WebGL 纹理或视口限制；无法支持的表面会通过 `onError` 报告。自定义预算允许应用自行权衡清晰度、内存和 GPU 工作量。
+
+`renderQuality` 只影响 WebGL 渲染器。源 canvas 包含多少像素由捕获适配器独立决定。
+
+## 底层阶段工厂
+
+```ts
+function createParticleAnimation(options?: ParticleOptions): AnimationFactory;
+function createParticleRestoreAnimation(options?: ParticleOptions): AnimationFactory;
+```
+
+`createParticleAnimation()` 创建删除阶段的动画工厂，`createParticleRestoreAnimation()` 创建对应的恢复阶段工厂。手动组合 `EffectDefinition` 时可使用它们；如果两个阶段都使用内置渲染器，优先使用 `createParticleEffect()`。
+
+两个工厂都需要快照。如果 `AnimationContext.snapshot` 为 `null`，它们会返回 `null`，操作随后进入常规的跳过动画回退流程。
+
+## `particlePresets`
+
+```ts
+type BuiltInPreset = 'dust' | 'scatter' | 'vapor' | 'wind';
+
+const particlePresets: Readonly<Record<BuiltInPreset, Readonly<ParticlePreset>>>;
+```
+
+`particlePresets` 只包含深度冻结的视觉配置，不含音频，用于 `createParticleEffect()` 或底层工厂。根入口和 `/snapdom` 导出的 `builtInPresets` 则是可供 `Disintegrator` 使用的完整视觉与音频预设。
+
+## `configureParticleContexts`(limits?)
+
+```ts
+interface ParticleContextLimits {
+  maxContexts?: number;
+  maxIdleContexts?: number;
+}
+
+const applied = configureParticleContexts({
+  maxContexts: 2,
+  maxIdleContexts: 1,
+});
+```
+
+该设置作用于整个页面，通常应在任何效果启动前设置一次。默认最多保留四个活跃 WebGL2 上下文，并最多保留两个空闲上下文供复用。空闲上下文会在 30 秒后释放，超出空闲上限的上下文会立即释放。
+
+`maxContexts` 会规范为不小于 `1` 的整数。`maxIdleContexts` 会规范为非负整数，并且不会超过 `maxContexts`。函数返回当前实际使用的限制。
+
+如果渲染器无法获取上下文，DOM 操作仍会提交，`finished` 以 `status: 'skipped'` 结束，并通过 `onError` 报告失败。

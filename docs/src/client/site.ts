@@ -2,6 +2,7 @@ import { setupThemeSwitcher } from './theme';
 import Disintegrator from '../../../src/snapdom';
 import type { BuiltInPreset, EffectDefinition, EffectOperation, RemovalId, SoundSelection } from '../../../src/types';
 import { createDemoCard } from './demo-card';
+import { setupDisintegratingText } from './disintegrating-text';
 import { mountParticlePlayground, presetNames } from './particle-playground';
 
 type Locale = 'en' | 'ru' | 'zh' | 'ko';
@@ -259,15 +260,17 @@ function setupAnalytics() {
     analyticsWindow.ym(analyticsCounterId, 'init', {
       accurateTrackBounce: true,
       clickmap: true,
+      referrer: document.referrer,
       ssr: true,
       trackHash: true,
       trackLinks: true,
+      url: window.location.href,
       webvisor: true,
     });
     const script = document.createElement('script');
     script.async = true;
     script.dataset.yandexMetrica = '';
-    script.src = 'https://mc.yandex.ru/metrika/tag.js';
+    script.src = `https://mc.webvisor.org/metrika/tag_ww.js?id=${String(analyticsCounterId)}`;
     document.head.append(script);
   };
   const select = (choice: AnalyticsChoice, reload = false) => {
@@ -537,6 +540,18 @@ export function setupSite() {
   setupCodeTabs();
   setupCodeBlocks();
   setupToc();
+
+  const animatedText = document.querySelector<HTMLElement>('[data-disintegrating-text]');
+  const textPlayback = animatedText === null ? null : setupDisintegratingText(animatedText);
+  if (textPlayback !== null) {
+    const cancelOnPageHide = (event: PageTransitionEvent) => {
+      if (!event.persisted) textPlayback.cancel();
+    };
+    window.addEventListener('pagehide', cancelOnPageHide);
+    void textPlayback.ready.catch((error: unknown) =>
+      console.error('The heading animation failed to initialize.', error),
+    );
+  }
 
   const demoRoots = [...document.querySelectorAll<HTMLElement>('[data-demo-root]')];
   const firstDemo = demoRoots[0];

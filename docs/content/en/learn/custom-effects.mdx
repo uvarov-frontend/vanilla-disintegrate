@@ -14,63 +14,80 @@ A custom effect is two animations: one for removing an element, one for putting 
 The playground on the home page generates a complete custom effect with independent particle and sound settings for removal and restoration. For example, this output combines `scatter` removal with `vapor` restoration:
 
 ```ts
-import Disintegrator, { createParticleEffect, type ParticleOptions } from 'vanilla-disintegrate/snapdom';
+import Disintegrator, { createParticleEffect, particlePresets } from 'vanilla-disintegrate/snapdom';
 
-const removeOptions: ParticleOptions = {
-  curve: 'burst',
-  release: 'left',
-  duration: 1100,
-  stagger: 70,
-  horizontalDrift: 42,
-  horizontalTravel: [-125, 125],
-  verticalTravel: [-105, 36],
-  convergence: 0,
-  swirl: 8,
-  endScale: 0.4,
+const sharedSoundOptions = {
+  volume: 0.32,
+  playbackRate: 1,
+  delay: 0,
+  fadeDuration: 0.18,
 };
-
-const restoreOptions: ParticleOptions = {
-  curve: 'float',
-  release: 'top',
-  duration: 750,
-  stagger: 80,
-  horizontalDrift: 80,
-  horizontalTravel: [-10, 10],
-  verticalTravel: [-255, -130],
-  convergence: 0.8,
-  swirl: 5,
-  endScale: 0.6,
-};
-
-export const effect = createParticleEffect({
-  remove: removeOptions,
-  restore: restoreOptions,
-});
 
 export const disintegrator = new Disintegrator({
-  effect,
+  effect: createParticleEffect({
+    remove: particlePresets.scatter,
+    restore: particlePresets.vapor,
+  }),
   sound: {
     remove: {
+      ...sharedSoundOptions,
       src: 'scatter',
       reverse: false,
-      volume: 0.32,
-      playbackRate: 1,
-      delay: 0,
-      fadeDuration: 0.18,
     },
     restore: {
+      ...sharedSoundOptions,
       src: 'vapor',
       reverse: true,
-      volume: 0.32,
-      playbackRate: 1,
-      delay: 0,
-      fadeDuration: 0.18,
     },
   },
 });
 ```
 
 `createParticleEffect()` uses the built-in particle renderer. Configure both phases in the playground, copy the generated code, and use it without writing a Canvas or WebGL renderer. The next section is only needed when you want to implement the rendering itself.
+
+See the [Particle API](/docs/reference/particles/) for every motion option, its default, accepted range, and the low-level phase factories.
+
+## Control particle render quality
+
+`renderQuality` controls the resolution of the built-in WebGL renderer, independently from the capture adapter. The default `auto` mode protects memory and GPU work by limiting the renderer's source texture to 2,000,000 pixels and 2,048 pixels per side, and its expanded animation surface to 4,000,000 pixels.
+
+Use `exact` when preserving the capture's full resolution is more important than those software limits:
+
+```ts
+const exactEffect = createParticleEffect({
+  remove: { ...particlePresets.vapor, renderQuality: 'exact' },
+  restore: { ...particlePresets.scatter, renderQuality: 'exact' },
+});
+```
+
+Or set an explicit budget:
+
+```ts
+const boundedEffect = createParticleEffect({
+  remove: {
+    ...particlePresets.vapor,
+    renderQuality: {
+      maxSourcePixels: 4_000_000,
+      maxSourceDimension: 4096,
+      maxRenderPixels: 8_000_000,
+    },
+  },
+});
+```
+
+`exact` disables software downscaling, but it cannot bypass the device's WebGL texture and viewport limits. An unsupported exact surface is reported through `onError` instead of being silently degraded. Prefer `auto` for unknown or large elements; full resolution grows roughly with the square of the device pixel ratio.
+
+## Raise or lower the WebGL context ceiling
+
+```ts
+import { configureParticleContexts } from 'vanilla-disintegrate/snapdom';
+
+configureParticleContexts({ maxContexts: 2, maxIdleContexts: 1 });
+```
+
+The particle renderer keeps at most 4 WebGL2 contexts alive at once across the whole page, with up to 2 kept warm for reuse after an effect finishes. This ceiling is page-wide rather than per-effect: browsers already cap how many live contexts a page may hold, and asking two effects for different values would leave no single correct answer.
+
+An effect that cannot acquire a context because the page has reached the ceiling follows the same path as a browser with no WebGL2 at all: `remove()` still detaches the element, `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives a generic "did not create an animation" error rather than one naming contention as the cause. Call `configureParticleContexts()` once, before any effect runs, to change the ceiling for the rest of the page's lifetime. Lower it on memory-constrained devices; raise it only up to what the browser itself allows, since exceeding that just moves where contexts get discarded.
 
 ## Build a particle effect from a snapshot
 

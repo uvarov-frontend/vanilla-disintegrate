@@ -4,7 +4,7 @@ description: 配置预设音频、内置音源、本地文件、解码缓冲区�
 locale: zh
 section: reference
 navTitle: 音频
-order: 80
+order: 100
 ---
 
 音频属于完整预设，与自定义视觉效果相互独立。请从点击等用户手势中调用 `remove()` 或 `restore()`，以便库恢复 Web Audio 播放。
@@ -36,6 +36,16 @@ const effects = new Disintegrator({
 
 `remove` 与 `restore` 相互独立。至少要配置一个方向；有意静音的阶段请使用 `false`。
 
+```ts
+type SoundDefinition = SoundOptions | SoundFactory;
+
+type SoundPair =
+  | { remove: SoundDefinition; restore?: SoundDefinition | false }
+  | { remove?: SoundDefinition | false; restore: SoundDefinition };
+
+type SoundSelection = SoundPair;
+```
+
 ## 首次交互前准备
 
 默认情况下，已启用的音频会在浏览器空闲时准备。若就绪时间比首屏工作量更重要，可使用 `immediate`：
@@ -48,6 +58,11 @@ const effects = new Disintegrator({
 ```
 
 `sounds` 字段接收实际声音定义或声音对，而不是视觉效果名称：
+
+```ts
+type SoundPreparationSelection =
+  SoundDefinition | SoundSelection | readonly (false | SoundDefinition | SoundSelection)[];
+```
 
 ```ts
 import { builtInPresets } from 'vanilla-disintegrate';
@@ -105,6 +120,8 @@ import { builtInSounds } from 'vanilla-disintegrate/sounds';
 audioElement.src = builtInSounds.vapor;
 ```
 
+`builtInSounds` 的类型为 `Readonly<Record<BuiltInSound, string>>`。
+
 这些文件保持为已编码、可缓存的资源，不会以 base64 嵌入 JavaScript，也不会被提前解码。
 
 ## 支持的来源与本地文件
@@ -133,6 +150,16 @@ if (file) {
 ## 播放选项
 
 ```ts
+interface SoundOptions {
+  src: SoundSource;
+  reverse?: boolean;
+  volume?: number;
+  duration?: number;
+  fadeDuration?: number;
+  delay?: number;
+  playbackRate?: number;
+}
+
 const sound = {
   src: new URL('/sounds/snap.ogg', location.href),
   volume: 0.35,
@@ -143,7 +170,7 @@ const sound = {
 };
 ```
 
-`volume` 是从 `0` 到 `1` 的线性值。`delay` 使用毫秒，`duration` 与 `fadeDuration` 使用秒，`playbackRate` 默认为 `1`。
+`reverse` 默认为 `false`；线性 `volume` 的范围为 `0` 到 `1`，默认值为 `1`。`delay` 使用毫秒，默认为 `0`。`duration` 与 `fadeDuration` 使用秒：省略时，声音时长跟随视觉动画且不超过源文件长度，淡入淡出默认为 `0`。`playbackRate` 默认为 `1`，最小规范为 `0.01`。
 
 ## 反向播放
 
@@ -159,6 +186,20 @@ const restore = { src: '/sounds/snap.mp3', reverse: true };
 使用工厂接入现有音频引擎：
 
 ```ts
+interface SoundContext {
+  operation: 'remove' | 'restore';
+  element: HTMLElement;
+  signal: AbortSignal;
+}
+
+interface SoundPlayback {
+  finished?: PromiseLike<unknown>;
+  stop?(): void;
+  dispose?(): void;
+}
+
+type SoundFactory = (context: SoundContext) => SoundPlayback | PromiseLike<SoundPlayback | void> | void;
+
 const sound = ({ operation, element, signal }) => {
   const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
   const stop = () => playback.stop();
@@ -175,7 +216,7 @@ const sound = ({ operation, element, signal }) => {
 };
 ```
 
-工厂接收操作、目标元素和中止信号。返回 `stop()` 用于取消，返回 `dispose()` 用于无条件清理。
+工厂接收操作、目标元素和中止信号。`finished` 可以在自定义播放结束后触发提前清理。返回 `stop()` 用于取消，返回 `dispose()` 用于无条件清理。
 
 ## 故障隔离
 

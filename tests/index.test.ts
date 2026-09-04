@@ -134,8 +134,11 @@ describe('public entries', () => {
     expect(Object.isFrozen(particlePresets)).toBe(true);
     expect(Object.isFrozen(particlePresets.dust)).toBe(true);
     expect(Object.isFrozen(particlePresets.dust.horizontalTravel)).toBe(true);
+    expect(Object.isFrozen(particlePresets.dust.rotation)).toBe(true);
     expect(Object.isFrozen(particlePresets.dust.verticalTravel)).toBe(true);
     expect(particlePresets.vapor).toEqual({
+      particleSize: 'auto',
+      alphaThreshold: 0,
       curve: 'float',
       duration: 750,
       stagger: 80,
@@ -145,7 +148,12 @@ describe('public entries', () => {
       convergence: 0.8,
       swirl: 5,
       endScale: 0.6,
+      rotation: [0, 0],
       release: 'top',
+      releaseRandomness: 0.84,
+      fadeStart: 0.3,
+      waveTurns: 1.6,
+      layoutRelease: 0.6,
     });
 
     const effect = createParticleEffect({

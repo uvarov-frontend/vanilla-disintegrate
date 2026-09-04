@@ -9,7 +9,17 @@ order: 70
 
 `Disintegrator` ties together one complete visual configuration, optional audio, capture, layout animation, background preparation, and retained-node storage.
 
-The root and `/snapdom` entries register four complete built-in presets; only `/snapdom` supplies a capture adapter. `/core` provides the lifecycle without built-in presets, particles, sounds, or capture. No entry chooses a default preset.
+## Entry points
+
+| Entry                            | Runtime contents                                                                         | Additional dependency |
+| -------------------------------- | ---------------------------------------------------------------------------------------- | --------------------- |
+| `vanilla-disintegrate/core`      | `Disintegrator`, effect and preset helpers, and all public types                         | None                  |
+| `vanilla-disintegrate/particles` | Particle factories, visual presets, and particle types                                   | None                  |
+| `vanilla-disintegrate/sounds`    | URLs of the four bundled audio files and sound types                                     | None                  |
+| `vanilla-disintegrate`           | `Disintegrator`, all four complete presets, particles, sounds, helpers, and public types | None                  |
+| `vanilla-disintegrate/snapdom`   | The root API with SnapDOM configured as the default capture adapter                      | `@zumer/snapdom`      |
+
+The root and `/snapdom` entries register four complete built-in presets. Only `/snapdom` supplies a capture adapter; `/core` provides the lifecycle without built-in presets, particles, bundled sound files, or capture. No entry chooses a default preset. The [Particles](/docs/reference/particles/), [Capture](/docs/reference/capture/), and [Audio](/docs/reference/audio/) pages document their specialized exports in detail.
 
 ## Constructor
 
@@ -53,6 +63,50 @@ Shared options:
 
 Background snapshot failures report `context.operation === 'prepare'`; operation failures report `remove` or `restore`.
 
+### `LayoutOptions`
+
+Layout animation uses the FLIP technique to move affected elements from their previous positions after a removal.
+
+| Option             | Type                                                            | Default                            | What it does                                                      |
+| ------------------ | --------------------------------------------------------------- | ---------------------------------- | ----------------------------------------------------------------- |
+| `enabled`          | `boolean`                                                       | `true`                             | Enables layout animation without replacing the other defaults     |
+| `duration`         | `number`                                                        | `300`                              | Reflow animation duration in milliseconds                         |
+| `easing`           | `string`                                                        | `'cubic-bezier(0.22, 1, 0.36, 1)'` | CSS timing function passed to WAAPI                               |
+| `container`        | `HTMLElement \| (element) => HTMLElement \| null`               | Target's parent                    | Defines the coordinate space and optional height animation target |
+| `siblings`         | `'following' \| 'all' \| (element, container) => HTMLElement[]` | `'following'`                      | Selects which children participate                                |
+| `animateContainer` | `boolean`                                                       | `true`                             | Animates a changed container height                               |
+
+Passing `layout: false` disables reflow animation. `layout` is used only by `remove()`; restoration animates the inserted element in its final layout. A negative or non-finite `duration` is normalized to a valid non-negative value.
+
+### `PreparationOptions`
+
+| Option               | Type                                      | Default          | What it does                                                          |
+| -------------------- | ----------------------------------------- | ---------------- | --------------------------------------------------------------------- |
+| `strategy`           | `'immediate' \| 'idle' \| 'visible-idle'` | `'visible-idle'` | Chooses when registered elements may be captured                      |
+| `shouldPrepare`      | `(element) => boolean`                    | `() => true`     | Filters elements before scheduling                                    |
+| `root`               | `Element \| Document \| null`             | `null`           | Intersection observer root                                            |
+| `rootMargin`         | `string`                                  | `'300px 0px'`    | Starts visible-idle work before an element enters the viewport        |
+| `concurrency`        | `number`                                  | `1`              | Maximum concurrent captures, normalized to an integer from `1` to `8` |
+| `invalidateOnResize` | `boolean`                                 | `true`           | Invalidates a prepared snapshot when dimensions change                |
+| `observeMutations`   | `boolean`                                 | `false`          | Watches subtree changes and descendant load events                    |
+| `idleTimeout`        | `number`                                  | `750`            | Maximum `requestIdleCallback` wait in milliseconds                    |
+| `fallbackDelay`      | `number`                                  | `250`            | Delay when idle callbacks are unavailable                             |
+| `scrollSettle`       | `number`                                  | `120`            | Quiet period after scrolling before background work                   |
+| `animationSettle`    | `number`                                  | `400`            | Maximum wait for active element animations before capture             |
+| `cachePixelBudget`   | `number`                                  | `8_000_000`      | LRU capacity measured in physical canvas pixels                       |
+
+Passing `preparation: false` disables automatic preparation but does not disable explicit `prepare()` calls. Negative timing and cache-budget values are normalized to zero; non-finite values use their defaults.
+
+### `AudioPreparationOptions`
+
+| Option            | Type                        | Default           | What it does                                            |
+| ----------------- | --------------------------- | ----------------- | ------------------------------------------------------- |
+| `strategy`        | `'immediate' \| 'idle'`     | `'idle'`          | Chooses when native audio is fetched and decoded        |
+| `sounds`          | `SoundPreparationSelection` | Instance sound    | Selects sounds to prepare instead of the instance sound |
+| `cacheByteBudget` | `number`                    | `8 * 1024 * 1024` | Per-instance LRU ownership budget for decoded PCM data  |
+
+Passing `audioPreparation: false` disables automatic work. Explicit audio preparation remains available. A negative cache budget is normalized to zero.
+
 ## Complete presets
 
 ```ts
@@ -77,9 +131,72 @@ const effects = new Disintegrator({
 
 `definePreset()` freezes the preset, visual phases, and native sound option objects without freezing caller-owned binary audio data.
 
+```ts
+const builtInPresets: Readonly<Record<'dust' | 'scatter' | 'vapor' | 'wind', Readonly<PresetDefinition>>>;
+```
+
+`builtInPresets` is exported by the root and `/snapdom` entries. Each value is a complete frozen particle-and-audio preset. The `/particles` entry instead exports `particlePresets`, which contains visual configuration only.
+
+## Custom effect contract
+
+```ts
+import { defineEffect } from 'vanilla-disintegrate/core';
+
+interface EffectPhase {
+  needsSnapshot?: boolean;
+  animate: AnimationFactory;
+}
+
+interface EffectDefinition {
+  remove: EffectPhase;
+  restore: EffectPhase;
+}
+
+const effect = defineEffect({
+  remove: { needsSnapshot: false, animate: removeFactory },
+  restore: { needsSnapshot: false, animate: restoreFactory },
+});
+```
+
+`needsSnapshot` defaults to `true`. `defineEffect()` freezes the effect and both phase objects while preserving their narrow inferred TypeScript type.
+
+The animation factory receives `AnimationContext`:
+
+| Field           | Type                             | Meaning                                                     |
+| --------------- | -------------------------------- | ----------------------------------------------------------- |
+| `operation`     | `'remove' \| 'restore'`          | Active phase                                                |
+| `element`       | `HTMLElement`                    | Original application element                                |
+| `layer`         | `HTMLElement`                    | Empty, positioned overlay owned by the library              |
+| `snapshot`      | `HTMLCanvasElement \| null`      | Raw capture, or `null` for a snapshotless phase             |
+| `visual`        | `HTMLCanvasElement \| null`      | Lazily created full-size copy of `snapshot`                 |
+| `bounds`        | `DOMRectReadOnly`                | Final viewport geometry used by the overlay                 |
+| `signal`        | `AbortSignal`                    | Aborts on cancellation or instance destruction              |
+| `reducedMotion` | `false`                          | Reduced-motion requests are skipped before the factory runs |
+| `random`        | `() => number`                   | Per-operation pseudo-random stream                          |
+| `addCleanup`    | `(callback: () => void) => void` | Registers cleanup for completion, cancellation, and failure |
+
+An `AnimationFactory` may return a Web `Animation`, any `PromiseLike`, an `AnimationPlayback` controller, or `null` to report that no animation could be created.
+
+```ts
+interface AnimationPlayback {
+  finished: PromiseLike<unknown>;
+  element?: HTMLElement;
+  duration?: number;
+  layoutDelay?: number;
+  cancel?(): void;
+  dispose?(): void;
+}
+```
+
+`element` is appended to `layer` when it has no parent. `duration` aligns native audio, `layoutDelay` delays removal reflow, `cancel()` stops playback, and `dispose()` releases renderer resources on every exit path.
+
 ## remove(target, options?)
 
 Detaches the resolved element and returns `EffectOperation` synchronously.
+
+```ts
+remove(target: EffectTarget, options?: RemoveOptions): EffectOperation;
+```
 
 ```ts
 const operation = effects.remove('.card', {
@@ -100,6 +217,10 @@ const operation = effects.remove('.card', {
 Animates a connected, measurable element in its current geometry.
 
 ```ts
+restore(target: EffectTarget, options?: RestoreOptions): EffectOperation;
+```
+
+```ts
 const operation = effects.restore(element, {
   preset: 'scatter',
   sound: false,
@@ -109,6 +230,23 @@ const operation = effects.restore(element, {
 The method throws when the element is detached or has zero width or height.
 
 For either operation, pass one complete `preset`, one custom `effect` with an optional sound definition for that phase, or neither to inherit the instance or retained-node presentation. Inherited or preset audio may only be muted with `sound: false`.
+
+### Operation options
+
+| Option       | Applies to | Meaning                                                                  |
+| ------------ | ---------- | ------------------------------------------------------------------------ |
+| `preset`     | Both       | Selects one registered name or inline complete preset                    |
+| `effect`     | Both       | Selects one complete custom effect; cannot be combined with `preset`     |
+| `sound`      | Both       | Adds a phase sound to an explicit custom effect, or uses `false` to mute |
+| `onTrigger`  | Both       | Adds an operation callback before capture                                |
+| `onStart`    | Both       | Adds an operation callback after the DOM commit                          |
+| `onComplete` | Both       | Adds an operation callback after normal visual completion                |
+| `onError`    | Both       | Adds an isolated error callback                                          |
+| `retain`     | Remove     | Stores the detached original under `operation.removalId`                 |
+| `layout`     | Remove     | Enables or overrides layout animation for this removal                   |
+| `detach`     | Remove     | Replaces the default `element.remove()` commit                           |
+
+Operation callbacks run in addition to instance callbacks. When neither `preset` nor `effect` is supplied, presentation is inherited; inherited and preset sound may be muted but not replaced independently.
 
 ## Retained elements
 
@@ -131,6 +269,8 @@ effects.clearPrepared();
 
 `register()` follows the configured strategy. `prepare()` captures immediately even when background preparation is disabled. Repeated registrations of the same element are reference-counted; every returned unregister function releases only its own registration.
 
+`register()` returns an idempotent `() => void`; `prepare()` returns `Promise<void>`; `invalidate()` and `clearPrepared()` return `void`.
+
 ## Audio preparation
 
 ```ts
@@ -143,6 +283,8 @@ effects.clearPreparedAudio();
 ```
 
 Without an argument, `prepareAudio()` and `discardPreparedAudio()` use the instance's configured sound pair. Explicit methods work even when automatic preparation is disabled. Decoded buffers use a bounded per-instance ownership LRU while fetches, buffers, and `AudioContext` are shared across instances.
+
+`prepareAudio()` returns `Promise<void>`, `discardPreparedAudio()` returns the number of owned decoded entries released, and `clearPreparedAudio()` returns `void`.
 
 ## destroy()
 
@@ -179,3 +321,21 @@ The handle does not expose the element and drops its reference after settlement.
 ## Callbacks and precedence
 
 Instance callbacks run for every operation; operation callbacks run alongside them. Explicit operation presentation wins, then a retained node's remembered presentation, then the instance configuration. A concurrent call for an element already in use resolves as `rejected` after the current owner settles.
+
+```ts
+interface EffectContext {
+  operation: 'remove' | 'restore';
+  element: HTMLElement;
+  overlay: HTMLElement | null;
+  removalId: RemovalId | null;
+}
+
+interface EffectErrorContext {
+  operation: 'remove' | 'restore' | 'prepare';
+  element: HTMLElement;
+  overlay: HTMLElement | null;
+  removalId: RemovalId | null;
+}
+```
+
+`onTrigger` runs after validation and measurement but before capture and the DOM commit. Its `overlay` is `null`. `onStart` runs after the content action commits and visual playback begins. `onComplete` runs only after normal visual and layout completion. `onError` receives failures from preparation, capture, animation, audio, cleanup, and application callbacks without allowing them to interrupt required DOM work or cleanup.

@@ -4,7 +4,7 @@ description: 프리셋 오디오, 내장 소스, 로컬 파일, 디코딩 버퍼
 locale: ko
 section: reference
 navTitle: 오디오
-order: 80
+order: 100
 ---
 
 오디오는 완성된 프리셋의 일부이며 사용자 시각 효과와는 독립적입니다. 라이브러리가 Web Audio 재생을 재개할 수 있도록 클릭 같은 사용자 동작에서 `remove()` 또는 `restore()`를 호출하세요.
@@ -36,6 +36,16 @@ const effects = new Disintegrator({
 
 `remove`와 `restore`는 독립적입니다. 하나 이상을 설정해야 하며, 의도적으로 무음인 단계에는 `false`를 사용합니다.
 
+```ts
+type SoundDefinition = SoundOptions | SoundFactory;
+
+type SoundPair =
+  | { remove: SoundDefinition; restore?: SoundDefinition | false }
+  | { remove?: SoundDefinition | false; restore: SoundDefinition };
+
+type SoundSelection = SoundPair;
+```
+
 ## 첫 상호작용 전에 준비
 
 활성 오디오는 기본적으로 브라우저 유휴 시간에 준비됩니다. 초기 작업량보다 즉시 준비되는 것이 중요하면 `immediate`를 사용하세요.
@@ -48,6 +58,11 @@ const effects = new Disintegrator({
 ```
 
 `sounds` 필드는 시각 효과 이름이 아니라 실제 사운드 정의나 사운드 쌍을 받습니다.
+
+```ts
+type SoundPreparationSelection =
+  SoundDefinition | SoundSelection | readonly (false | SoundDefinition | SoundSelection)[];
+```
 
 ```ts
 import { builtInPresets } from 'vanilla-disintegrate';
@@ -105,6 +120,8 @@ import { builtInSounds } from 'vanilla-disintegrate/sounds';
 audioElement.src = builtInSounds.vapor;
 ```
 
+`builtInSounds`의 타입은 `Readonly<Record<BuiltInSound, string>>`입니다.
+
 파일은 인코딩되고 캐시 가능한 애셋으로 유지됩니다. base64로 JavaScript에 포함하거나 미리 디코딩하지 않습니다.
 
 ## 지원 소스와 로컬 파일
@@ -133,6 +150,16 @@ if (file) {
 ## 재생 옵션
 
 ```ts
+interface SoundOptions {
+  src: SoundSource;
+  reverse?: boolean;
+  volume?: number;
+  duration?: number;
+  fadeDuration?: number;
+  delay?: number;
+  playbackRate?: number;
+}
+
 const sound = {
   src: new URL('/sounds/snap.ogg', location.href),
   volume: 0.35,
@@ -143,7 +170,7 @@ const sound = {
 };
 ```
 
-`volume`은 `0`에서 `1` 사이의 선형 값입니다. `delay`는 밀리초, `duration`과 `fadeDuration`은 초 단위이며 `playbackRate` 기본값은 `1`입니다.
+`reverse`의 기본값은 `false`이며 선형 `volume`은 `0`에서 `1` 사이이고 기본값은 `1`입니다. `delay`는 밀리초 단위이며 기본값은 `0`입니다. `duration`과 `fadeDuration`은 초 단위입니다. 재생 시간을 생략하면 원본 길이를 넘지 않는 범위에서 시각 효과를 따르고 페이드는 기본적으로 `0`입니다. `playbackRate` 기본값은 `1`이며 최소 `0.01`로 정규화됩니다.
 
 ## 역재생
 
@@ -159,6 +186,20 @@ const restore = { src: '/sounds/snap.mp3', reverse: true };
 팩토리로 기존 오디오 엔진을 연결할 수 있습니다.
 
 ```ts
+interface SoundContext {
+  operation: 'remove' | 'restore';
+  element: HTMLElement;
+  signal: AbortSignal;
+}
+
+interface SoundPlayback {
+  finished?: PromiseLike<unknown>;
+  stop?(): void;
+  dispose?(): void;
+}
+
+type SoundFactory = (context: SoundContext) => SoundPlayback | PromiseLike<SoundPlayback | void> | void;
+
 const sound = ({ operation, element, signal }) => {
   const playback = audioEngine.play(operation === 'remove' ? 'card-out' : 'card-in');
   const stop = () => playback.stop();
@@ -175,7 +216,7 @@ const sound = ({ operation, element, signal }) => {
 };
 ```
 
-팩토리는 작업, 대상 요소와 중단 신호를 받습니다. 취소에는 `stop()`, 항상 실행할 정리에는 `dispose()`를 반환하세요.
+팩토리는 작업, 대상 요소와 중단 신호를 받습니다. `finished`는 사용자 재생이 끝난 뒤 조기 정리를 요청할 수 있습니다. 취소에는 `stop()`, 항상 실행할 정리에는 `dispose()`를 반환하세요.
 
 ## 오류 격리
 

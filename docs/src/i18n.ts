@@ -33,6 +33,10 @@ export interface UiCopy {
     readonly documentTitle: string;
     readonly title: string;
     readonly accent: string;
+    readonly headingRemoveHint: string;
+    readonly headingRestoreHint: string;
+    readonly headingRemoveEffect: string;
+    readonly headingRestoreEffect: string;
     readonly description: string;
     readonly descriptionHighlight: string;
     readonly tryLabel: string;
@@ -84,11 +88,15 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     },
     home: {
       documentTitle: 'Vanilla Disintegrate · Particle effects for removing and restoring DOM elements',
-      title: 'Animate DOM removal',
-      accent: 'and restoration',
+      title: 'Modern, striking,',
+      accent: 'versatile, and CSS-free',
+      headingRemoveHint: 'Click to scatter!',
+      headingRestoreHint: 'Click to reverse!',
+      headingRemoveEffect: 'Play the Thanos snap and remove the highlighted word',
+      headingRestoreEffect: 'Reverse the snap and restore the highlighted word',
       description:
-        'A lightweight TypeScript library for removing and restoring DOM elements with particle animations inspired by the recognizable Thanos snap effect. It works with plain JavaScript and any framework without requiring runtime CSS.',
-      descriptionHighlight: 'Thanos snap effect',
+        'A TypeScript library for animated removal and restoration of DOM elements, with built-in GPU-accelerated WebGL2 particle effects inspired by the famous Thanos snap. Compatible with native JavaScript and any framework.',
+      descriptionHighlight: 'Thanos snap',
       tryLabel: 'Build an effect in the playground',
       playgroundKicker: 'Interactive playground',
       playgroundTitle: 'Create your effect',
@@ -131,11 +139,15 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     },
     home: {
       documentTitle: 'Vanilla Disintegrate · Анимации удаления и восстановления DOM-элементов',
-      title: 'Анимируйте удаление',
-      accent: 'и восстановление DOM-элементов',
+      title: 'Современная, эффектная,',
+      accent: 'универсальная и без CSS-зависимостей',
+      headingRemoveHint: 'Щёлкните, чтобы развеять!',
+      headingRestoreHint: 'Нажмите, чтобы обратить!',
+      headingRemoveEffect: 'Щёлкнуть перчаткой и удалить выделенное слово',
+      headingRestoreEffect: 'Обратить время и восстановить выделенное слово',
       description:
-        'Лёгкая TypeScript-библиотека для удаления и восстановления DOM-элементов с помощью анимаций частиц, вдохновлённых узнаваемым эффектом «щелчка Таноса». Она работает с обычным JavaScript и любым фреймворком без подключения CSS.',
-      descriptionHighlight: '«щелчка Таноса»',
+        'TypeScript-библиотека для анимированного удаления и восстановления DOM-элементов со встроенными GPU-ускоренными эффектами частиц на WebGL2, вдохновлёнными знаменитым «щелчком Таноса». Совместима с нативным JavaScript и любым фреймворком.',
+      descriptionHighlight: '«щелчком Таноса»',
       tryLabel: 'Соберите эффект в плейграунде',
       playgroundKicker: 'Интерактивный плейграунд',
       playgroundTitle: 'Создайте свой эффект',
@@ -178,11 +190,15 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     },
     home: {
       documentTitle: 'Vanilla Disintegrate · DOM 元素删除与恢复粒子动画',
-      title: '为 DOM 元素制作',
-      accent: '删除与恢复动画',
+      title: '现代、惊艳、',
+      accent: '通用，无需 CSS 依赖',
+      headingRemoveHint: '点击以消散！',
+      headingRestoreHint: '点击以逆转！',
+      headingRemoveEffect: '播放灭霸响指并移除高亮词语',
+      headingRestoreEffect: '逆转响指并恢复高亮词语',
       description:
-        '一个轻量级 TypeScript 库，通过受经典灭霸响指效果启发的粒子动画来删除和恢复 DOM 元素。它适用于原生 JavaScript 和任何框架，无需运行时 CSS。',
-      descriptionHighlight: '灭霸响指效果',
+        '一个用于为 DOM 元素的删除与恢复添加动画的 TypeScript 库，内置受著名灭霸响指启发的 WebGL2 GPU 加速粒子效果。兼容原生 JavaScript 和任何框架。',
+      descriptionHighlight: '灭霸响指',
       tryLabel: '在游乐场中构建效果',
       playgroundKicker: '交互式游乐场',
       playgroundTitle: '创建你的效果',
@@ -223,11 +239,15 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
     },
     home: {
       documentTitle: 'Vanilla Disintegrate · DOM 삭제 및 복원 파티클 애니메이션',
-      title: 'DOM 요소의 삭제와',
-      accent: '복원을 애니메이션으로',
+      title: '현대적이고 인상적이며,',
+      accent: '범용적이고 CSS 의존성이 없습니다',
+      headingRemoveHint: '클릭하여 흩날리기!',
+      headingRestoreHint: '클릭하여 되돌리기!',
+      headingRemoveEffect: '타노스 스냅으로 강조된 단어 제거',
+      headingRestoreEffect: '시간을 되돌려 강조된 단어 복원',
       description:
-        '익숙한 타노스 스냅 효과에서 영감을 받은 파티클 애니메이션으로 DOM 요소를 삭제하고 복원하는 가벼운 TypeScript 라이브러리입니다. 순수 JavaScript와 모든 프레임워크에서 런타임 CSS 없이 사용할 수 있습니다.',
-      descriptionHighlight: '타노스 스냅 효과',
+        'DOM 요소의 삭제와 복원을 애니메이션으로 구현하는 TypeScript 라이브러리입니다. 유명한 타노스 스냅에서 영감을 받은 WebGL2 기반 GPU 가속 파티클 효과를 내장하며, 순수 JavaScript와 모든 프레임워크를 지원합니다.',
+      descriptionHighlight: '타노스 스냅',
       tryLabel: '플레이그라운드에서 효과 만들기',
       playgroundKicker: '인터랙티브 플레이그라운드',
       playgroundTitle: '나만의 효과를 만드세요',

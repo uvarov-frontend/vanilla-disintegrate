@@ -1,0 +1,39 @@
+---
+interface Props {
+  readonly text: string;
+  readonly words: readonly string[];
+}
+
+const { text, words } = Astro.props;
+
+if (words.length === 0 || words.some((word) => word.length === 0)) {
+  throw new TypeError('Animated words cannot be empty.');
+}
+
+const segments: { animated: boolean; text: string }[] = [];
+let offset = 0;
+for (const word of words) {
+  const start = text.indexOf(word, offset);
+  if (start < 0) throw new Error(`Cannot find animated word ${JSON.stringify(word)} in ${JSON.stringify(text)}.`);
+  if (start > offset) segments.push({ animated: false, text: text.slice(offset, start) });
+  segments.push({ animated: true, text: word });
+  offset = start + word.length;
+}
+if (offset < text.length) segments.push({ animated: false, text: text.slice(offset) });
+---
+
+<span class="disintegrating-text-line" aria-hidden="true"
+  >{
+    segments.map((segment) =>
+      segment.animated ? (
+        <span class="disintegrating-text-word" data-disintegrating-text-word data-placeholder={segment.text}>
+          <span class="disintegrating-text-shaped" data-disintegrating-text-shaped>
+            {segment.text}
+          </span>
+        </span>
+      ) : (
+        segment.text
+      ),
+    )
+  }</span
+>

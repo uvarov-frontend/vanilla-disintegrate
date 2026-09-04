@@ -1,0 +1,119 @@
+---
+title: 캡처 API
+description: DOM-to-Canvas 어댑터를 만들거나 제공되는 SnapDOM 통합을 설정합니다.
+locale: ko
+section: reference
+navTitle: 캡처
+order: 90
+---
+
+스냅샷 기반 효과는 교체 가능한 `SnapshotCapture` 어댑터를 통해 픽셀을 받습니다. 코어 라이브러리는 특정 DOM-to-Canvas 엔진에 의존하지 않습니다. 루트 엔트리는 사용자 어댑터를 받고, `/snapdom`은 바로 사용할 수 있는 어댑터를 제공합니다.
+
+## `SnapshotCapture`
+
+```ts
+type SnapshotCapture = (
+  element: HTMLElement,
+  context: SnapshotCaptureContext,
+) => HTMLCanvasElement | Promise<HTMLCanvasElement>;
+
+interface SnapshotCaptureContext {
+  operation: 'remove' | 'restore' | 'prepare';
+  signal: AbortSignal;
+  restoreRootOpacity?: string;
+}
+```
+
+어댑터는 `element`의 현재 시각적 표현이 담긴 canvas를 반환해야 합니다. canvas의 픽셀 크기가 원본 해상도를 정합니다. 라이브러리는 요소의 CSS 경계를 별도로 측정하고 그 위에 애니메이션 오버레이를 배치합니다.
+
+| 컨텍스트 필드        | 의미                                                                         |
+| -------------------- | ---------------------------------------------------------------------------- |
+| `operation`          | 백그라운드 캡처에서는 `prepare`, 그 외에는 현재 `remove` 또는 `restore` 작업 |
+| `signal`             | 준비, 작업 또는 소유 인스턴스가 취소될 때 중단됨                             |
+| `restoreRootOpacity` | `restore()`가 실제 요소를 일시적으로 감추기 전 루트의 계산된 opacity         |
+
+비용이 큰 작업 전에 `signal.aborted`를 확인하고, 기반 엔진이 취소를 지원하면 즉시 중단하세요. 복원 시에는 일시적으로 감춰진 상태가 캡처되지 않도록 캡처 루트에 `restoreRootOpacity`를 적용하세요.
+
+```ts
+import Disintegrator, { type SnapshotCapture } from 'vanilla-disintegrate';
+
+const capture: SnapshotCapture = async (element, context) => {
+  if (context.signal.aborted) {
+    throw new DOMException('Capture aborted.', 'AbortError');
+  }
+
+  return captureWithMyEngine(element, {
+    signal: context.signal,
+    rootOpacity: context.restoreRootOpacity,
+  });
+};
+
+const effects = new Disintegrator({
+  preset: 'dust',
+  capture,
+});
+```
+
+DOM, SVG, CSS, WAAPI 또는 원본 픽셀이 필요 없는 다른 렌더러를 사용하는 사용자 효과 단계에는 `needsSnapshot: false`를 지정하세요. 두 단계 모두 스냅샷이 필요 없다면 `/core` 엔트리를 사용해 캡처와 파티클 의존성을 완전히 제외할 수 있습니다.
+
+## `createSnapdomCapture`(options?)
+
+```ts
+import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
+
+const capture = createSnapdomCapture({
+  dpr: 2,
+  filter: (node) => !(node instanceof Element) || !node.matches('[data-capture-ignore]'),
+});
+
+const effects = new Disintegrator({ preset: 'dust', capture });
+```
+
+SnapDOM 기반 `SnapshotCapture`를 반환합니다. `options`는 SnapDOM이 내보내는 `SnapdomOptions` 타입을 사용합니다. 호출자가 지정한 값은 다음 통합 기본값보다 우선합니다.
+
+```ts
+{
+  embedFonts: true,
+  fast: true,
+  filterMode: 'remove',
+  outerShadows: false,
+  outerTransforms: true,
+  reconcile: true,
+  scale: 1,
+  dpr: Math.min(Math.max(devicePixelRatio, 1), 2),
+}
+```
+
+`clip`을 지정하지 않으면 어댑터가 요소의 현재 문서 경계로 캡처 영역을 제한합니다. 정상적으로 로드되지 않은 이미지는 제외되며, 사용자 `filter`는 이 검사와 함께 적용됩니다. 복원 시에는 루트가 일시적으로 감춰지기 전의 opacity를 보존합니다.
+
+SnapDOM은 진행 중인 캡처의 취소 기능을 제공하지 않습니다. 어댑터는 시작 전에 이미 중단된 작업을 거부하지만, 렌더링이 시작된 뒤에는 `signal`로 SnapDOM을 중단할 수 없습니다.
+
+## /snapdom 생성자
+
+```ts
+import Disintegrator from 'vanilla-disintegrate/snapdom';
+
+type SnapdomDisintegratorOptions = DisintegratorOptions & {
+  snapdom?: SnapdomOptions;
+};
+
+const effects = new Disintegrator({
+  preset: 'vapor',
+  snapdom: { dpr: 1.5 },
+});
+```
+
+`snapdom`은 자동 생성된 어댑터에 옵션을 전달합니다. `capture`를 직접 제공하면 해당 어댑터를 완전히 대체하며, 이때 `snapdom`은 아무 효과가 없습니다.
+
+루트 `vanilla-disintegrate` 엔트리는 SnapDOM을 가져오지 않으며, 선택한 효과 단계에 스냅샷이 필요할 때만 `capture`를 요구합니다.
+
+## 캡처 해상도와 렌더링 품질
+
+캡처와 렌더링은 별개의 단계입니다.
+
+1. 캡처 어댑터가 원본 canvas를 만들고 픽셀 밀도를 선택합니다.
+2. 파티클 렌더러가 원본을 WebGL 텍스처와 확장 애니메이션 표면으로 바꿀 때 `renderQuality`를 적용합니다.
+
+`renderQuality`를 높여도 캡처 canvas에 없는 세부 정보를 복구할 수 없습니다. 캡처 DPR을 높이면 원본 픽셀이 늘어나므로 캡처 시간, 메모리 사용량, 텍스처 업로드 비용과 경우에 따라 파티클 준비 비용도 증가합니다.
+
+어떤 DOM-to-Canvas 엔진도 브라우저가 그린 모든 픽셀을 그대로 재현한다고 보장할 수 없습니다. 텍스트 래스터화, 브라우저 확대, 필터, 임베디드 콘텐츠, 교차 출처 리소스의 알려진 차이는 제한 사항 문서를 참고하세요.

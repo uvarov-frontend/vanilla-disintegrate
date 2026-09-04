@@ -119,6 +119,8 @@ const effects = new Disintegrator({
 
 传入的函数会完全替代截图行为。此路径请导入根入口 `vanilla-disintegrate`：它没有强制运行时依赖。`@zumer/snapdom` 是仅供 `/snapdom` 入口使用的可选 peer 依赖，因此 SnapDOM 不会进入这里的模块图。
 
+适配器上下文、取消契约和 `createSnapdomCapture()` 默认值请参阅[捕获 API](/zh/docs/reference/capture/)。
+
 ## 本地或通过 CDN 引入
 
 如果想在不使用构建工具或包管理器的情况下快速集成 Vanilla Disintegrate，可以通过 CDN 引入，或[下载包含最新版本的压缩包](https://cdn.jsdelivr.net/npm/vanilla-disintegrate@latest/vanilla-disintegrate-iife.zip)在本地使用。
@@ -142,15 +144,3 @@ IIFE 构建已包含 SnapDOM，并全局暴露 `VanillaDisintegrate`：
 ```ts
 effects.destroy();
 ```
-
-## 浏览器支持
-
-运行时以 ES2020 格式输出，并依赖 Canvas、Web Animations（`Animation.finished` 与 `Element.getAnimations()`）、`AbortController` 和 `requestAnimationFrame`。内置预设使用库自带的 **WebGL2** 粒子渲染器；自定义效果可以使用任何合适的动画引擎。综合 API 最低基线为 <strong>Chrome 84+</strong>、<strong>Firefox 75+</strong>、<strong>Edge 84+</strong>、<strong>Opera 70+</strong> 与 <strong>Safari 15+</strong>。<strong>Chrome for Android 84+</strong> 和 <strong>iOS Safari 15+</strong> 适用同一基线。不包含 polyfill。
-
-在缺少 WebGL2 或无法创建上下文时，内置预设的视觉效果会降级而不是报错：`remove()` 仍会移除元素，`restore()` 仍会显示元素，操作以 `skipped` 状态结束，原因通过 `onError` 传出。基于 WAAPI、CSS 或 Canvas 2D 的自定义效果在旧引擎上照常播放。
-
-这些版本是 API 兼容性的最低基线，并不保证每个 GPU、驱动程序或浏览器设置都允许创建 WebGL2 上下文。
-
-每个并发运行的内置预设视觉效果会租用一个 WebGL2 上下文。操作结束时，其纹理会被删除，上下文则返回文档级资源池。资源池最多保留两个空闲上下文 30 秒，多余上下文会立即销毁，并在 `pagehide` 时释放全部资源。
-
-只在浏览器中创建 `Disintegrator`，不要在服务端渲染期间创建。跨域图片、字体与样式表必须允许 CORS，或通过捕获适配器的代理选项加载，否则可能不会出现在 Canvas 快照中。
