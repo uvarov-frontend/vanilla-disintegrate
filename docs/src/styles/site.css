@@ -1440,8 +1440,10 @@ code {
   margin: 0;
   font-size: clamp(3.5rem, 7vw, 6.35rem);
   font-weight: 780;
+  hyphens: manual;
   letter-spacing: -0.025em;
   line-height: 0.98;
+  overflow-wrap: break-word;
 }
 
 .hero-heading-trigger {

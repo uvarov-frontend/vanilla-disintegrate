@@ -107,6 +107,8 @@ test('animates two localized heading words only after the visitor uses the snap 
     const heading = page.locator('[data-disintegrating-text]');
     await expect(heading).toHaveAccessibleName(variant.label);
     await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'reduced-motion');
+    await expect(heading).toHaveCSS('hyphens', 'manual');
+    await expect(heading).toHaveCSS('overflow-wrap', 'break-word');
     await expect(heading.locator('.disintegrating-text-line')).toHaveText(variant.title);
     const word = heading.locator('[data-disintegrating-text-word]');
     await expect(word).toHaveCount(2);
