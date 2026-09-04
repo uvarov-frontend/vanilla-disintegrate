@@ -304,6 +304,60 @@
   line-height: 1.75;
 }
 
+/* The opening statement of the docs, so it is set as a lead rather than as a
+   note: near-white text, a wider measure, and an accent rule instead of a label
+   column that was mostly empty space. */
+.library-overview {
+  position: relative;
+  margin: 34px 0 48px;
+  padding: 26px 30px 26px 28px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent-bright);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 0 0, rgb(var(--accent-rgb) / 10%), transparent 20rem), rgb(var(--surface-low-rgb) / 72%);
+  /* Real typography rather than the browser defaults: old-style figures sit on
+     the x-height beside lowercase, and the ligature and kerning pairs are what
+     the face was drawn with. */
+  font-feature-settings:
+    'kern' 1,
+    'liga' 1,
+    'onum' 1;
+  text-wrap: pretty;
+  hanging-punctuation: first last;
+}
+
+/* One step below the accents rather than level with them: at the same colour the
+   only thing separating bold from regular was weight, and the two ran together. */
+.library-overview p {
+  margin: 0;
+  color: var(--text-soft);
+  font-size: 16.5px;
+  letter-spacing: -0.003em;
+  line-height: 1.7;
+}
+
+.library-overview p + p {
+  margin-top: 15px;
+}
+
+/* The anchors a reader scans for before reading the sentence around them. */
+.library-overview strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+@media (max-width: 620px) {
+  .library-overview {
+    padding: 20px 18px 20px 17px;
+  }
+
+  .library-overview p {
+    font-size: 15.5px;
+  }
+}
+
 .bundle-size-panel {
   width: 100%;
   max-width: 880px;

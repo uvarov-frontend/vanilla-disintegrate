@@ -142,15 +142,3 @@ Call `destroy()` when the owning view or application is permanently disposed. It
 ```ts
 effects.destroy();
 ```
-
-## Browser support
-
-The runtime is emitted as ES2020 and relies on Canvas, Web Animations (`Animation.finished` and `Element.getAnimations()`), `AbortController`, and `requestAnimationFrame`. The built-in presets use the library's **WebGL2** particle renderer; custom effects can use any suitable animation engine. The combined API baseline is <strong>Chrome 84+</strong>, <strong>Firefox 75+</strong>, <strong>Edge 84+</strong>, <strong>Opera 70+</strong>, and <strong>Safari 15+</strong>. The same baseline applies to <strong>Chrome for Android 84+</strong> and <strong>iOS Safari 15+</strong>. No polyfills are included.
-
-Where WebGL2 is missing or a context cannot be created, built-in preset visuals degrade instead of failing: `remove()` still detaches the element, `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives the reason. Custom effects built on WAAPI, CSS, or Canvas 2D keep animating on older engines.
-
-These versions are API compatibility baselines, not a guarantee that every GPU, driver, or browser setting allows WebGL2 context creation.
-
-Each concurrently running built-in preset visual leases one WebGL2 context. When an operation ends, its textures are deleted and the context returns to a document-scoped pool. The pool retains at most two idle contexts for up to 30 seconds, destroys excess contexts immediately, and releases everything on `pagehide`.
-
-Create `Disintegrator` only in the browser, not during server rendering. Cross-origin images, fonts, and stylesheets must allow CORS or use the capture adapter's proxy option; otherwise they may be absent from the canvas snapshot.

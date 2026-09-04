@@ -14,63 +14,78 @@ order: 60
 主页上的游乐场会生成完整的自定义效果，并为删除与恢复分别设置粒子和声音。例如，以下代码组合了 `scatter` 删除和 `vapor` 恢复：
 
 ```ts
-import Disintegrator, { createParticleEffect, type ParticleOptions } from 'vanilla-disintegrate/snapdom';
+import Disintegrator, { createParticleEffect, particlePresets } from 'vanilla-disintegrate/snapdom';
 
-const removeOptions: ParticleOptions = {
-  curve: 'burst',
-  release: 'left',
-  duration: 1100,
-  stagger: 70,
-  horizontalDrift: 42,
-  horizontalTravel: [-125, 125],
-  verticalTravel: [-105, 36],
-  convergence: 0,
-  swirl: 8,
-  endScale: 0.4,
+const sharedSoundOptions = {
+  volume: 0.32,
+  playbackRate: 1,
+  delay: 0,
+  fadeDuration: 0.18,
 };
-
-const restoreOptions: ParticleOptions = {
-  curve: 'float',
-  release: 'top',
-  duration: 750,
-  stagger: 80,
-  horizontalDrift: 80,
-  horizontalTravel: [-10, 10],
-  verticalTravel: [-255, -130],
-  convergence: 0.8,
-  swirl: 5,
-  endScale: 0.6,
-};
-
-export const effect = createParticleEffect({
-  remove: removeOptions,
-  restore: restoreOptions,
-});
 
 export const disintegrator = new Disintegrator({
-  effect,
+  effect: createParticleEffect({
+    remove: particlePresets.scatter,
+    restore: particlePresets.vapor,
+  }),
   sound: {
     remove: {
+      ...sharedSoundOptions,
       src: 'scatter',
       reverse: false,
-      volume: 0.32,
-      playbackRate: 1,
-      delay: 0,
-      fadeDuration: 0.18,
     },
     restore: {
+      ...sharedSoundOptions,
       src: 'vapor',
       reverse: true,
-      volume: 0.32,
-      playbackRate: 1,
-      delay: 0,
-      fadeDuration: 0.18,
     },
   },
 });
 ```
 
 `createParticleEffect()` 使用内置粒子渲染器。在游乐场中配置两个阶段并复制生成的代码，无需自行编写 Canvas 或 WebGL 渲染器。只有在需要实现渲染过程本身时，才需要阅读下一节。
+
+## 控制粒子渲染质量
+
+`renderQuality` 独立于捕获适配器，用来控制内置 WebGL 渲染器的分辨率。默认的 `auto` 模式会限制内存和 GPU 开销：渲染器的源纹理最多包含 2,000,000 个像素，单边最多 2,048 像素；扩展动画表面最多包含 4,000,000 个像素。
+
+如果保留捕获快照的完整分辨率比这些软件限制更重要，请使用 `exact`：
+
+```ts
+const exactEffect = createParticleEffect({
+  remove: { ...particlePresets.vapor, renderQuality: 'exact' },
+  restore: { ...particlePresets.scatter, renderQuality: 'exact' },
+});
+```
+
+也可以自行设置预算：
+
+```ts
+const boundedEffect = createParticleEffect({
+  remove: {
+    ...particlePresets.vapor,
+    renderQuality: {
+      maxSourcePixels: 4_000_000,
+      maxSourceDimension: 4096,
+      maxRenderPixels: 8_000_000,
+    },
+  },
+});
+```
+
+`exact` 会关闭软件降采样，但无法绕过设备的 WebGL 纹理和视口限制。如果设备无法创建所需的精确表面，错误会通过 `onError` 报告，而不会静默降低质量。对于尺寸未知或较大的元素，建议使用 `auto`；完整分辨率的开销大致随 device pixel ratio 的平方增长。
+
+## 调整 WebGL 上下文上限
+
+```ts
+import { configureParticleContexts } from 'vanilla-disintegrate/snapdom';
+
+configureParticleContexts({ maxContexts: 2, maxIdleContexts: 1 });
+```
+
+粒子渲染器在整个页面范围内最多同时保留 4 个 WebGL2 上下文，其中最多 2 个会在效果结束后保温以便复用。这个上限是整页共享的，而不是按每个效果单独设置：浏览器本身就限制了一个页面能保留多少活跃上下文，若两个效果各自要求不同的值，也不存在唯一正确的答案。
+
+因页面已达上限而无法获取上下文的效果，走的是与设备完全没有 WebGL2 时相同的路径：`remove()` 仍会移除元素，`restore()` 仍会显示元素，操作以 `skipped` 状态结束，但 `onError` 收到的是笼统的"未创建动画"错误，并不会指出真正原因是上下文竞争。在任何效果运行之前调用一次 `configureParticleContexts()`，即可在页面的整个生命周期内更改这个上限。在内存受限的设备上调低它；调高时不要超过浏览器自身允许的范围，否则只是把上下文被丢弃的位置往后移。
 
 ## 使用快照构建粒子效果
 

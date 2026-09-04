@@ -1,0 +1,96 @@
+---
+title: Limitations and considerations
+description: Learn where DOM snapshots can differ, how quality affects resource use, and which browsers the library supports.
+locale: en
+section: learn
+navTitle: Limitations
+order: 70
+---
+
+Vanilla Disintegrate is built on browser APIs and cannot guarantee identical results for every kind of DOM content, browser, and device. This page covers the limitations to consider when choosing an effect and tuning performance.
+
+## A snapshot is not a pixel-perfect copy of the DOM
+
+The built-in particle effects animate **a Canvas snapshot of an element, not its actual DOM nodes**. As of 2026, the web platform does not provide a stable, broadly supported API for directly copying the already-rendered pixels of an individual DOM element. A capture engine must therefore reproduce the element's appearance.
+
+The `vanilla-disintegrate/snapdom` entry uses SnapDOM. It transfers an element's content and styles into SVG, which the browser then converts to Canvas. This second rasterization can differ from the original DOM in:
+
+- text antialiasing and weight;
+- subpixel edge positioning;
+- shadows, filters, masks, and transforms;
+- results at non-default page zoom or a fractional `devicePixelRatio`;
+- behavior across browser engines.
+
+The difference is usually barely noticeable when animating cards, images, and other large elements, but it can be visible on individual glyphs, thin lines, and other content where pixel-level accuracy matters.
+
+## What `renderQuality: 'exact'` does
+
+The `exact` mode disables adaptive resolution reduction inside the particle renderer. It preserves the detail already present in a snapshot, but **does not make the DOM snapshot itself more accurate** or correct differences in text rasterization.
+
+In other words, `exact` controls the quality of subsequent rendering, not the accuracy of the original capture.
+
+## The capture engine is replaceable
+
+The IIFE bundle uses SnapDOM as its ready-made capture adapter. Performance was one consideration behind this choice: as of 2026, the [comparative benchmarks published by the project](https://github.com/zumerlab/snapdom#performance-benchmarks) show **low capture latency for DOM elements of varying complexity**. Actual speed depends on the content, browser, and device, and the choice of capture engine does not remove browser rasterization limitations.
+
+The `capture` option accepts any adapter capable of returning a `<canvas>`, so a project **can use another engine or a custom implementation**.
+
+Nevertheless, neither SnapDOM nor the other DOM-to-Canvas solutions available at that point guarantee pixel-perfect results for every kind of content. Engines handle text, images, SVG, form controls, pseudo-elements, and browser effects differently.
+
+## Dynamic content
+
+**A snapshot records the state of an element at a specific moment.** Later changes to its DOM, styles, dimensions, or loaded resources are not reflected in that snapshot.
+
+Before capturing an element, it is best to wait for:
+
+- the fonts it uses to load;
+- its images to decode;
+- transitions and temporary animations to finish;
+- its final dimensions to be calculated.
+
+Prepared snapshots make the first effect start faster, but they can become stale when an element changes. By default, the library invalidates the cache when dimensions change, but it does not observe the entire DOM subtree. After a meaningful content update, call `invalidate()` or enable `observeMutations` when the additional observation cost is justified.
+
+## WebGL2 limitations
+
+**Only the built-in particle effects require WebGL2.** The library core and custom effects can use the **Web Animations API, Canvas 2D, CSS, or a custom renderer**.
+
+If WebGL2 is unavailable or the browser cannot create a context, **the DOM operation still takes place**, but the visual effect resolves with a `skipped` status and the reason is passed to `onError`.
+
+Every concurrently running built-in effect uses one WebGL2 context. The library reuses contexts after an effect finishes and limits the size of the shared pool, although a browser, GPU, or driver may impose a stricter limit.
+
+## Performance cost
+
+For typical interface elements and several concurrent effects, **the load on modern devices is short-lived and generally imperceptible**. The CPU participates in creating the snapshot, while the built-in particle animation runs on the GPU through WebGL2. When an operation finishes, temporary textures are deleted and the WebGL2 context returns to a bounded pool for reuse.
+
+The cost becomes more noticeable with large elements, high pixel density, many simultaneous effects, or `exact` mode. **The `auto` mode suits most interfaces, including lower-powered devices:** it limits the working resolution. Use `exact` selectively for small elements where the additional sharpness is genuinely visible.
+
+## Browser support
+
+The runtime is emitted as ES2020 and relies on Canvas, the Web Animations API (`Animation.finished` and `Element.getAnimations()`), `AbortController`, and `requestAnimationFrame`. Built-in presets additionally require WebGL2.
+
+| Platform           | Minimum version |
+| ------------------ | --------------- |
+| Chrome             | 84+             |
+| Firefox            | 75+             |
+| Edge               | 84+             |
+| Opera              | 70+             |
+| Safari             | 15+             |
+| Chrome for Android | 84+             |
+| iOS Safari         | 15+             |
+
+No polyfills are included. These versions define the **minimum API compatibility baseline**, but they do not guarantee that every GPU, driver, or browser setting will allow a WebGL2 context to be created.
+
+> Browser support also does not guarantee identical DOM snapshot rasterization across rendering engines, page zoom levels, and devices.
+
+Create `Disintegrator` only in the browser, not during server rendering. Cross-origin images, fonts, and stylesheets must allow CORS or use the capture adapter's proxy option; otherwise they may be absent from the Canvas snapshot.
+
+## Practical recommendations
+
+For the most natural transition:
+
+- animate complete elements and blocks rather than individual glyphs;
+- test the result in every browser you support;
+- use `exact` only where it is justified;
+- avoid changing an element's content while it is being captured;
+- test videos, `<iframe>` elements, Canvas, WebGL, and cross-origin resources separately;
+- provide a specialized `capture` adapter when necessary.

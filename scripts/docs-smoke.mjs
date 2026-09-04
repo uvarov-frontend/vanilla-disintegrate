@@ -44,9 +44,10 @@ async function waitForServer() {
 }
 
 const pages = [
-  ['/', 'en', 'Animate DOM removal'],
+  ['/', 'en', 'Modern, striking,'],
   ['/docs/learn/installation/', 'en', 'Install and run your first effect'],
   ['/ru/docs/learn/installation/', 'ru', 'Установка и первый эффект'],
+  ['/ru/docs/learn/limitations/', 'ru', 'Ограничения и особенности'],
   ['/zh/docs/learn/effects/', 'zh', '内置预设'],
   ['/ko/docs/reference/api/', 'ko', 'API 레퍼런스'],
 ];
@@ -58,6 +59,7 @@ const contentPaths = [
   'learn/preparation',
   'learn/custom-effects',
   'learn/frameworks',
+  'learn/limitations',
   'reference/api',
   'reference/audio',
 ];
@@ -298,10 +300,11 @@ try {
   const sitemap = await sitemapResponse.text();
   assert.equal(sitemapResponse.status, 200);
   assert.match(sitemapResponse.headers.get('content-type') ?? '', /^application\/xml/);
-  assert.equal(sitemap.match(/<url>/g)?.length, 44, 'sitemap must contain every localized public page');
+  assert.equal(sitemap.match(/<url>/g)?.length, 48, 'sitemap must contain every localized public page');
   assert.ok(sitemap.includes(`<loc>${site}/ru/docs/learn/frameworks/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/ru/docs/learn/installation/</loc>`));
+  assert.ok(sitemap.includes(`<loc>${site}/ru/docs/learn/limitations/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/zh/docs/reference/audio/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/ko/</loc>`));
   assert.ok(sitemap.includes(`<loc>${site}/ru/privacy/</loc>`));
