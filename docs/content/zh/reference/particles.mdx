@@ -118,7 +118,7 @@ function createParticleRestoreAnimation(options?: ParticleOptions): AnimationFac
 
 `createParticleAnimation()` 创建删除阶段的动画工厂，`createParticleRestoreAnimation()` 创建对应的恢复阶段工厂。手动组合 `EffectDefinition` 时可使用它们；如果两个阶段都使用内置渲染器，优先使用 `createParticleEffect()`。
 
-两个工厂都需要快照。如果 `AnimationContext.snapshot` 为 `null`，它们会返回 `null`，操作随后进入常规的跳过动画回退流程。
+两个工厂都需要快照。如果 `AnimationContext.snapshot` 为 `null`，它们会返回 `null`：操作会尝试已配置的 `fallback`，否则跳过动画。
 
 ## `particlePresets`
 
@@ -148,4 +148,4 @@ const applied = configureParticleContexts({
 
 `maxContexts` 会规范为不小于 `1` 的整数。`maxIdleContexts` 会规范为非负整数，并且不会超过 `maxContexts`。函数返回当前实际使用的限制。
 
-如果渲染器无法获取上下文，DOM 操作仍会提交，`finished` 以 `status: 'skipped'` 结束，并通过 `onError` 报告失败。
+如果渲染器无法获取上下文，DOM 操作仍会提交。配置了 `fallback` 时会改为运行它；否则 `finished` 以 `status: 'skipped'` 结束，并通过 `onError` 报告失败。

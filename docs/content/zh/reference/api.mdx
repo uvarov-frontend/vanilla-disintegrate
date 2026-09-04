@@ -34,8 +34,8 @@ const custom = new Disintegrator({ effect: createParticleEffect() });
 
 ```ts
 type DisintegratorOptions =
-  | { preset: PresetSelection; effect?: never; sound?: false }
-  | { preset?: never; effect: EffectDefinition; sound?: false | SoundSelection };
+  | { preset: PresetSelection; effect?: never; sound?: false; fallback?: FallbackEffectDefinition }
+  | { preset?: never; effect: EffectDefinition; sound?: false | SoundSelection; fallback?: FallbackEffectDefinition };
 ```
 
 预设是不可拆分的视觉与音频选择。可以用 `sound: false` 静音，但不能与替换视觉或音频组合。自定义效果是包含完整 `remove` 与 `restore` 阶段的对象；未提供声音对时保持静音。
@@ -49,6 +49,7 @@ type DisintegratorOptions =
 | `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | 为已注册元素准备快照                             |
 | `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'idle'`        | 控制准备与解码音频所有权预算                     |
 | `respectReducedMotion` | `boolean`                                                   | `true`          | 用户请求减少动态效果时跳过动画                   |
+| `fallback`             | `FallbackEffectDefinition`                                  | —               | WebGL2 渲染器不可用时静默替换该阶段              |
 | `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | 为需要快照的效果把元素转换成 canvas              |
 | `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | 接收固定定位的动画覆盖层                         |
 | `zIndex`               | `number`                                                    | `2147483646`    | 设置覆盖层层级                                   |
@@ -143,6 +144,7 @@ const builtInPresets: Readonly<Record<'dust' | 'scatter' | 'vapor' | 'wind', Rea
 import { defineEffect } from 'vanilla-disintegrate/core';
 
 interface EffectPhase {
+  requires?: 'webgl2';
   needsSnapshot?: boolean;
   animate: AnimationFactory;
 }
@@ -159,6 +161,29 @@ const effect = defineEffect({
 ```
 
 `needsSnapshot` 默认为 `true`。`defineEffect()` 会冻结效果及其两个阶段对象，同时保留 TypeScript 推断出的窄类型。
+
+### WebGL2 备用效果
+
+`createParticleEffect()` 和内置预设会自动为阶段标记 `requires: 'webgl2'`。库会在捕获前检查 WebGL2；如果它被禁用或不可用，`fallback` 会替代主阶段运行，不会创建多余的 Canvas 快照。
+
+```ts
+import Disintegrator, { defineEffect } from 'vanilla-disintegrate/snapdom';
+
+const fade = defineEffect({
+  remove: {
+    needsSnapshot: false,
+    animate: ({ element }) => element.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180 }),
+  },
+  restore: {
+    needsSnapshot: false,
+    animate: ({ element }) => element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180 }),
+  },
+});
+
+const effects = new Disintegrator({ preset: 'dust', fallback: fade });
+```
+
+备用效果既适用于预设，也适用于声明 `requires: 'webgl2'` 的任意自定义效果。它可以使用 CSS、WAAPI、Canvas 2D、SVG 或其他渲染器，默认保持静音。TypeScript 不允许在 `fallback` 中再次传入 WebGL2 阶段，JavaScript 配置也会在运行时接受同样的验证。若预检查后粒子渲染器仍无法启动，库会在已创建快照的基础上尝试备用效果。
 
 动画工厂接收 `AnimationContext`：
 

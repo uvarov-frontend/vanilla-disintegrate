@@ -87,7 +87,7 @@ configureParticleContexts({ maxContexts: 2, maxIdleContexts: 1 });
 
 The particle renderer keeps at most 4 WebGL2 contexts alive at once across the whole page, with up to 2 kept warm for reuse after an effect finishes. This ceiling is page-wide rather than per-effect: browsers already cap how many live contexts a page may hold, and asking two effects for different values would leave no single correct answer.
 
-An effect that cannot acquire a context because the page has reached the ceiling follows the same path as a browser with no WebGL2 at all: `remove()` still detaches the element, `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives a generic "did not create an animation" error rather than one naming contention as the cause. Call `configureParticleContexts()` once, before any effect runs, to change the ceiling for the rest of the page's lifetime. Lower it on memory-constrained devices; raise it only up to what the browser itself allows, since exceeding that just moves where contexts get discarded.
+An effect that cannot acquire a context because the page has reached the ceiling follows the same path as a browser with no WebGL2 at all: `remove()` still detaches the element and `restore()` still reveals it. A configured `fallback` runs instead; without one, the operation resolves with status `skipped` and `onError` receives a generic "did not create an animation" error rather than one naming contention as the cause. Call `configureParticleContexts()` once, before any effect runs, to change the ceiling for the rest of the page's lifetime. Lower it on memory-constrained devices; raise it only up to what the browser itself allows, since exceeding that just moves where contexts get discarded.
 
 ## Build a particle effect from a snapshot
 
@@ -113,6 +113,10 @@ effects.restore(insertedElement);
 The demo above and the code block come from the same file, so what you see running is what you get.
 
 `needsSnapshot: false` fits an effect that animates DOM, SVG or anything else that does not need the pixels. That phase then skips capture entirely.
+
+## A fallback without WebGL2
+
+For a phase with `requires: 'webgl2'`, pass a matching `remove`/`restore` pair as the constructor's `fallback`. It may use CSS, the Web Animations API, Canvas 2D, SVG, or a custom renderer, but not WebGL2. It runs when WebGL2 is unavailable or the built-in particle renderer cannot start; with unavailable WebGL2, the library selects it **before capture**. It runs without built-in sound. See the full contract and example in the [API](/docs/reference/api/#webgl2-fallback).
 
 ## Use the snapshotless core
 

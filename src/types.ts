@@ -213,6 +213,8 @@ export type SoundPreparationSelection =
 
 /** One direction of a paired effect. */
 export interface EffectPhase {
+  /** Required browser renderer. A fallback can replace a phase that requires WebGL2. */
+  readonly requires?: 'webgl2';
   /** Set to `false` for DOM/WAAPI effects that do not need a Canvas capture. */
   readonly needsSnapshot?: boolean;
   /** Creates the visual animation for this phase. */
@@ -225,6 +227,24 @@ export interface EffectDefinition {
   readonly remove: EffectPhase;
   /** Visual behavior used by `restore()`. */
   readonly restore: EffectPhase;
+}
+
+/** A phase that is safe to run when WebGL2 is unavailable. */
+export interface FallbackEffectPhase {
+  /** A fallback may use Canvas, SVG, CSS, WAAPI or another renderer, but not WebGL2. */
+  readonly requires?: never;
+  /** Set to `false` when the fallback does not need a Canvas capture. */
+  readonly needsSnapshot?: boolean;
+  /** Creates the visual animation for this fallback phase. */
+  readonly animate: AnimationFactory;
+}
+
+/** Paired visual behavior used when a phase requiring WebGL2 cannot start. Fallbacks are silent. */
+export interface FallbackEffectDefinition {
+  /** Fallback visual behavior used by `remove()`. */
+  readonly remove: FallbackEffectPhase;
+  /** Fallback visual behavior used by `restore()`. */
+  readonly restore: FallbackEffectPhase;
 }
 
 /** A reusable combination of visual behavior and independent remove/restore audio. */
@@ -345,6 +365,8 @@ export interface EffectCallbacks {
 export interface DisintegratorBaseOptions extends EffectCallbacks {
   /** Canvas capture adapter. Required by every snapshot-based effect. */
   readonly capture?: SnapshotCapture;
+  /** Silent paired effect used when a selected phase requires unavailable WebGL2. */
+  readonly fallback?: FallbackEffectDefinition;
   /** Custom complete presets addressable by name through `preset`. */
   readonly presets?: Readonly<Record<string, PresetDefinition>>;
   /** Enables or configures reflow animation for remove operations. */

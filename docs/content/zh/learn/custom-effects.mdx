@@ -87,7 +87,7 @@ configureParticleContexts({ maxContexts: 2, maxIdleContexts: 1 });
 
 粒子渲染器在整个页面范围内最多同时保留 4 个 WebGL2 上下文，其中最多 2 个会在效果结束后保温以便复用。这个上限是整页共享的，而不是按每个效果单独设置：浏览器本身就限制了一个页面能保留多少活跃上下文，若两个效果各自要求不同的值，也不存在唯一正确的答案。
 
-因页面已达上限而无法获取上下文的效果，走的是与设备完全没有 WebGL2 时相同的路径：`remove()` 仍会移除元素，`restore()` 仍会显示元素，操作以 `skipped` 状态结束，但 `onError` 收到的是笼统的"未创建动画"错误，并不会指出真正原因是上下文竞争。在任何效果运行之前调用一次 `configureParticleContexts()`，即可在页面的整个生命周期内更改这个上限。在内存受限的设备上调低它；调高时不要超过浏览器自身允许的范围，否则只是把上下文被丢弃的位置往后移。
+因页面已达上限而无法获取上下文的效果，走的是与设备完全没有 WebGL2 时相同的路径：`remove()` 仍会移除元素，`restore()` 仍会显示元素。配置了 `fallback` 时会改为运行它；没有时操作以 `skipped` 状态结束，`onError` 收到的是笼统的“未创建动画”错误，并不会指出真正原因是上下文竞争。在任何效果运行之前调用一次 `configureParticleContexts()`，即可在页面的整个生命周期内更改这个上限。在内存受限的设备上调低它；调高时不要超过浏览器自身允许的范围，否则只是把上下文被丢弃的位置往后移。
 
 ## 使用快照构建粒子效果
 
@@ -113,6 +113,10 @@ effects.restore(insertedElement);
 上面的演示和代码块来自同一个文件，你看到运行的就是你拿到的。
 
 `needsSnapshot: false` 适合动画 DOM、SVG 或其他不需要像素的效果。该阶段将完全跳过捕获。
+
+## 无 WebGL2 的备用效果
+
+对于带有 `requires: 'webgl2'` 的阶段，可以在构造函数中传入包含同一对 `remove`/`restore` 的 `fallback`。它可使用 CSS、Web Animations API、Canvas 2D、SVG 或自定义渲染器，但不能使用 WebGL2。WebGL2 不可用或内置粒子渲染器无法启动时，它都会运行；WebGL2 不可用时，库会在**捕获之前**选择它。它不会播放内置声音。完整契约和示例请参阅 [API](/zh/docs/reference/api/#webgl2-beiyongxiaoguo)。
 
 ## 使用无快照核心入口
 

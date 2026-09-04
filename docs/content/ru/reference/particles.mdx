@@ -118,7 +118,7 @@ function createParticleRestoreAnimation(options?: ParticleOptions): AnimationFac
 
 `createParticleAnimation()` создаёт фабрику анимации удаления, а `createParticleRestoreAnimation()` — соответствующую фабрику восстановления. Используйте их при ручной сборке `EffectDefinition`; если обе фазы работают на встроенном рендерере, удобнее `createParticleEffect()`.
 
-Обе фабрики требуют снимок. Если `AnimationContext.snapshot` равен `null`, они возвращают `null`, после чего операция выполняет стандартный сценарий пропуска анимации.
+Обе фабрики требуют снимок. Если `AnimationContext.snapshot` равен `null`, они возвращают `null`: при настроенном `fallback` операция попробует его, иначе пропустит анимацию.
 
 ## `particlePresets`
 
@@ -148,4 +148,4 @@ const applied = configureParticleContexts({
 
 `maxContexts` приводится к целому числу не меньше `1`. `maxIdleContexts` приводится к неотрицательному целому и не может превышать `maxContexts`. Функция возвращает действующие лимиты.
 
-Если рендерер не может получить контекст, операция с DOM всё равно выполняется, `finished` завершается со `status: 'skipped'`, а ошибка передаётся в `onError`.
+Если рендерер не может получить контекст, операция с DOM всё равно выполняется. При настроенном `fallback` запустится он; иначе `finished` завершается со `status: 'skipped'`, а ошибка передаётся в `onError`.

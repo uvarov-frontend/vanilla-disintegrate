@@ -54,7 +54,9 @@ Prepared snapshots make the first effect start faster, but they can become stale
 
 **Only the built-in particle effects require WebGL2.** The library core and custom effects can use the **Web Animations API, Canvas 2D, CSS, or a custom renderer**.
 
-If WebGL2 is unavailable or the browser cannot create a context, **the DOM operation still takes place**, but the visual effect resolves with a `skipped` status and the reason is passed to `onError`.
+If WebGL2 is unavailable or the browser cannot create a context, **the DOM operation still takes place**, but without a fallback the visual effect resolves with a `skipped` status and the reason is passed to `onError`.
+
+Built-in particles and custom phases with `requires: 'webgl2'` can receive a `fallback`. It runs when WebGL2 is unavailable or the built-in particle renderer cannot start; with unavailable WebGL2, the check happens **before creating a Canvas snapshot**. A fallback may be a CSS, WAAPI, Canvas 2D, SVG, or other custom animation, cannot require WebGL2, and intentionally runs without sound.
 
 Every concurrently running built-in effect uses one WebGL2 context. The library reuses contexts after an effect finishes and limits the size of the shared pool, although a browser, GPU, or driver may impose a stricter limit.
 

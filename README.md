@@ -19,6 +19,7 @@ Vanilla Disintegrate is a lightweight TypeScript library for removing and restor
 - **Simple integration**: Create an instance and call `remove(element)` directly from a click handler.
 - **Framework-agnostic**: Use it with vanilla JavaScript, React, Vue, Svelte, Solid, Angular, Web Components, or another DOM renderer.
 - **Custom effects**: Define independent removal and restoration phases with WAAPI, Canvas, SVG, WebGL, CSS, or another animation engine.
+- **WebGL2 fallbacks**: Use another visual effect when particle rendering is unavailable.
 - **Custom capture**: The `vanilla-disintegrate/snapdom` entry wires SnapDOM for you; the default entry accepts another renderer such as html2canvas.
 - **Zero runtime dependencies**: The ESM package has no mandatory dependencies; SnapDOM is an optional peer installed only if you use its entry.
 - **Independent audio**: Custom effects can use bundled sound names, URLs, local `Blob`/`File` objects, encoded data, `AudioBuffer`, or a custom player factory.
@@ -37,7 +38,7 @@ Vanilla Disintegrate is built for modern browsers. Its runtime is emitted as ES2
 
 The same baseline applies to Chrome for Android 84+ and iOS Safari 15+. These are API compatibility baselines, not a guarantee that every GPU, driver, or browser setting allows WebGL2 context creation. Initialize the library only in the browser: it is not intended to run during server-side rendering.
 
-Where WebGL2 is missing or a context cannot be created, built-in preset visuals degrade instead of failing: `remove()` still detaches the element and `restore()` still reveals it, the operation resolves with status `skipped`, and `onError` receives the reason. Custom effects that do not use WebGL are unaffected, so a WAAPI or CSS phase keeps animating on older engines.
+Where WebGL2 is missing or the particle renderer cannot start, built-in preset visuals degrade instead of failing: `remove()` still detaches the element and `restore()` still reveals it. Without a configured fallback, the operation resolves with status `skipped` and `onError` receives the reason. A configured fallback can show another visual effect instead. Custom effects that do not use WebGL are unaffected, so a WAAPI or CSS phase keeps animating on older engines.
 
 Each concurrently running built-in preset visual leases one WebGL2 context. When an operation ends, its textures are deleted and the context returns to a document-scoped pool. By default, the pool keeps at most four contexts alive, retains up to two of them while idle for 30 seconds, destroys excess contexts immediately, and releases everything on `pagehide`. These limits can be adjusted with `configureParticleContexts()` before effects start.
 

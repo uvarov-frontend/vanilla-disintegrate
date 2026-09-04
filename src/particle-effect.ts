@@ -15,9 +15,11 @@ export function createParticleEffect(options: ParticleEffectOptions = {}): Effec
   const restore = options.restore ?? remove;
   return defineEffect({
     remove: {
+      requires: 'webgl2',
       animate: createParticleAnimation(remove),
     },
     restore: {
+      requires: 'webgl2',
       animate: createParticleRestoreAnimation(restore),
     },
   });
