@@ -173,7 +173,7 @@ export function setupDisintegratingText(
       const operation = disintegrator.remove(canvas, { sound: false, retain: true, layout: false });
       entry.removalId = operation.removalId;
       const result = await settle(operation);
-      if (result.status === 'completed' && entry.removalId !== null) {
+      if ((result.status === 'completed' || result.status === 'skipped') && entry.removalId !== null) {
         canvas.dataset.disintegratingTextRunState = 'removed';
         return true;
       }

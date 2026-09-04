@@ -309,6 +309,34 @@ test('animates two localized heading words only after the visitor uses the snap 
   expect(Math.abs(after!.height - before!.height)).toBeLessThan(0.5);
 });
 
+test('preserves the heading lifecycle when WebGL2 is unavailable', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.addInitScript(() => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, contextId: string, options?: unknown) {
+      if (contextId === 'webgl2') return null;
+      return originalGetContext.call(this, contextId, options as never);
+    } as typeof HTMLCanvasElement.prototype.getContext;
+    HTMLMediaElement.prototype.play = () =>
+      Promise.reject(new DOMException('Muted by the browser test.', 'NotAllowedError'));
+  });
+  await page.goto('http://localhost:4321/?lang=en');
+
+  const heading = page.locator('[data-disintegrating-text]');
+  const trigger = heading.locator('[data-disintegrating-text-trigger]');
+  const residents = heading.locator('[data-resident-glyph]');
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'ready');
+  await expect(residents).toHaveCount(2);
+
+  await trigger.click();
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'removed', { timeout: 5000 });
+  await expect(residents).toHaveCount(0);
+
+  await trigger.click();
+  await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'ready', { timeout: 6000 });
+  await expect(residents).toHaveCount(2);
+});
+
 test('configures and runs the home-page particle playground', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   test.setTimeout(45_000);
