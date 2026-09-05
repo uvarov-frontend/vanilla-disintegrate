@@ -183,7 +183,7 @@ test('animates two localized heading words only after the visitor uses the snap 
     await trigger.hover();
     await expect(cursor).toHaveAttribute('data-visible', '');
     await expect(cursor).toHaveAttribute('data-hint', '');
-    await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Click to scatter!');
+    await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Snap to disintegrate!');
     await expect(cursor).toHaveCSS('opacity', '1');
     await expect(trigger).toHaveCSS('cursor', 'none');
   }
@@ -191,7 +191,7 @@ test('animates two localized heading words only after the visitor uses the snap 
   await trigger.click();
   await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'snapping');
   await expect(cursor).toHaveAttribute('data-hint', '');
-  await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Click to scatter!');
+  await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Snap to disintegrate!');
   await expect(trigger).toBeDisabled();
   if (finePointer) {
     const transform = await cursor.evaluate((element) => getComputedStyle(element).transform);
@@ -212,7 +212,7 @@ test('animates two localized heading words only after the visitor uses the snap 
     await expect(page.locator('html')).not.toHaveAttribute('data-snap-cursor-active', '');
     await trigger.hover();
     await expect(cursor).toHaveAttribute('data-hint', '');
-    await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Click to reverse!');
+    await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Snap to restore!');
   }
   const removedBounds = await heading.boundingBox();
 
@@ -225,7 +225,7 @@ test('animates two localized heading words only after the visitor uses the snap 
   await expect(trigger).toBeDisabled();
   if (finePointer) {
     await expect(cursor).toHaveAttribute('data-hint', '');
-    await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Click to reverse!');
+    await expect(cursor.locator('.snap-cursor-hint')).toHaveText('Snap to restore!');
   }
   await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'restoring', { timeout: 3000 });
   await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'ready', { timeout: 9000 });
