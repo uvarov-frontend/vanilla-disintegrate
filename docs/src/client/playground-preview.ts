@@ -1,29 +1,25 @@
 interface PreviewOptions {
   isBusy(): boolean;
+  interrupt(): void;
   run(): Promise<void>;
   onChange(): void;
   onError(error: unknown): void;
 }
 
-/** Owns the debounce, queued work and preset lock as one cancellable action. */
+/** Debounces replacement previews while letting cancelled work finish its cleanup. */
 export class PlaygroundPreview {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private pending = false;
   private running = false;
   private disposed = false;
-  private queuedPreset = false;
 
   constructor(private readonly options: PreviewOptions) {}
 
-  get presetPending() {
-    return this.queuedPreset;
-  }
-
-  schedule(fromPreset = false) {
+  schedule() {
     if (this.disposed) return;
     this.clearTimer();
     this.pending = true;
-    this.queuedPreset = fromPreset;
+    this.options.interrupt();
     this.timer = setTimeout(() => {
       this.timer = null;
       this.resume();
@@ -31,11 +27,10 @@ export class PlaygroundPreview {
     this.options.onChange();
   }
 
-  /** Called after a manual operation finishes; active previews finish reinserting their card first. */
+  /** Replacements may start once the previous operation and preview cleanup have settled. */
   resume() {
     if (this.disposed || !this.pending || this.timer !== null || this.running || this.options.isBusy()) return;
     this.pending = false;
-    this.queuedPreset = false;
     this.running = true;
     void (async () => {
       try {
@@ -55,7 +50,7 @@ export class PlaygroundPreview {
   cancel() {
     this.clearTimer();
     this.pending = false;
-    this.queuedPreset = false;
+    this.options.interrupt();
     this.options.onChange();
   }
 

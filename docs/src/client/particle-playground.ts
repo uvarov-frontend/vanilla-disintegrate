@@ -182,6 +182,8 @@ export function mountParticlePlayground(root: HTMLElement) {
     button.addEventListener('click', () => {
       const selected = button.dataset.widthOption === 'wide' ? 'wide' : 'narrow';
       if (selected === cardWidth) return;
+      previews.cancel();
+      if (!reconnectRetainedCard()) return;
       cardWidth = selected;
       applyCardWidth(true);
       flushHash();
@@ -238,6 +240,7 @@ export function mountParticlePlayground(root: HTMLElement) {
   let removalId: RemovalId | null = null;
   let unregister: () => void = () => undefined;
   let busy = false;
+  let runningOperation: EffectOperation | null = null;
   let hashTimer: number | null = null;
   const initialSounds = (['remove', 'restore'] as const)
     .map((operation) => configuredSound(configuration[operation], customSounds))
@@ -262,18 +265,13 @@ export function mountParticlePlayground(root: HTMLElement) {
   const updateActions = () => {
     root.setAttribute('aria-busy', String(busy));
     if (busy) cardHint.hide();
-    // The wait before a switch's preview starts is still a window where a second
-    // preset would swap the configuration out from under it, so it locks too.
-    // The selected preset stays live so the current choice keeps its full contrast.
-    const presetsLocked = busy || previews.presetPending;
-    for (const button of presetButtons)
-      button.disabled = presetsLocked && button.getAttribute('aria-pressed') !== 'true';
-    for (const button of widthButtons) button.disabled = busy || !card.isConnected;
-    remove.disabled = busy || !card.isConnected;
-    restore.disabled = busy || (!card.isConnected && removalId === null);
+    const canReconnect = card.isConnected || removalId !== null;
+    for (const button of widthButtons) button.disabled = !canReconnect;
+    remove.disabled = !canReconnect;
+    restore.disabled = !canReconnect;
     restore.textContent = copy.restore;
-    reset.disabled = busy;
-    undo.disabled = busy || undoSnapshot === null;
+    reset.disabled = false;
+    undo.disabled = undoSnapshot === null;
   };
   const reconnectRetainedCard = () => {
     if (card.isConnected) return true;
@@ -355,18 +353,36 @@ export function mountParticlePlayground(root: HTMLElement) {
     code.innerHTML = highlightedEffectSource(configuration, customSounds);
     updateActions();
   };
+  const interruptOperation = () => {
+    const operation = runningOperation;
+    if (operation === null) return;
+    runningOperation = null;
+    // Cancellation synchronously cleans up visuals and commits a retained removal.
+    operation.cancel();
+    reconnectRetainedCard();
+    busy = false;
+    updateActions();
+  };
   const run = async (operation: EffectOperation) => {
+    runningOperation = operation;
+    if (operation.operation === 'remove') removalId = operation.removalId;
     busy = true;
     status.textContent = operation.operation === 'remove' ? `${copy.remove}…` : `${copy.restore}…`;
     updateActions();
     const startedAt = performance.now();
     try {
       const result = await operation.finished;
+      if (runningOperation !== operation) return false;
       status.textContent = `${result.operation} · ${result.status} · ${Math.round(performance.now() - startedAt)} ms`;
+      return true;
     } finally {
-      busy = false;
-      updateActions();
-      previews.resume();
+      // A cancelled operation must not clear the new operation's busy state.
+      if (runningOperation === operation) {
+        runningOperation = null;
+        busy = false;
+        updateActions();
+        previews.resume();
+      }
     }
   };
   const preview = async () => {
@@ -383,25 +399,18 @@ export function mountParticlePlayground(root: HTMLElement) {
       retain: true,
       sound,
     });
-    const previewRemovalId = operation.removalId;
-    await run(operation);
-    if (previewRemovalId === null) return;
-    const retained = instance.take(previewRemovalId);
-    if (!retained) return;
-    card = retained;
-    slot.append(card);
-    registerCard();
-    updateActions();
+    if (await run(operation)) reconnectRetainedCard();
   };
   const previews = new PlaygroundPreview({
     isBusy: () => busy,
+    interrupt: interruptOperation,
     run: preview,
     onChange: updateActions,
     onError: (error) => {
       status.textContent = String(error);
     },
   });
-  const schedulePreview = (fromPreset = false) => previews.schedule(fromPreset);
+  const schedulePreview = () => previews.schedule();
   const scheduleHash = () => {
     if (hashTimer !== null) window.clearTimeout(hashTimer);
     hashTimer = window.setTimeout(() => {
@@ -538,7 +547,7 @@ export function mountParticlePlayground(root: HTMLElement) {
       prepareOperationSoundInBackground(activeOperation);
       flushHash();
       render();
-      schedulePreview(true);
+      schedulePreview();
     });
   }
   curveSelect.addEventListener('change', () => syncFromControls(undefined, true));
@@ -684,8 +693,8 @@ export function mountParticlePlayground(root: HTMLElement) {
   });
 
   remove.addEventListener('click', () => {
-    if (busy || !card.isConnected) return;
     previews.cancel();
+    if (!reconnectRetainedCard()) return;
     const operation = instance.remove(card, {
       effect: playgroundEffect(configuration),
       layout: false,
@@ -696,7 +705,6 @@ export function mountParticlePlayground(root: HTMLElement) {
     void run(operation);
   });
   restore.addEventListener('click', () => {
-    if (busy) return;
     previews.cancel();
     if (!reconnectRetainedCard()) return;
     if (card.isConnected) {
@@ -709,7 +717,9 @@ export function mountParticlePlayground(root: HTMLElement) {
     }
   });
   undo.addEventListener('click', () => {
-    if (busy || undoSnapshot === null) return;
+    if (undoSnapshot === null) return;
+    previews.cancel();
+    reconnectRetainedCard();
     const snapshot = undoSnapshot;
     // Single step: taking it clears it, so a second press cannot walk further back
     // than the one state that was actually captured.
@@ -725,10 +735,9 @@ export function mountParticlePlayground(root: HTMLElement) {
     prepareBothOperationSoundsInBackground();
     flushHash();
     render();
-    schedulePreview(true);
+    schedulePreview();
   });
   reset.addEventListener('click', () => {
-    if (busy) return;
     undoSnapshot =
       hasCustomizedConfiguration() || activeOperation !== 'remove' || cardWidth !== 'narrow'
         ? createUndoSnapshot()

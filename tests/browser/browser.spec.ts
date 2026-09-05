@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { stubAnalytics } from './analytics';
 
 test.beforeEach(async ({ page, context }) => {
@@ -217,8 +217,118 @@ test('keeps card geometry continuous at both ends of the shape animation', async
   }
 });
 
+async function observePlaygroundOperations(page: Page) {
+  return page.evaluateHandle(async () => {
+    const modulePath = '../../src/snapdom.ts';
+    const { Disintegrator } = (await import(modulePath)) as typeof import('../../src/snapdom');
+    const entries: Array<{ kind: string; started: boolean; cancelled: boolean; status: string | null }> = [];
+    for (const kind of ['remove', 'restore'] as const) {
+      const original = Disintegrator.prototype[kind];
+      Disintegrator.prototype[kind] = function (element, options) {
+        if (!(element instanceof HTMLElement) || !element.classList.contains('playground-card')) {
+          return original.call(this, element, options);
+        }
+        const entry = { kind, started: false, cancelled: false, status: null as string | null };
+        entries.push(entry);
+        const operation = original.call(this, element, {
+          ...options,
+          onStart: (context) => {
+            entry.started = true;
+            options?.onStart?.(context);
+          },
+        });
+        const cancel = operation.cancel;
+        operation.cancel = () => {
+          entry.cancelled = true;
+          cancel();
+        };
+        void operation.finished.then((result) => {
+          entry.status = result.status;
+        });
+        return operation;
+      };
+    }
+    return entries;
+  });
+}
+
+for (const kind of ['remove', 'restore'] as const) {
+  test(`interrupts a running ${kind} and previews the latest settings`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto('http://localhost:4321/');
+    await requireWebGL2(page);
+    const root = page.locator('[data-particle-playground]');
+    await expect(root.locator('[data-status]')).toHaveText('Ready', { timeout: 15_000 });
+    const operations = await observePlaygroundOperations(page);
+    await root.evaluate((element, kind) => {
+      element.querySelector<HTMLButtonElement>(`[data-operation="${kind}"]`)!.click();
+      const duration = element.querySelector<HTMLInputElement>('[data-option="duration"]')!;
+      duration.value = '3000';
+      duration.dispatchEvent(new Event('input', { bubbles: true }));
+      element.querySelector<HTMLButtonElement>(`[data-action="${kind}"]`)!.click();
+    }, kind);
+    await expect(root).toHaveAttribute('aria-busy', 'true');
+    await expect.poll(() => operations.evaluate((entries) => entries[0]?.started)).toBe(true);
+    await root.evaluate((element) => {
+      const duration = element.querySelector<HTMLInputElement>('[data-option="duration"]')!;
+      for (const value of ['1000', '500', '200']) {
+        duration.value = value;
+        duration.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+    await expect.poll(() => operations.evaluate((entries) => entries[0]?.status)).toBe('cancelled');
+    await expect.poll(() => operations.evaluate((entries) => entries.length), { timeout: 2000 }).toBe(2);
+    await expect(root.locator('[data-option="duration"]')).toHaveValue('200');
+    await expect(root).toHaveAttribute('aria-busy', 'false', { timeout: 5000 });
+    await expect(root.locator('.playground-card')).toHaveCount(1);
+    await expect(root.locator('.playground-card')).toBeVisible();
+    expect(await operations.evaluate((entries) => entries.map(({ kind, cancelled }) => ({ kind, cancelled })))).toEqual(
+      [
+        { kind, cancelled: true },
+        { kind, cancelled: false },
+      ],
+    );
+    await operations.dispose();
+  });
+}
+
+test('replaces running previews with presets and manual actions without stale card reinsertion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('http://localhost:4321/');
+  await requireWebGL2(page);
+  const root = page.locator('[data-particle-playground]');
+  await expect(root.locator('[data-status]')).toHaveText('Ready', { timeout: 15_000 });
+  const operations = await observePlaygroundOperations(page);
+  await root.evaluate((element) => {
+    element.querySelector<HTMLButtonElement>('[data-preset="vapor"]')!.click();
+    const duration = element.querySelector<HTMLInputElement>('[data-option="duration"]')!;
+    duration.value = '3000';
+    duration.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(root).toHaveAttribute('aria-busy', 'true');
+  // Trigger during playback without mobile actionability scrolling delaying the click.
+  await root.evaluate((element) => element.querySelector<HTMLButtonElement>('[data-preset="scatter"]')!.click());
+  await expect.poll(() => operations.evaluate((entries) => entries[0]?.status)).toBe('cancelled');
+  await expect.poll(() => operations.evaluate((entries) => entries.length)).toBe(2);
+  // These clicks intentionally share a task: old promise continuations run only
+  // after the replacement and reset have already changed the card.
+  await root.evaluate((element) => {
+    for (const action of ['restore', 'remove', 'restore', 'reset']) {
+      element.querySelector<HTMLButtonElement>(`[data-action="${action}"]`)!.click();
+    }
+  });
+  await expect(root).toHaveAttribute('aria-busy', 'false');
+  await expect(root.locator('[data-status]')).toHaveText('Ready', { timeout: 15_000 });
+  await expect(root.locator('.playground-card')).toHaveCount(1);
+  await expect(root.locator('.playground-card')).toBeVisible();
+  const entries = await operations.jsonValue();
+  expect(entries.map(({ kind }) => kind)).toEqual(['remove', 'remove', 'restore', 'remove', 'restore']);
+  expect(entries.every(({ cancelled, status }) => cancelled && status === 'cancelled')).toBe(true);
+  await operations.dispose();
+});
+
 for (const action of ['reset', 'remove', 'restore'] as const) {
-  test(`releases the queued preset lock when ${action} replaces its preview`, async ({ page }) => {
+  test(`keeps presets available when ${action} replaces a queued preview`, async ({ page }) => {
     await page.goto('http://localhost:4321/');
     const root = page.locator('[data-particle-playground]');
     await root.scrollIntoViewIfNeeded();
@@ -1185,7 +1295,18 @@ test('recognizes preset values after edits and keeps audio toggles independent',
   await expect(code).not.toContainText('createParticleEffect');
 });
 
+async function requireWebGL2(page: Page) {
+  const available = await page.evaluate(() => {
+    const context = document.createElement('canvas').getContext('webgl2');
+    if (context === null) return false;
+    context.getExtension('WEBGL_lose_context')?.loseContext();
+    return true;
+  });
+  test.skip(!available, 'This browser environment does not expose WebGL2; fallback behavior is tested separately.');
+}
+
 test('runs, reuses and releases a real WebGL2 particle renderer', async ({ page }) => {
+  await requireWebGL2(page);
   const result = await page.evaluate(async () => {
     const { Disintegrator, defineEffect } = await import('../../src/core');
     const { createParticleAnimation, createParticleRestoreAnimation } = await import('../../src/particles');
@@ -1334,6 +1455,7 @@ test('keeps exact particle endpoints pixel-identical on expanded geometry', asyn
 });
 
 test('caps active WebGL2 contexts and retains at most two while idle', async ({ page }) => {
+  await requireWebGL2(page);
   const result = await page.evaluate(async () => {
     const { createParticleAnimation } = await import('../../src/particles');
     const originalGetContext = HTMLCanvasElement.prototype.getContext;
