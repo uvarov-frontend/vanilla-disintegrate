@@ -1,4 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { stubAnalytics } from './analytics';
+
+test.beforeEach(async ({ context }) => {
+  await stubAnalytics(context);
+});
 
 test('lays out every bundle variant without horizontal overflow', async ({ page }) => {
   const viewports = [

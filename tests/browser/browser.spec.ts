@@ -1,8 +1,99 @@
 import { expect, test } from '@playwright/test';
+import { stubAnalytics } from './analytics';
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page, context }) => {
+  await stubAnalytics(context);
   await page.goto('/tests/browser/fixture.html');
 });
+
+test('captures real SnapDOM pixels at DPR 2 for both removal and concealed restoration', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { Disintegrator, createSnapdomCapture } = await import('../../src/snapdom');
+    const element = document.createElement('div');
+    element.style.cssText = 'width:96px;height:48px;background:rgb(23,145,217);';
+    document.body.append(element);
+    const samples: Array<{ operation: string; width: number; height: number; pixel: number[] }> = [];
+    const animate = ({ snapshot, operation }: { snapshot: HTMLCanvasElement | null; operation: string }) => {
+      if (snapshot === null) throw new Error('Missing real snapshot');
+      samples.push({
+        operation,
+        width: snapshot.width,
+        height: snapshot.height,
+        pixel: Array.from(snapshot.getContext('2d')!.getImageData(8, 8, 1, 1).data),
+      });
+      return Promise.resolve();
+    };
+    const instance = new Disintegrator({
+      capture: createSnapdomCapture({ dpr: 2, embedFonts: false }),
+      effect: { remove: { animate }, restore: { animate } },
+      preparation: false,
+      layout: false,
+    });
+    try {
+      const removed = instance.remove(element, { retain: true });
+      const removal = await removed.finished;
+      document.body.append(instance.take(removed.removalId!)!);
+      const restoration = await instance.restore(element).finished;
+      return {
+        samples,
+        removal: removal.status,
+        restoration: restoration.status,
+        opacity: getComputedStyle(element).opacity,
+      };
+    } finally {
+      instance.destroy();
+      element.remove();
+    }
+  });
+  expect(result).toEqual({
+    samples: ['remove', 'restore'].map((operation) => ({
+      operation,
+      width: 192,
+      height: 96,
+      pixel: [23, 145, 217, 255],
+    })),
+    removal: 'completed',
+    restoration: 'completed',
+    opacity: '1',
+  });
+});
+
+test('applies the capture pixel budget before creating a large bitmap', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { createSnapdomCapture } = await import('../../src/snapdom');
+    const element = document.createElement('div');
+    element.style.cssText = 'width:1000px;height:1000px;background:rgb(23,145,217);';
+    document.body.append(element);
+    const canvas = await createSnapdomCapture({ dpr: 2, embedFonts: false, maxCapturePixels: 40_000 })(element, {
+      operation: 'prepare',
+      signal: new AbortController().signal,
+    });
+    const dimensions = [canvas.width, canvas.height];
+    canvas.width = canvas.height = 0;
+    element.remove();
+    return dimensions;
+  });
+  expect(result).toEqual([200, 200]);
+});
+
+for (const action of ['reset', 'remove', 'restore'] as const) {
+  test(`releases the queued preset lock when ${action} replaces its preview`, async ({ page }) => {
+    await page.goto('http://localhost:4321/');
+    const root = page.locator('[data-particle-playground]');
+    await root.scrollIntoViewIfNeeded();
+    // aria-busy is also false during initial snapshot preparation. Start this
+    // scheduling regression from the ready state, independently of capture cost.
+    await expect(root.locator('[data-status]')).toHaveText('Ready', { timeout: 15_000 });
+    await root.evaluate((element, action) => {
+      element.querySelector<HTMLButtonElement>('[data-preset="vapor"]')!.click();
+      element.querySelector<HTMLButtonElement>(`[data-action="${action}"]`)!.click();
+    }, action);
+    await expect(root).toHaveAttribute('aria-busy', 'false');
+    await expect(root.locator('[data-preset]:disabled')).toHaveCount(0);
+    await root.locator('[data-preset="scatter"]').click();
+    await expect(root.locator('[data-preset="scatter"]')).toHaveAttribute('aria-pressed', 'true');
+  });
+}
 
 test('runs the snapshotless remove and restore lifecycle', async ({ page }) => {
   const result = await page.evaluate(async () => {
@@ -953,8 +1044,7 @@ test('recognizes preset values after edits and keeps audio toggles independent',
   await expect(code).not.toContainText('createParticleEffect');
 });
 
-test('runs, reuses and releases a real WebGL2 particle renderer', async ({ page, browserName }) => {
-  test.skip(browserName !== 'chromium');
+test('runs, reuses and releases a real WebGL2 particle renderer', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const { Disintegrator, defineEffect } = await import('../../src/core');
     const { createParticleAnimation, createParticleRestoreAnimation } = await import('../../src/particles');
@@ -1102,8 +1192,7 @@ test('keeps exact particle endpoints pixel-identical on expanded geometry', asyn
   expect(result.sourceY).toBe(Math.round(result.sourceY));
 });
 
-test('caps active WebGL2 contexts and retains at most two while idle', async ({ page, browserName }) => {
-  test.skip(browserName !== 'chromium');
+test('caps active WebGL2 contexts and retains at most two while idle', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const { createParticleAnimation } = await import('../../src/particles');
     const originalGetContext = HTMLCanvasElement.prototype.getContext;
