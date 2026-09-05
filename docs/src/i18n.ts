@@ -33,6 +33,7 @@ export interface UiCopy {
     readonly documentTitle: string;
     readonly title: string;
     readonly accent: string;
+    readonly headingClickHint: string;
     readonly headingRemoveHint: string;
     readonly headingRestoreHint: string;
     readonly headingRemoveEffect: string;
@@ -90,6 +91,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       documentTitle: 'Vanilla Disintegrate · Particle effects for removing and restoring DOM elements',
       title: 'Modern, striking,',
       accent: 'versatile, and CSS-free',
+      headingClickHint: 'Click the heading',
       headingRemoveHint: 'Snap to disintegrate!',
       headingRestoreHint: 'Snap to restore!',
       headingRemoveEffect: 'Play the Thanos snap and remove the highlighted word',
@@ -141,6 +143,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       documentTitle: 'Vanilla Disintegrate · Анимации удаления и восстановления DOM-элементов',
       title: 'Современная, эффектная,',
       accent: 'универсальная и без CSS-зависимостей',
+      headingClickHint: 'Нажмите на заголовок',
       headingRemoveHint: 'Щёлкните, чтобы развеять!',
       headingRestoreHint: 'Щёлкните, чтобы вернуть!',
       headingRemoveEffect: 'Щёлкнуть перчаткой и удалить выделенное слово',
@@ -192,6 +195,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       documentTitle: 'Vanilla Disintegrate · DOM 元素删除与恢复粒子动画',
       title: '现代、惊艳、',
       accent: '通用，无需 CSS 依赖',
+      headingClickHint: '点击标题',
       headingRemoveHint: '打个响指，让它消散！',
       headingRestoreHint: '打个响指，让它复原！',
       headingRemoveEffect: '播放灭霸响指并移除高亮词语',
@@ -241,6 +245,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       documentTitle: 'Vanilla Disintegrate · DOM 삭제 및 복원 파티클 애니메이션',
       title: '현대적이고 인상적이며,',
       accent: '범용적이고 CSS 의존성이 없습니다',
+      headingClickHint: '제목을 눌러보세요',
       headingRemoveHint: '손가락을 튕겨 분해하세요!',
       headingRestoreHint: '손가락을 튕겨 되돌리세요!',
       headingRemoveEffect: '타노스 스냅으로 강조된 단어 제거',

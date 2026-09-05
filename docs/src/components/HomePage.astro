@@ -84,6 +84,9 @@ const libraryNode = {
     <section class="home-hero">
       <div class="hero-glow" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
       <h1 aria-label={`${copy.home.title} ${copy.home.accent}`} data-disintegrating-text>
+        <span class="hero-heading-hint" data-heading-hint aria-hidden="true" hidden>
+          {copy.home.headingClickHint}
+        </span>
         <button
           class="hero-heading-trigger"
           type="button"

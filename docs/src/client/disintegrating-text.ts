@@ -79,6 +79,7 @@ export function setupDisintegratingText(
   if (root.dataset.disintegratingTextState !== undefined) return null;
   const trigger = root.querySelector<HTMLButtonElement>('[data-disintegrating-text-trigger]');
   if (trigger === null) return null;
+  const headingHint = root.querySelector<HTMLElement>('[data-heading-hint]');
   const wordRuns = [...root.querySelectorAll<HTMLElement>('[data-disintegrating-text-word]')].flatMap((word) => {
     const run = word.querySelector<HTMLElement>('[data-disintegrating-text-shaped]');
     return run === null ? [] : [{ word, run }];
@@ -109,6 +110,17 @@ export function setupDisintegratingText(
   let resizeObserver: ResizeObserver | null = null;
   let themeObserver: MutationObserver | null = null;
   let disposed = false;
+  let hintAnimation: Animation | null = null;
+
+  const showHeadingHint = () => {
+    if (headingHint === null || disposed) return;
+    hintAnimation?.cancel();
+    headingHint.hidden = false;
+    hintAnimation = headingHint.animate([{ opacity: 0 }, { opacity: 1 }], {
+      duration: 240,
+      easing: 'ease-out',
+    });
+  };
 
   const cancelScheduledRedraw = () => {
     if (redrawTimer !== null) window.clearTimeout(redrawTimer);
@@ -138,6 +150,8 @@ export function setupDisintegratingText(
   const dispose = () => {
     if (disposed) return;
     disposed = true;
+    if (headingHint !== null) headingHint.hidden = true;
+    hintAnimation?.cancel();
     cancelScheduledRedraw();
     window.removeEventListener('resize', scheduleRedraw);
     resizeObserver?.disconnect();
@@ -244,6 +258,22 @@ export function setupDisintegratingText(
 
   const play = async (event: MouseEvent) => {
     if (busy || disposed || controller.signal.aborted || instance === null) return;
+    if (headingHint !== null && !headingHint.hidden) {
+      const opacity = getComputedStyle(headingHint).opacity;
+      hintAnimation?.cancel();
+      const fade = headingHint.animate([{ opacity }, { opacity: 0 }], {
+        duration: 180,
+        easing: 'ease-out',
+        fill: 'forwards',
+      });
+      hintAnimation = fade;
+      const hideHint = () => {
+        if (hintAnimation !== fade) return;
+        headingHint.hidden = true;
+        fade.cancel();
+      };
+      void fade.finished.then(hideHint, hideHint);
+    }
     busy = true;
     trigger.disabled = true;
     const phase: SnapCursorPhase = removed ? 'restore' : 'remove';
@@ -272,6 +302,8 @@ export function setupDisintegratingText(
     setTriggerState();
     busy = false;
     trigger.disabled = false;
+    // Both the cursor and every word have finished before inviting another click.
+    if (!removed) showHeadingHint();
   };
 
   const onClick = (event: MouseEvent) => {
@@ -314,6 +346,7 @@ export function setupDisintegratingText(
       root.dataset.disintegratingTextState = 'ready';
       setTriggerState();
       trigger.disabled = false;
+      showHeadingHint();
     } catch (error) {
       dispose();
       root.dataset.disintegratingTextState = 'failed';
