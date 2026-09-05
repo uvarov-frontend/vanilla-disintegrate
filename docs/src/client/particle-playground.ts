@@ -66,6 +66,11 @@ function isAbortError(error: unknown) {
   return (error instanceof DOMException || error instanceof Error) && error.name === 'AbortError';
 }
 
+async function nextPaint() {
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+}
+
 function findCustomSound(source: PlaygroundSoundSource, sounds: PlaygroundCustomSounds) {
   const id = customSoundId(source);
   return id === null ? null : (sounds.find((sound) => sound.id === id) ?? null);
@@ -1688,7 +1693,7 @@ export function mountParticlePlayground(root: HTMLElement) {
       delete frame.dataset.morphing;
       for (const animation of running) animation.cancel();
       // The prepared snapshot still holds the old geometry.
-      prepare();
+      void prepare();
     });
   };
   for (const button of widthButtons) {
@@ -1764,8 +1769,8 @@ export function mountParticlePlayground(root: HTMLElement) {
     audioPreparation: initialSounds.length > 0 ? { sounds: initialSounds } : false,
     effect: playgroundEffect(configuration),
     layout: false,
-    // Explicit prepare() below owns the initial capture; idle registration only
-    // covers later invalidations without racing it with a duplicate snapshot.
+    // Registration begins after the initial stable capture below, then keeps
+    // snapshots current after later invalidations.
     preparation: { strategy: 'idle', observeMutations: false },
     random: () => 0.314_159_265,
     onError: (error) => {
@@ -1983,16 +1988,14 @@ export function mountParticlePlayground(root: HTMLElement) {
     configuration[activeOperation][range.key] = Math.min(range.max, Math.max(range.min, value));
     commitConfigurationChange(range.key, true);
   };
-  const prepare = () => {
+  const prepare = async () => {
     status.textContent = copy.preparing;
-    void instance
-      .prepare(card)
-      .then(() => {
-        if (!busy) status.textContent = copy.ready;
-      })
-      .catch((error: unknown) => {
-        status.textContent = String(error);
-      });
+    try {
+      await instance.prepare(card);
+      if (!busy) status.textContent = copy.ready;
+    } catch (error: unknown) {
+      status.textContent = String(error);
+    }
   };
   const prepareOperationSound = (operation: PlaygroundOperation) => {
     const sound = configuredSound(configuration[operation], customSounds);
@@ -2011,10 +2014,15 @@ export function mountParticlePlayground(root: HTMLElement) {
   };
 
   slot.append(card);
-  registerCard();
   applyCardWidth(false);
   render();
-  prepare();
+  void (async () => {
+    await document.fonts?.ready;
+    await nextPaint();
+    if (busy || !card.isConnected) return;
+    await prepare();
+    if (!busy && card.isConnected) registerCard();
+  })();
 
   // A prepared snapshot is a picture of the card under the palette that was active when
   // it was taken, so a theme switch leaves the effect tearing apart the previous look.
@@ -2026,7 +2034,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     appliedTheme = theme;
     // One frame lets the new palette paint before the capture reads the card.
     requestAnimationFrame(() => {
-      if (!busy) prepare();
+      if (!busy) void prepare();
     });
   }).observe(document.documentElement, { attributeFilter: ['data-theme'] });
   void listPlaygroundAudio()
@@ -2269,7 +2277,7 @@ export function mountParticlePlayground(root: HTMLElement) {
     prepareBothOperationSoundsInBackground();
     flushHash();
     render();
-    prepare();
+    void prepare();
   });
 
   root.addEventListener('click', (event) => {
