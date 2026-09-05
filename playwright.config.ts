@@ -19,7 +19,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'pnpm exec vite --host 127.0.0.1 --port 4174 --strictPort',
+      command: 'pnpm exec vite --config vite.browser.config.ts --host 127.0.0.1 --port 4174 --strictPort',
       reuseExistingServer: !process.env.CI,
       url: 'http://127.0.0.1:4174/tests/browser/fixture.html',
     },

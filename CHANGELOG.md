@@ -7,12 +7,13 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Added
 
 - Show a gently floating, localized heading hint with soft appearance and dismissal when the Easter egg is ready, including after restoration fully finishes; hide it when reduced motion is enabled.
-- Show a localized hint on the first playground card click or tap, pointing visitors to the Remove/Restore buttons.
+- Show a localized hint on every playground card click or tap, expanding from the bottom and collapsing after three seconds; repeated clicks extend its visibility.
 - `audioWaitTimeout` bounds operation audio preparation at 1500 ms by default, then continues silently; `false` preserves unlimited waiting.
 - `SnapdomCaptureOptions.maxCapturePixels` reduces capture density before rasterization, with an 8-million-pixel default and `false` to disable the limit.
 
 ### Fixed
 
+- Isolate the browser fixture server's dependency cache from Astro to avoid stale SnapDOM imports during tests.
 - Keep playground cover rings and dots aligned between the live DOM and captured pixels at narrow viewport widths.
 - Import site styles directly so Astro's dev server refreshes the initial HTML after CSS edits, avoiding flashes of obsolete decorative rings.
 - Declare cover artwork colors and transparency only in SVG so loading site styles cannot change them.
@@ -20,7 +21,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Match card resize animation endpoints to the frame's inner edge to avoid a one-pixel jump.
 - Restore pointer interaction on retained nodes when renderer setup fails.
 - Dispose snapshots independently of pending audio, including captures arriving after cancellation.
-- Release playground preset locks when manual actions replace queued previews, and serialize subsequent previews until the previous card has been reinserted.
+- Interrupt active playground effects when settings, presets or manual actions change; debounce replacement previews by 240 ms and prevent cancelled operations from overwriting the new state.
 
 ### Changed
 
