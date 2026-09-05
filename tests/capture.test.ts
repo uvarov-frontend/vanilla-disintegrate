@@ -26,6 +26,20 @@ beforeEach(() => {
 });
 
 describe('SnapDOM capture adapter', () => {
+  it.each([
+    { options: { dpr: 2 }, expected: Math.sqrt(2) },
+    { options: { dpr: 2, maxCapturePixels: 1_000_000 }, expected: 0.5 },
+    { options: { dpr: 2, maxCapturePixels: false as const }, expected: 2 },
+    { options: { dpr: 2, width: 4000, maxCapturePixels: 1_000_000 }, expected: 0.25 },
+    { options: { dpr: 2, height: 4000, maxCapturePixels: 1_000_000 }, expected: 0.25 },
+  ])('limits rasterization density before calling SnapDOM: $options', async ({ options, expected }) => {
+    const element = document.createElement('article');
+    element.getBoundingClientRect = () => new DOMRect(0, 0, 2000, 2000);
+    await createSnapdomCapture(options)(element, { operation: 'remove', signal: new AbortController().signal });
+    const selected = toCanvas.mock.calls.at(-1)?.[1];
+    expect(selected?.dpr).toBeCloseTo(expected);
+    expect(selected).not.toHaveProperty('maxCapturePixels');
+  });
   it('refuses an already-aborted capture without running the SnapDOM pipeline', async () => {
     const controller = new AbortController();
     controller.abort();

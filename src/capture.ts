@@ -8,6 +8,28 @@ import {
 
 import type { SnapshotCapture } from './types';
 
+/** SnapDOM settings plus a pixel budget applied before bitmap rasterization. */
+export type SnapdomCaptureOptions = SnapdomOptions & {
+  /** Reduces requested density for large captures. Defaults to 8,000,000 pixels; `false` disables the budget. */
+  readonly maxCapturePixels?: number | false;
+};
+
+function budgetCaptureDensity(options: SnapdomOptions, bounds: DOMRect, maximum: number | false | undefined) {
+  if (maximum === false) return;
+  const budget = typeof maximum === 'number' && Number.isFinite(maximum) ? Math.max(1, maximum) : 8_000_000;
+  const width = options.width ?? bounds.width;
+  const height =
+    options.height ?? (options.width === undefined ? bounds.height : (bounds.height * width) / bounds.width);
+  const logicalWidth =
+    options.width === undefined && options.height !== undefined ? (bounds.width * height) / bounds.height : width;
+  const scale = Number(options.scale ?? 1);
+  const dpr = Number(options.dpr ?? 1);
+  const pixels = logicalWidth * height * scale * scale * dpr * dpr;
+  if (Number.isFinite(pixels) && pixels > budget && scale > 0 && dpr > 0) {
+    options.dpr = dpr * Math.sqrt(budget / pixels);
+  }
+}
+
 const DEFAULT_CAPTURE_OPTIONS: SnapdomOptions = {
   embedFonts: true,
   fast: true,
@@ -167,7 +189,7 @@ function createSafariDensityPlugin(options: SnapdomOptions, onScale: (size: Safa
 }
 
 /** Creates a SnapDOM `toCanvas()` adapter with the library's capture defaults. */
-export function createSnapdomCapture(options: SnapdomOptions = {}): SnapshotCapture {
+export function createSnapdomCapture({ maxCapturePixels, ...options }: SnapdomCaptureOptions = {}): SnapshotCapture {
   const customFilter = options.filter;
   return async (element, context) => {
     // SnapDOM exposes no abort signal, so an in-flight capture cannot be stopped.
@@ -213,6 +235,7 @@ export function createSnapdomCapture(options: SnapdomOptions = {}): SnapshotCapt
         return isReadyImage && (customFilter?.(node) ?? true);
       },
     };
+    budgetCaptureDensity(captureOptions, rect, maxCapturePixels);
     const outputDensity = Number(captureOptions.dpr ?? 1) * Number(captureOptions.scale ?? 1);
     if (!usesWebKitSvgRasterizer() || !(outputDensity > 1)) {
       return snapdom.toCanvas(element, {

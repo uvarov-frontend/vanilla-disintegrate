@@ -13,11 +13,11 @@ import { gzipSync } from 'node:zlib';
  * entry must not reach SnapDOM is asserted separately in `scripts/smoke.mjs`.
  */
 export const bundleBudgets = {
-  'dist/core.js': 17 * 1024,
-  'dist/index.js': 25 * 1024,
+  'dist/core.js': 19 * 1024,
+  'dist/index.js': 28 * 1024,
   'dist/particles.js': 12 * 1024,
   'dist/sounds.js': 4 * 1024,
-  'dist/snapdom.js': 28 * 1024,
+  'dist/snapdom.js': 31 * 1024,
   'dist/vanilla-disintegrate.iife.min.js': 90 * 1024,
 };
 

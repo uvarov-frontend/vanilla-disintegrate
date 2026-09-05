@@ -316,6 +316,7 @@ export class OperationRunner {
       running.cancelVisual = () => {
         this.restoreElement(element, previousPointerEvents, reveal, emptyContext, callbacks);
         disposeSnapshot(snapshot);
+        snapshot = null;
       };
       if (running.kind === 'restore') {
         restoreRootOpacity = getComputedStyle(element).opacity || '1';
@@ -327,20 +328,24 @@ export class OperationRunner {
       }
       element.style.pointerEvents = 'none';
 
-      const audio = this.sound.prepare(running.sound).catch((error: unknown) => {
-        if (!running.settled) reportCallbackError(error, emptyContext, callbacks);
-        return null;
-      });
+      const audio = this.prepareAudio(running, emptyContext);
       if (running.settled) return;
       let preparedSound: PreparedSound = null;
       if (phase.needsSnapshot ?? true) {
-        [snapshot, preparedSound] = await Promise.all([
-          this.preparation.take(
-            element,
-            running.kind,
-            running.controller.signal,
-            restoreRootOpacity === undefined ? {} : { restoreRootOpacity },
-          ),
+        [, preparedSound] = await Promise.all([
+          this.preparation
+            .take(
+              element,
+              running.kind,
+              running.controller.signal,
+              restoreRootOpacity === undefined ? {} : { restoreRootOpacity },
+            )
+            .then((captured) => {
+              // Capture ownership must not wait for audio: cancellation can happen
+              // after the pixels arrive but before the sound has finished loading.
+              if (running.settled || running.controller.signal.aborted) disposeSnapshot(captured);
+              else snapshot = captured;
+            }),
           audio,
         ]);
       } else if (running.kind === 'restore') {
@@ -462,7 +467,9 @@ export class OperationRunner {
     };
     running.cancelVisual = () => {
       cleanup(true);
-      if (running.kind === 'restore') this.restoreElement(element, previousPointerEvents, reveal, context, callbacks);
+      if (running.kind === 'restore' || !running.committed) {
+        this.restoreElement(element, previousPointerEvents, reveal, context, callbacks);
+      }
     };
 
     let resolveAbort: () => void = noop;
@@ -598,6 +605,39 @@ export class OperationRunner {
         this.retained.retain(running.removalId, element, presentation);
       }
     }
+  }
+
+  private prepareAudio(running: RunningOperation, context: EffectErrorContext): Promise<PreparedSound> {
+    const signal = running.controller.signal;
+    const requested = this.options.audioWaitTimeout;
+    const timeout = typeof requested === 'number' && Number.isFinite(requested) ? Math.max(0, requested) : 1500;
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const finish = (sound: PreparedSound, error?: unknown) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        signal.removeEventListener('abort', abort);
+        if (error !== undefined && !signal.aborted) reportCallbackError(error, context, running.callbacks);
+        resolve(sound);
+      };
+      const abort = () => finish(null);
+      if (signal.aborted) return abort();
+      signal.addEventListener('abort', abort, { once: true });
+      // Capture can fail before audio answers. Completing that operation also
+      // ends its wait, so a later timeout cannot report a second, unrelated error.
+      void running.finished.then(abort);
+      if (running.sound !== null && requested !== false) {
+        timer = setTimeout(() => {
+          finish(null, new Error(`Audio was not ready within ${timeout} ms; continuing without sound.`));
+        }, timeout);
+      }
+      void this.sound.prepare(running.sound).then(
+        (sound) => finish(sound),
+        (error: unknown) => finish(null, error),
+      );
+    });
   }
 
   private resolveSound(

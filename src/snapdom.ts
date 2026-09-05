@@ -1,4 +1,4 @@
-import { createSnapdomCapture, type SnapdomOptions } from './capture';
+import { createSnapdomCapture, type SnapdomCaptureOptions } from './capture';
 import { Disintegrator as BuiltInDisintegrator } from './index';
 import type { DisintegratorOptions } from './types';
 
@@ -6,9 +6,10 @@ import type { DisintegratorOptions } from './types';
 export type SnapdomDisintegratorOptions = DisintegratorOptions & {
   /**
    * Forwarded to SnapDOM's `toCanvas()` on top of the library defaults. Capture
-   * density follows the current display DPR, capped at `2`, unless `dpr` is set.
+   * density follows the display DPR, capped at `2`, unless `dpr` is set, and is
+   * reduced for large bitmaps by `maxCapturePixels` unless that budget is disabled.
    */
-  readonly snapdom?: SnapdomOptions;
+  readonly snapdom?: SnapdomCaptureOptions;
 };
 
 /**
@@ -40,6 +41,6 @@ export { builtInPresets } from './built-in-presets';
 export { particlePresets } from './presets';
 export { builtInSounds } from './sounds';
 export type * from './types';
-export type { SnapdomOptions } from './capture';
+export type { SnapdomOptions, SnapdomCaptureOptions } from './capture';
 
 export default Disintegrator;

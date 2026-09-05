@@ -375,6 +375,8 @@ export interface DisintegratorBaseOptions extends EffectCallbacks {
   readonly preparation?: boolean | PreparationOptions;
   /** Configures automatic preparation of enabled audio, or disables it with `false`. */
   readonly audioPreparation?: false | AudioPreparationStrategy | AudioPreparationOptions;
+  /** Maximum audio wait before animating silently, in milliseconds. Defaults to 1500; `false` waits indefinitely. */
+  readonly audioWaitTimeout?: number | false;
   /** Skips operations when the user requests reduced motion. Defaults to `true`. */
   readonly respectReducedMotion?: boolean;
   /** Container for fixed-position animation overlays. Defaults to `document.body`. */

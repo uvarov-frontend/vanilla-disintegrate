@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Disintegrator } from '../src/disintegrator';
+import { SoundPlayer } from '../src/audio';
 import { defineEffect } from '../src/effects';
 import type { AnimationFactory, AnimationPlayback } from '../src/types';
 
@@ -66,6 +67,148 @@ function customEffect(remove: AnimationFactory = () => playback(), restore: Anim
 beforeEach(() => document.body.replaceChildren());
 
 describe('remove and restore lifecycle', () => {
+  it.each(['throw', 'null'] as const)('restores interaction after renderer setup returns %s', async (failure) => {
+    const { target, container } = createTarget();
+    target.style.pointerEvents = 'auto';
+    const phase = {
+      needsSnapshot: false,
+      animate: () => {
+        if (failure === 'throw') throw new Error('renderer unavailable');
+        return null;
+      },
+    };
+    const effect = new Disintegrator({
+      effect: { remove: phase, restore: { needsSnapshot: false, animate: () => playback() } },
+      layout: false,
+    });
+    try {
+      const operation = effect.remove(target, { retain: true });
+      expect((await operation.finished).status).toBe('skipped');
+      const retained = effect.take(operation.removalId!);
+      expect(retained).toBe(target);
+      expect(target.style.pointerEvents).toBe('auto');
+      container.append(target);
+      expect((await effect.restore(target).finished).status).toBe('completed');
+      expect(target.style.pointerEvents).toBe('auto');
+    } finally {
+      effect.destroy();
+    }
+  });
+
+  it.each(['cancel', 'destroy'] as const)(
+    'releases a snapshot independently of pending audio on %s',
+    async (action) => {
+      const { target } = createTarget();
+      const captured = snapshot();
+      const pendingSound = deferred<null>();
+      vi.spyOn(SoundPlayer.prototype, 'prepare').mockReturnValue(pendingSound.promise);
+      const animate = vi.fn<AnimationFactory>(() => playback());
+      const effect = new Disintegrator({ capture: () => captured, effect: customEffect(animate), layout: false });
+      const operation = effect.remove(target);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (action === 'cancel') operation.cancel();
+      else effect.destroy();
+      expect((await operation.finished).status).toBe('cancelled');
+      expect(captured.width).toBe(0);
+      expect(captured.height).toBe(0);
+      pendingSound.resolve(null);
+      await Promise.resolve();
+      expect(animate).not.toHaveBeenCalled();
+      effect.destroy();
+    },
+  );
+
+  it('disposes a capture that arrives after cancellation while audio is pending', async () => {
+    const { target } = createTarget();
+    const captured = deferred<HTMLCanvasElement>();
+    const pendingSound = deferred<null>();
+    vi.spyOn(SoundPlayer.prototype, 'prepare').mockReturnValue(pendingSound.promise);
+    const effect = new Disintegrator({ capture: () => captured.promise, effect: customEffect(), layout: false });
+    const operation = effect.remove(target);
+    operation.cancel();
+    await operation.finished;
+    const canvas = snapshot();
+    captured.resolve(canvas);
+    await vi.waitFor(() => expect(canvas.width).toBe(0));
+    pendingSound.resolve(null);
+    effect.destroy();
+  });
+
+  it('continues silently at the audio deadline and ignores late audio readiness', async () => {
+    vi.useFakeTimers();
+    const { target } = createTarget();
+    const pendingSound = deferred<null>();
+    vi.spyOn(SoundPlayer.prototype, 'prepare').mockReturnValue(pendingSound.promise);
+    const play = vi.spyOn(SoundPlayer.prototype, 'play');
+    const onError = vi.fn();
+    const effect = new Disintegrator({
+      capture: () => snapshot(),
+      effect: customEffect(),
+      sound: { remove: () => undefined },
+      audioPreparation: false,
+      audioWaitTimeout: 100,
+      layout: false,
+      onError,
+    });
+    try {
+      const operation = effect.remove(target);
+      await vi.advanceTimersByTimeAsync(99);
+      expect(target.isConnected).toBe(true);
+      await vi.advanceTimersByTimeAsync(1);
+      expect((await operation.finished).status).toBe('completed');
+      expect(onError).toHaveBeenCalledExactlyOnceWith(
+        expect.any(Error),
+        expect.objectContaining({ operation: 'remove' }),
+      );
+      expect(play).toHaveBeenCalledWith(null, expect.any(Number), expect.any(Object), expect.any(Function));
+      pendingSound.resolve(null);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(play).toHaveBeenCalledTimes(1);
+    } finally {
+      effect.destroy();
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([false, 1500] as const)('ends audio waiting correctly with timeout %s', async (timeout) => {
+    vi.useFakeTimers();
+    const { target } = createTarget();
+    const pendingSound = deferred<null>();
+    vi.spyOn(SoundPlayer.prototype, 'prepare').mockReturnValue(pendingSound.promise);
+    const onError = vi.fn();
+    const captureError = new Error('capture failed');
+    const effect = new Disintegrator({
+      capture: () => {
+        if (timeout !== false) throw captureError;
+        return snapshot();
+      },
+      effect: customEffect(),
+      sound: { remove: () => undefined },
+      audioPreparation: false,
+      audioWaitTimeout: timeout,
+      layout: false,
+      onError,
+    });
+    try {
+      const operation = effect.remove(target);
+      await vi.advanceTimersByTimeAsync(2000);
+      if (timeout === false) {
+        expect(target.isConnected).toBe(true);
+        expect(onError).not.toHaveBeenCalled();
+        pendingSound.resolve(null);
+        expect((await operation.finished).status).toBe('completed');
+      } else {
+        expect((await operation.finished).status).toBe('skipped');
+        expect(onError).toHaveBeenCalledExactlyOnceWith(captureError, expect.any(Object));
+        expect(vi.getTimerCount()).toBe(0);
+        pendingSound.resolve(null);
+      }
+    } finally {
+      effect.destroy();
+      vi.useRealTimers();
+    }
+  });
+
   it('retains a removed node under an opaque id without exposing it on the operation', async () => {
     const { target } = createTarget();
     const effect = new Disintegrator({
