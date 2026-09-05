@@ -27,6 +27,6 @@ pnpm docs:smoke
 
 The build entry point is `demo-dist/server/entry.mjs`. Interactive animation examples are client-side islands; page headings, prose, navigation, code examples, and GitHub edit links are rendered on the server.
 
-The playground controller is `src/client/particle-playground.ts`. Its `playground-*` modules own state, translations, compact URLs, generated code, markup, audio files and preview scheduling. Site styles are composed by `src/styles/site.css`; keep the import order when changing the cascade.
+The playground controller is `src/client/particle-playground.ts`. Its `playground-*` modules own state, translations, compact URLs, generated code, markup, audio files and preview scheduling. Site styles are imported directly in `src/layouts/BaseLayout.astro`; keep their order to preserve the cascade. Avoid nesting these imports in CSS: Astro's dev server can retain stale styles in the initial HTML after an imported file changes.
 
 After a successful deployment, `deploy/prune-releases.sh` retains only the active source release and its Docker image. The previous image remains available for rollback until the new deployment passes all health checks, then is eligible for removal with the other old versions. Only commit-shaped directories and image tags belonging to this site are eligible for cleanup. Its default mode is `--dry-run`; the deployment workflow explicitly passes `--apply`.

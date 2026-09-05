@@ -23,7 +23,7 @@ export default defineConfig({
   markdown: {
     processor: unified({ rehypePlugins: [externalLinks, tableScroll] }),
     shikiConfig: {
-      // Both palettes are emitted as CSS variables and picked in site.css, so code
+      // Both palettes are emitted as CSS variables and picked in syntax.css, so code
       // blocks follow the theme without re-highlighting on the client.
       themes: { dark: 'github-dark-default', light: 'github-light-default' },
       defaultColor: false,
