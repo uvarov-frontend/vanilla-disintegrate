@@ -140,5 +140,5 @@ jobs:
             done
 
             trap - ERR
-            docker image prune -f >/dev/null
+            bash "$RELEASE/deploy/prune-releases.sh" "$DEPLOY_PATH/releases" "$IMAGE" "$DEPLOY_SHA" --apply
             echo "Deployed $DEPLOY_SHA successfully."
