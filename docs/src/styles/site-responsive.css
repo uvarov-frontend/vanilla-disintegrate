@@ -1,0 +1,441 @@
+@media (max-width: 1120px) {
+  .docs-layout {
+    grid-template-columns: 205px minmax(0, var(--content-width));
+    justify-content: center;
+    padding-bottom: 72px;
+  }
+
+  .page-toc {
+    display: none;
+  }
+
+  .mobile-toc {
+    display: block;
+    margin: 22px 0 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+  }
+
+  .mobile-toc summary {
+    padding: 10px 13px;
+    color: var(--muted);
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .mobile-toc nav {
+    padding: 0 13px 12px;
+  }
+
+  .playground-sound-ranges {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-doc-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 960px) {
+  .playground-preset-bar {
+    grid-template-columns: 1fr;
+    gap: 13px;
+  }
+
+  .playground-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .playground-preview {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .playground-controls {
+    height: auto;
+  }
+
+  .playground-stage {
+    min-height: 380px;
+  }
+}
+
+@media (max-width: 790px) {
+  .header-inner,
+  .docs-layout,
+  .docs-footer {
+    width: calc(100% - 28px);
+    max-width: var(--content-width);
+  }
+
+  .top-navigation > a {
+    display: none;
+  }
+
+  .playground-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .top-navigation a {
+    padding-inline: 6px;
+  }
+
+  .github-star-prompt {
+    position: fixed;
+    top: calc(var(--header-height) + 10px);
+    right: 14px;
+    width: min(265px, calc(100vw - 28px));
+  }
+
+  .github-star-prompt > i {
+    right: 70px;
+  }
+
+  .menu-button {
+    display: block;
+  }
+
+  .docs-layout {
+    display: block;
+    padding: 30px 0 56px;
+  }
+
+  .docs-sidebar {
+    /*
+     * The desktop rule sets `align-self: start` so the sticky column sizes to
+     * its content. As an off-canvas drawer the panel must instead stretch
+     * between `top` and `bottom`; without this reset it keeps the content
+     * height and leaves a gap below itself on tall screens.
+     */
+    align-self: stretch;
+    position: fixed;
+    z-index: 120;
+    top: var(--header-height);
+    bottom: 0;
+    left: 0;
+    width: min(82vw, 280px);
+    padding: 24px 20px 40px;
+    border-right: 1px solid var(--border);
+    background: var(--surface-low);
+    transform: translateX(-102%);
+    transition: transform 190ms ease;
+  }
+
+  .sidebar-scroll {
+    max-height: 100%;
+  }
+
+  .menu-open {
+    overflow: hidden;
+  }
+
+  .menu-open .docs-sidebar {
+    transform: translateX(0);
+  }
+
+  .home-sidebar {
+    display: block;
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    z-index: 110;
+    inset: var(--header-height) 0 0;
+    display: block;
+    visibility: hidden;
+    background: rgb(var(--shadow-rgb) / 58%);
+    opacity: 0;
+    transition: 190ms ease;
+  }
+
+  .menu-open .sidebar-backdrop {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  .page-header h1 {
+    font-size: 2.55rem;
+  }
+
+  .page-content > .lead {
+    margin-bottom: 48px;
+    font-size: 16px;
+  }
+
+  .page-content section {
+    margin-top: 52px;
+  }
+
+  .page-content h2 {
+    font-size: 22px;
+  }
+
+  .responsibility-table,
+  .definition-grid,
+  .reference-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .responsibility-table > div + div {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .callout,
+  .process-list li {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  .compact-table {
+    overflow-x: auto;
+  }
+
+  .compact-table > div {
+    min-width: 570px;
+  }
+
+  .example-stage {
+    min-height: 355px;
+    padding: 24px 18px;
+  }
+
+  .example-card {
+    width: min(100%, 330px);
+  }
+
+  .example-state {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .example-state > div:nth-child(3) {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .example-state > div:nth-child(4) {
+    border-top: 1px solid var(--border);
+  }
+
+  .docs-footer {
+    flex-direction: column;
+  }
+
+  .home-hero {
+    min-height: 620px;
+    padding-top: 70px;
+  }
+
+  .home-playground-section,
+  .home-next-steps {
+    width: calc(100% - 28px);
+  }
+
+  .home-section-heading {
+    grid-template-columns: 1fr;
+    gap: 13px;
+  }
+
+  .home-section-heading p {
+    max-width: 600px;
+  }
+
+  .playground-actions {
+    order: 1;
+    margin-left: 0;
+  }
+
+  .home-doc-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .home-doc-cards a {
+    min-height: 175px;
+  }
+}
+
+@media (max-width: 500px) {
+  .docs-layout {
+    padding: 24px 0 40px;
+  }
+
+  .brand > span:nth-child(2) {
+    display: none;
+  }
+
+  .page-header h1 {
+    font-size: 2.2rem;
+  }
+
+  .example-toolbar,
+  .example-setting {
+    align-items: flex-start;
+  }
+
+  .example-toolbar {
+    padding-block: 10px;
+  }
+
+  .example-setting {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .select-control select {
+    min-width: 145px;
+  }
+
+  .example-actions button {
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .type-line {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .page-navigation {
+    grid-template-columns: 1fr;
+  }
+
+  .home-hero {
+    min-height: 660px;
+    padding-inline: 14px;
+  }
+
+  .home-hero h1 {
+    font-size: clamp(2.65rem, 12vw, 3rem);
+    line-height: 1;
+  }
+
+  .home-description {
+    font-size: 15px;
+  }
+
+  .install-command {
+    width: 100%;
+  }
+
+  .home-playground-section {
+    padding-top: 45px;
+  }
+
+  .playground-selectors {
+    grid-template-columns: 1fr;
+  }
+
+  .playground-trajectory-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .playground-sound-ranges {
+    grid-template-columns: 1fr;
+  }
+
+  .playground-sound-group {
+    display: block;
+    grid-column: auto;
+  }
+
+  .playground-sound-enabled {
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    flex-direction: row;
+  }
+
+  .playground-preset-bar,
+  .playground-controls {
+    padding: 14px;
+  }
+
+  .playground-preset-choice {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .playground-preset-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .playground-presets button {
+    min-height: 54px;
+  }
+
+  .playground-stage {
+    min-height: 430px;
+    padding: 60px 18px;
+  }
+
+  .playground-commandbar,
+  .playground-code-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .playground-commandbar .playground-actions,
+  .playground-code-heading > div {
+    width: 100%;
+  }
+
+  .playground-commandbar .playground-actions button,
+  .playground-code-heading button {
+    flex: 1;
+  }
+
+  .playground-stage-header {
+    gap: 9px;
+    padding-inline: 9px;
+  }
+
+  /* Icons replace the labels here: the row also holds undo, reset and the window
+     dots, and the two Russian labels alone are wider than the whole header. The
+     accessible name stays on the button. */
+  .playground-stage-header .playground-view-tabs svg {
+    display: block;
+  }
+
+  .playground-view-tabs button > span {
+    display: none;
+  }
+
+  /* Same trade in the code toolbar: the icon and the accessible name carry the
+     button, and the label is what forced it onto a second line. */
+  .playground-code-heading button > span:not(.playground-copy-icon) {
+    display: none;
+  }
+
+  .playground-view-tabs button,
+  .playground-width-tabs button {
+    padding-inline: 8px;
+  }
+
+  .playground-actions {
+    width: 100%;
+  }
+
+  .playground-actions button {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+  }
+
+  .analytics-toggle-skeleton {
+    animation: none;
+  }
+}

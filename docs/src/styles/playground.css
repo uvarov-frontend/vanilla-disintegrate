@@ -1,0 +1,1017 @@
+/* Particle playground --------------------------------------------------- */
+
+.particle-playground {
+  display: grid;
+  gap: 12px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.particle-playground [hidden] {
+  display: none;
+}
+
+.playground-preset-bar {
+  display: block;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+}
+
+.playground-preset-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.playground-preset-heading > strong {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.playground-phase {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.playground-phase > span {
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Undo and reset sit in the stage header, left of the view tabs: both change the
+   configuration rather than run anything, so they stay away from the run buttons
+   under the stage. */
+.playground-stage-tools {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+/* Labels carry the meaning while there is room; the icons take over only once the
+   row runs out of it. */
+.playground-view-tabs svg {
+  display: none;
+  width: 16px;
+  height: 16px;
+}
+
+.playground-icon-button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  align-content: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  background: var(--surface-raised);
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.playground-icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.playground-icon-button:not(:disabled):hover {
+  color: var(--text);
+  border-color: var(--border-light);
+}
+
+.playground-icon-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.playground-operation-tabs,
+.playground-view-tabs,
+.playground-width-tabs {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-sunken);
+}
+
+.playground-operation-tabs button,
+.playground-view-tabs button,
+.playground-width-tabs button {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    background 140ms ease;
+}
+
+.playground-operation-tabs button::before {
+  display: none;
+  content: none;
+}
+
+.playground-operation-tabs button:hover,
+.playground-view-tabs button:hover,
+.playground-width-tabs button:hover {
+  color: var(--text);
+  background: transparent;
+}
+
+.playground-operation-tabs button[aria-selected='true'],
+.playground-view-tabs button[aria-selected='true'],
+.playground-width-tabs button[aria-pressed='true'] {
+  color: var(--accent-bright);
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+
+.playground-operation-tabs button:focus-visible,
+.playground-view-tabs button:focus-visible,
+.playground-width-tabs button:focus-visible,
+.playground-settings-tabs button:focus-visible {
+  outline: 2px solid rgb(var(--accent-bright-rgb) / 58%);
+  outline-offset: 2px;
+}
+
+.playground-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.playground-presets button {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  min-height: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  color: var(--muted);
+  background: var(--surface-raised);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    opacity 160ms ease;
+}
+
+.playground-presets button:not([aria-pressed='true']):not(:disabled):hover {
+  border-color: var(--border-light);
+  color: var(--text);
+  background: var(--surface-raised);
+  transform: none;
+}
+
+.playground-presets button[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--accent-soft);
+  box-shadow: none;
+}
+
+.playground-presets button[aria-pressed='true']::after {
+  display: none;
+  content: none;
+}
+
+.playground-presets button > i {
+  position: relative;
+  grid-row: 1;
+  width: 28px;
+  height: 28px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 7px;
+  background: rgb(var(--tint-rgb) / 4%);
+}
+
+.playground-presets button[data-preset-effect] > i {
+  border: 0;
+  background: rgb(var(--tint-rgb) / 4%);
+}
+
+.playground-presets button > i::before {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--accent) 42%, transparent 45%);
+  background-size: 4px 4px;
+  content: '';
+  opacity: 0.9;
+}
+
+.playground-presets button > i::after {
+  display: none;
+  content: none;
+}
+
+.playground-presets button[data-preset-effect='dust'] > i::before {
+  mask-image: linear-gradient(58deg, #000 8%, transparent 66%);
+}
+
+.playground-presets button[data-preset-effect='scatter'] > i::before {
+  mask-image: radial-gradient(circle at 50% 50%, #000 8%, transparent 70%);
+}
+
+.playground-presets button[data-preset-effect='vapor'] > i::before {
+  mask-image: radial-gradient(ellipse 60% 130% at 50% 115%, #000 18%, transparent 72%);
+}
+
+.playground-presets button[data-preset-effect='wind'] > i::before {
+  mask-image: linear-gradient(90deg, #000 4%, transparent 80%);
+}
+
+.playground-presets button > span {
+  display: grid;
+  min-width: 0;
+}
+
+.playground-presets b {
+  color: var(--text);
+  font-size: 13.5px;
+  font-weight: 680;
+  line-height: 1.2;
+}
+
+.playground-presets small {
+  overflow: hidden;
+  color: var(--faint);
+  font-family: var(--font-sans);
+  font-size: 11.5px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playground-workspace {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 12px;
+}
+
+.playground-preview {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.playground-stage-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 46px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.playground-window-controls {
+  gap: 6px;
+}
+
+.playground-stage-header i {
+  width: 10px;
+  height: 10px;
+  background: var(--border-light);
+}
+
+.playground-stage-header i:nth-child(2),
+.playground-stage-header i:nth-child(3) {
+  background: var(--border-light);
+}
+
+/* The shape switch floats over the stage grid rather than sitting in the window
+   chrome. It is a sibling of [data-slot], which reset() empties. */
+.playground-preview-panel {
+  position: relative;
+}
+
+.playground-view-tabs {
+  margin-left: auto;
+}
+
+.playground-width-tabs {
+  position: absolute;
+  z-index: 1;
+  top: 12px;
+  left: 12px;
+}
+
+.playground-width-tabs button {
+  display: grid;
+  padding: 5px 9px;
+  place-items: center;
+}
+
+.playground-width-tabs svg {
+  width: 16px;
+  height: 16px;
+}
+
+.playground-preview-panel {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.playground-stage {
+  /* Reserves the upright card's 310px so removing it cannot collapse the stage. */
+  min-height: 430px;
+  /* Symmetric block padding clears the shape switch (12px offset + 34px control)
+     without pushing the card off the vertical centre of the stage. */
+  padding: 60px 20px;
+  background:
+    radial-gradient(circle at 50% 0%, var(--stage-glow), transparent 60%),
+    repeating-linear-gradient(0deg, transparent 0 23px, var(--stage-grid) 23px 24px),
+    repeating-linear-gradient(90deg, transparent 0 23px, var(--stage-grid) 23px 24px), var(--stage-bg);
+  place-items: center;
+}
+
+.playground-commandbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  min-height: 0;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+
+.playground-commandbar output {
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.playground-commandbar output::before {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  content: '';
+  vertical-align: middle;
+}
+
+.playground-actions {
+  margin-left: auto;
+}
+
+.playground-actions button {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.playground-controls {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  height: auto;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.playground-selectors {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.playground-select-field {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.playground-field-heading {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+
+.playground-field-heading label,
+.playground-range-heading label {
+  overflow: visible;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-overflow: clip;
+  text-transform: none;
+  white-space: normal;
+}
+
+.playground-field-heading small,
+.playground-range-heading small {
+  display: block;
+  color: var(--faint);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.45;
+  text-transform: none;
+  text-wrap: pretty;
+}
+
+.playground-selectors select {
+  grid-column: auto;
+  min-height: 38px;
+  margin: 0;
+  padding: 6px 32px 6px 11px;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  transition: none;
+}
+
+.playground-select-field:hover select,
+.playground-select-field:focus-within select {
+  border: 1px solid var(--border-light);
+  background: var(--surface-raised);
+  box-shadow: none;
+}
+
+.playground-select-field:focus-within::after {
+  border-color: var(--muted);
+}
+
+.playground-select-field::after {
+  right: 16px;
+  bottom: 18px;
+}
+
+.playground-settings-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.playground-settings-tabs button {
+  padding: 7px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color 140ms ease,
+    border-color 140ms ease;
+}
+
+.playground-settings-tabs button:hover {
+  color: var(--text);
+}
+
+.playground-settings-tabs button[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--accent-bright);
+}
+
+.playground-settings-panels {
+  min-height: 286px;
+}
+
+.playground-settings-panel,
+.playground-control-list {
+  display: grid;
+  gap: 8px;
+}
+
+.playground-settings-panel[hidden] {
+  display: none;
+}
+
+.playground-range {
+  display: block;
+}
+
+.playground-range-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.playground-range-heading > span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  overflow: visible;
+  color: inherit;
+}
+
+.playground-range-heading > .playground-range-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 72px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--text);
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease;
+}
+
+.playground-range-value:hover {
+  border-color: var(--border-light);
+  background: rgb(var(--tint-rgb) / 3%);
+}
+
+.playground-range-value:focus-within {
+  border-color: rgb(var(--accent-rgb) / 58%);
+  background: var(--surface-raised);
+  box-shadow: 0 0 0 2px rgb(var(--accent-rgb) / 10%);
+}
+
+.playground-range-value input {
+  width: 5.5ch;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-variant-numeric: inherit;
+  line-height: 1.5;
+  text-align: right;
+  appearance: textfield;
+}
+
+.playground-range-value input::-webkit-inner-spin-button,
+.playground-range-value input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.playground-range-value > span {
+  margin-left: 2px;
+  color: var(--faint);
+}
+
+.playground-range input[type='range'] {
+  height: 20px;
+  background: none;
+}
+
+.playground-range input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background:
+    linear-gradient(var(--accent), var(--accent)) 0 / var(--range-progress, 0%) 100% no-repeat,
+    var(--border-light);
+}
+
+.playground-range input[type='range']::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-light);
+}
+
+.playground-range input[type='range']::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.playground-range input[type='range']::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+  border: 2px solid var(--surface);
+  background: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.playground-range input[type='range']::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--surface);
+  background: var(--accent);
+}
+
+.playground-sound-ranges {
+  align-items: start;
+  gap: 12px 16px;
+}
+
+.playground-sound-ranges .playground-range {
+  display: grid;
+  grid-template-rows: 40px 20px;
+  gap: 8px;
+}
+
+.playground-sound-ranges .playground-range-heading {
+  align-items: start;
+  margin-bottom: 0;
+}
+
+.playground-sound-enabled {
+  margin-bottom: 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.playground-sound-panel {
+  gap: 12px;
+}
+
+.playground-sound-toggles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.playground-sound-toggles .playground-sound-enabled,
+.playground-sound-reverse {
+  min-height: 42px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-raised);
+}
+
+.playground-sound-reverse {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.playground-sound-reverse b {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* Bundled sounds and a local file share one bordered field: the select carries the
+   flexible side, the file chip the trailing side, and whichever is active is lit.
+   Two classes are needed to outrank the shared `.playground-select-field > div`. */
+.playground-sound-source .playground-sound-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  /* The shared field rule sets a 6px gap that would break the seam. */
+  gap: 0;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  border-radius: 9px;
+  background: var(--surface-raised);
+}
+
+/* The select sits in its own cell so the chevron can anchor to the select's edge
+   instead of the field's, which the file chip occupies. */
+.playground-sound-source .playground-sound-select {
+  position: relative;
+  min-width: 0;
+}
+
+/* Same 6px chevron the other playground selects draw. */
+.playground-sound-source .playground-sound-select::after {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid var(--muted);
+  border-bottom: 1.5px solid var(--muted);
+  content: '';
+  pointer-events: none;
+  transform: translateY(-70%) rotate(45deg);
+}
+
+.playground-sound-source .playground-sound-picker select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 30px 0 11px;
+  border: 0;
+  border-radius: 0;
+  color: var(--text);
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  /* The other playground selects suppress the ring the same way. */
+  outline: 0;
+  cursor: pointer;
+  appearance: none;
+  transition: none;
+}
+
+.playground-sound-file {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 150px;
+  padding: 0 11px;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 620;
+  cursor: pointer;
+}
+
+.playground-sound-file svg {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+}
+
+.playground-sound-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The delete action sits beside the field heading and removes the stored file the
+   select is currently pointing at. */
+.playground-sound-source .playground-sound-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.playground-sound-remove {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--muted);
+  background: var(--surface-raised);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.playground-sound-remove[hidden] {
+  display: none;
+}
+
+.playground-sound-remove svg {
+  width: 13px;
+  height: 13px;
+}
+
+.playground-sound-source .playground-local-audio-note {
+  display: block;
+  margin-top: 7px;
+  color: var(--faint);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+/* The wrapper draws the control's frame, so the shared field chrome stands down. */
+.playground-sound-source::after {
+  display: none;
+  content: none;
+}
+
+.playground-code {
+  border: 0;
+}
+
+.playground-code:not([hidden]) {
+  contain: size;
+  overflow: hidden;
+}
+
+.playground-code.code-block pre {
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+}
+
+.playground-preview:has(.playground-code:not([hidden])) .playground-commandbar {
+  display: none;
+}
+
+.playground-code-heading {
+  align-items: center;
+  flex-direction: row;
+  padding: 10px 12px;
+}
+
+.playground-code-heading > div {
+  width: auto;
+}
+
+.playground-code-heading > span {
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.playground-code-heading > span::before {
+  display: none;
+  content: none;
+}
+
+.playground-code-heading button[data-copy] {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 5px 8px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  line-height: 1;
+}
+
+.playground-copy-icon {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+}
+
+.playground-copy-icon svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.35;
+}
+
+.playground-copy-icon-success {
+  display: none;
+}
+
+.playground-code-heading button[data-copy='effect'] {
+  border-color: rgb(var(--accent-rgb) / 42%);
+  color: var(--accent-bright);
+  background: var(--accent-soft);
+}
+
+.playground-code-heading button[data-copy='effect']:hover {
+  border-color: rgb(var(--accent-rgb) / 68%);
+  color: var(--accent-contrast);
+  background: rgb(var(--accent-rgb) / 20%);
+}
+
+.playground-code-heading button[data-copy='link'] {
+  border-color: transparent;
+  color: var(--faint);
+  background: transparent;
+}
+
+.playground-code-heading button[data-copy='link']:hover {
+  border-color: transparent;
+  color: var(--text);
+  background: rgb(var(--tint-rgb) / 5%);
+}
+
+/* A button reporting its result keeps that colour: the per-variant :hover rules are
+   more specific than a bare state selector, so the hover case is restated here. */
+.playground-code-heading button[data-copy][data-copy-state='success'],
+.playground-code-heading button[data-copy][data-copy-state='success']:hover {
+  border-color: rgb(104 200 153 / 35%);
+  color: #87d7ae;
+  background: rgb(104 200 153 / 10%);
+}
+
+.playground-code-heading button[data-copy-state='success'] .playground-copy-icon-default {
+  display: none;
+}
+
+.playground-code-heading button[data-copy-state='success'] .playground-copy-icon-success {
+  display: inline-grid;
+}
+
+.playground-code-heading button[data-copy][data-copy-state='error'],
+.playground-code-heading button[data-copy][data-copy-state='error']:hover {
+  color: var(--accent-bright);
+}
+
+@media (max-width: 980px) {
+  .home-playground-section {
+    padding-bottom: 64px;
+  }
+
+  .home-next-steps {
+    padding-bottom: 72px;
+  }
+
+  .playground-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .playground-code:not([hidden]) {
+    height: min(560px, 70vh);
+    min-height: 360px;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-playground-section {
+    padding-bottom: 40px;
+  }
+
+  .home-next-steps {
+    padding-bottom: 48px;
+  }
+
+  .playground-preset-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .playground-phase {
+    order: -1;
+    justify-content: space-between;
+  }
+
+  .playground-presets {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .playground-stage {
+    min-height: 430px;
+    padding: 60px 12px;
+  }
+
+  .playground-commandbar .playground-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .playground-settings-panels {
+    min-height: 0;
+  }
+
+  .playground-sound-toggles {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

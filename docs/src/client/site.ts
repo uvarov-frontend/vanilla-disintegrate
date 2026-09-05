@@ -5,7 +5,7 @@ import { createDemoCard } from './demo-card';
 import { setupDisintegratingText } from './disintegrating-text';
 import { mountParticlePlayground, presetNames } from './particle-playground';
 
-type Locale = 'en' | 'ru' | 'zh' | 'ko';
+import type { Locale } from '../i18n';
 type DemoKind = 'built-in' | 'particle-vortex';
 type DisintegratorInstance = InstanceType<typeof Disintegrator>;
 

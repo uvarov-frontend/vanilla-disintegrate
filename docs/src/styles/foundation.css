@@ -1,0 +1,189 @@
+:root {
+  color-scheme: dark;
+  --font-sans: Lato, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-family: var(--font-sans);
+  font-synthesis: none;
+
+  /* Channels. Translucent layers are written as rgb(var(--tint-rgb) / N%), so a theme
+     flips every overlay by swapping one triple while each tuned alpha survives. */
+  --background-rgb: 11 11 15;
+  --surface-low-rgb: 13 13 18;
+  --tint-rgb: 255 255 255;
+  --shadow-rgb: 0 0 0;
+  --accent-rgb: 255 117 107;
+  --accent-bright-rgb: 255 145 136;
+
+  /* Neutral ramp, receding to advancing. */
+  --surface-sunken: #09090d;
+  --background: #0b0b0f;
+  --surface-low: #0e0e13;
+  --surface: #111117;
+  --surface-high: #14141b;
+  --surface-raised: #17171f;
+  --surface-elevated: #211f29;
+  --border-subtle: #292631;
+  --border: #292833;
+  --border-light: #373543;
+  --track: #302d38;
+  --border-strong: #504d5e;
+
+  --text: #f4f1f7;
+  --text-soft: #d9d4dd;
+  --muted: #bcb7c6;
+  --muted-strong: #bbb5c4;
+  --faint: #77727f;
+
+  --accent: #ff756b;
+  --accent-bright: #ff9188;
+  --accent-hover: #ffa69f;
+  --accent-contrast: #fff4f2;
+  --accent-muted: #d9a7a2;
+  --on-accent: #1e0c0a;
+  --accent-soft: rgb(var(--accent-rgb) / 12%);
+
+  --page-glow: rgb(116 78 130 / 12%);
+  --hero-glow: rgb(var(--accent-rgb) / 6%);
+  --hero-ring: rgb(var(--tint-rgb) / 3%);
+  --stage-bg: transparent;
+  --stage-glow: rgb(var(--accent-rgb) / 7%);
+  --stage-grid: rgb(var(--tint-rgb) / 2.5%);
+
+  --inset: rgb(var(--shadow-rgb) / 25%);
+  /* The card cover is a saturated gradient in every theme, so its highlights stay light. */
+  --on-cover-rgb: 255 255 255;
+  --demo-card-sheet: #17171f;
+
+  --code-text: #eeb4ae;
+  --hero-gradient-mid: #f3b99a;
+  --hero-gradient-end: #a992ff;
+
+  --syntax-keyword: #c6a0f6;
+  --syntax-function: #8aadf4;
+  --syntax-string: #a6da95;
+  --syntax-property: #f5a97f;
+  --syntax-number: #eed49f;
+
+  --header-height: 64px;
+  --content-width: 760px;
+  --docs-layout-top: 42px;
+}
+
+/*
+ * The light theme. `theme.js` resolves the stored preference (system/light/dark) before
+ * the first paint and stamps `data-theme`, so the palette swaps without a flash and the
+ * mapping lives in exactly one place rather than being duplicated into a media query.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --background-rgb: 239 237 245;
+  --surface-low-rgb: 242 241 247;
+  --tint-rgb: 24 20 32;
+  --shadow-rgb: 41 35 56;
+  --accent-rgb: 226 74 62;
+  --accent-bright-rgb: 201 59 48;
+
+  --surface-sunken: #f1f0f7;
+  --background: #efedf5;
+  --surface-low: #f2f1f7;
+  --surface: #ffffff;
+  --surface-high: #fbfafd;
+  --surface-raised: #f6f4fc;
+  --surface-elevated: #ffffff;
+  --border-subtle: #eae7f0;
+  --border: #e2dfea;
+  --border-light: #cec9dc;
+  --track: #dcd8e6;
+  --border-strong: #aca5bc;
+
+  --text: #17141f;
+  --text-soft: #38334a;
+  --muted: #4b4459;
+  --muted-strong: #4a4358;
+  --faint: #6a6379;
+
+  --accent: #e24a3e;
+  --accent-bright: #c93b30;
+  --accent-hover: #b23227;
+  --accent-contrast: #4d130d;
+  --accent-muted: #8b4a43;
+  --on-accent: #fff5f3;
+  --page-glow: rgb(116 78 130 / 20%);
+  --hero-glow: rgb(var(--accent-rgb) / 11%);
+  --hero-ring: rgb(var(--tint-rgb) / 7%);
+  --stage-bg: #f0eef7;
+  --stage-glow: rgb(var(--accent-rgb) / 12%);
+  --stage-grid: rgb(var(--tint-rgb) / 7%);
+
+  --inset: #e5e3ec;
+  --demo-card-sheet: #ffffff;
+
+  --code-text: #b0392f;
+  --hero-gradient-mid: #c2417a;
+  --hero-gradient-end: #6d43c8;
+
+  --syntax-keyword: #8839ef;
+  --syntax-function: #1e66f5;
+  --syntax-string: #40a02b;
+  --syntax-property: #fe640b;
+  --syntax-number: #df8e1d;
+
+  --accent-soft: rgb(var(--accent-rgb) / 10%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+  scroll-behavior: smooth;
+  scroll-padding-top: calc(var(--header-height) + 30px);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: var(--text);
+  background: radial-gradient(circle at 70% -20%, var(--page-glow), transparent 32rem), var(--background);
+  font-size: 15px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+select,
+input {
+  font: inherit;
+}
+
+button,
+a,
+select,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  hyphens: auto;
+  overflow-wrap: anywhere;
+}
+
+button:focus-visible,
+select:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 3px;
+}
