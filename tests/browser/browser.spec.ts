@@ -76,6 +76,147 @@ test('applies the capture pixel budget before creating a large bitmap', async ({
   expect(result).toEqual([200, 200]);
 });
 
+test('keeps the visible server-rendered card connected during playground initialization', async ({ page }) => {
+  let releaseModule!: () => void;
+  const moduleGate = new Promise<void>((resolve) => {
+    releaseModule = resolve;
+  });
+  await page.route(/\/particle-playground(?:\.ts)?(?:\?|$)/, async (route) => {
+    await moduleGate;
+    await route.continue();
+  });
+  try {
+    await page.goto('http://localhost:4321/', { waitUntil: 'commit' });
+    const card = page.locator('.playground-card');
+    await card.scrollIntoViewIfNeeded();
+    const observation = await card.evaluateHandle((element) => {
+      const state = { detached: false };
+      const observer = new MutationObserver((records) => {
+        if (records.some((record) => [...record.removedNodes].includes(element))) state.detached = true;
+      });
+      observer.observe(element.parentElement!, { childList: true });
+      return { state, observer, element, artwork: element.querySelector('svg') };
+    });
+    releaseModule();
+    await expect(page.locator('[data-particle-playground] [data-status]')).toHaveText('Ready', { timeout: 15_000 });
+    const result = await observation.evaluate(({ state, observer, element, artwork }) => {
+      observer.disconnect();
+      return {
+        detached: state.detached,
+        sameCard: element === document.querySelector('.playground-card'),
+        sameArtwork: artwork === element.querySelector('svg'),
+      };
+    });
+    await observation.dispose();
+    expect(result).toEqual({ detached: false, sameCard: true, sameArtwork: true });
+  } finally {
+    releaseModule();
+  }
+});
+
+for (const initialWidth of [375, 1280]) {
+  test(`aligns playground artwork with captured pixels when loaded at ${initialWidth}px and resized`, async ({
+    page,
+  }) => {
+    // Set the viewport before navigation: resizing a desktop page to mobile can
+    // hide Chromium's incorrect initial resolved insets on flex descendants.
+    await page.setViewportSize({ width: initialWidth, height: 900 });
+    await page.goto('http://localhost:4321/');
+    const card = page.locator('.playground-card');
+    await card.scrollIntoViewIfNeeded();
+
+    for (const width of [initialWidth, initialWidth === 375 ? 1280 : 375]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const shape of ['narrow', 'wide']) {
+        const result = await card.evaluate(async (element, shape) => {
+          const modulePath = '../../src/snapdom.ts';
+          const { createSnapdomCapture } = (await import(modulePath)) as typeof import('../../src/snapdom');
+          if (element.getAttribute('data-card-width') !== shape) element.setAttribute('data-card-width', shape);
+          await document.fonts.ready;
+          await new Promise(requestAnimationFrame);
+          const bounds = element.getBoundingClientRect();
+          const dot = element.querySelector('.demo-card-dot')!.getBoundingClientRect();
+          const ring = element.querySelectorAll('.demo-card-ring')[2]!.getBoundingClientRect();
+          const canvas = await createSnapdomCapture({ dpr: 1, embedFonts: false })(element as HTMLElement, {
+            operation: 'prepare',
+            signal: new AbortController().signal,
+          });
+          try {
+            const context = canvas.getContext('2d')!;
+            const pixel = (x: number, y: number) =>
+              Array.from(context.getImageData(Math.floor(x), Math.floor(y), 1, 1).data);
+            const x = ring.left - bounds.left;
+            const y = ring.top - bounds.top + ring.height / 2;
+            const brightness = (offset: number) =>
+              pixel(x + offset, y)
+                .slice(0, 3)
+                .reduce((sum, c) => sum + c, 0);
+            // Allow one pixel of edge antialiasing while requiring the large ring
+            // at its live DOM position, above the surrounding gradient's brightness.
+            const edge = Math.max(brightness(-1), brightness(0), brightness(1));
+            const background = Math.max(brightness(-4), brightness(4));
+            return {
+              dot: pixel(dot.left - bounds.left + dot.width / 2, dot.top - bounds.top + dot.height / 2),
+              ringContrast: edge - background,
+            };
+          } finally {
+            canvas.width = canvas.height = 0;
+          }
+        }, shape);
+        for (const channel of result.dot.slice(0, 3)) expect(channel, `${width}px ${shape}: dot`).toBeGreaterThan(240);
+        expect(result.dot[3]).toBe(255);
+        expect(result.ringContrast, `${width}px ${shape}: ring`).toBeGreaterThan(40);
+      }
+    }
+  });
+}
+
+test('keeps card geometry continuous at both ends of the shape animation', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('http://localhost:4321/');
+  const root = page.locator('[data-particle-playground]');
+  await root.scrollIntoViewIfNeeded();
+  await expect(root.locator('[data-status]')).toHaveText('Ready', { timeout: 15_000 });
+
+  for (const width of [375, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const shape of ['wide', 'narrow']) {
+      const result = await root.evaluate(async (element, shape) => {
+        const card = element.querySelector<HTMLElement>('.playground-card')!;
+        const frame = card.querySelector('.demo-card-frame')!;
+        const measure = () => {
+          // Mobile viewport resizing can adjust scroll position between frames.
+          // Measure within the stage to isolate the card's own movement.
+          const stage = card.parentElement!.getBoundingClientRect();
+          return [card, frame, ...frame.children].flatMap((part) => {
+            const rect = part.getBoundingClientRect();
+            return [rect.x - stage.x, rect.y - stage.y, rect.width, rect.height];
+          });
+        };
+        const before = measure();
+        element.querySelector<HTMLButtonElement>(`[data-width-option="${shape}"]`)!.click();
+        const animations = card.getAnimations({ subtree: true });
+        for (const animation of animations) {
+          animation.pause();
+          animation.currentTime = 0;
+        }
+        const first = measure();
+        for (const animation of animations) animation.currentTime = Number(animation.effect!.getTiming().duration);
+        const last = measure();
+        for (const animation of animations) animation.finish();
+        await Promise.all(animations.map((animation) => animation.finished));
+        await new Promise(requestAnimationFrame);
+        return { count: animations.length, before, first, last, after: measure() };
+      }, shape);
+      expect(result.count).toBeGreaterThan(0);
+      for (let i = 0; i < result.before.length; i += 1) {
+        expect(Math.abs(result.first[i]! - result.before[i]!), `${width}px ${shape}: first frame`).toBeLessThan(0.1);
+        expect(Math.abs(result.last[i]! - result.after[i]!), `${width}px ${shape}: last frame`).toBeLessThan(0.1);
+      }
+    }
+  }
+});
+
 for (const action of ['reset', 'remove', 'restore'] as const) {
   test(`releases the queued preset lock when ${action} replaces its preview`, async ({ page }) => {
     await page.goto('http://localhost:4321/');

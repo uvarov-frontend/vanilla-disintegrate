@@ -854,51 +854,13 @@
     linear-gradient(145deg, #ff876f, #7548a1);
 }
 
-.demo-card-cover::before,
-.demo-card-cover::after,
-.demo-card-cover span {
+/* SVG keeps the right-anchored artwork relative to the final cover viewport.
+   Chromium can report incorrect CSS insets when this flex item first expands. */
+.demo-card-art {
   position: absolute;
-  border: 1px solid rgb(var(--on-cover-rgb) / 35%);
-  border-radius: 50%;
-  content: '';
-}
-
-.demo-card-cover::before {
-  top: 24px;
-  left: 27px;
-  width: 74px;
-  height: 74px;
-}
-
-.demo-card-cover::after {
-  right: -24px;
-  bottom: -34px;
-  width: 112px;
-  height: 112px;
-}
-
-.demo-card-cover span:nth-child(1) {
-  top: 44px;
-  left: 48px;
-  width: 31px;
-  height: 31px;
-  background: rgb(var(--on-cover-rgb) / 8%);
-}
-
-.demo-card-cover span:nth-child(2) {
-  top: 26px;
-  right: 31px;
-  width: 4px;
-  height: 4px;
-  border: 0;
-  background: #fff;
-  box-shadow:
-    -25px 58px 0 -1px rgb(var(--on-cover-rgb) / 58%),
-    15px 81px 0 -1px rgb(var(--on-cover-rgb) / 45%);
-}
-
-.demo-card-cover span:nth-child(3) {
-  display: none;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .demo-card-copy {

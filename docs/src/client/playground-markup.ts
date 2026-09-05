@@ -125,6 +125,7 @@ export function renderParticlePlayground(locale: Locale) {
               <button type="button" data-width-option="wide" aria-pressed="false" aria-label="${copy.cardShapeWide}" title="${copy.cardShapeWide}"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="1.75" y="4.75" width="12.5" height="6.5" rx="1.75" fill="none" stroke="currentColor" stroke-width="1.5"></rect><path d="M6.25 4.75v6.5" stroke="currentColor" stroke-width="1.5"></path></svg></button>
             </div>
             <div class="playground-stage" data-slot><article class="demo-card playground-card" data-card-width="narrow">${demoCardContent}</article></div>
+            <div class="playground-tooltip playground-card-hint" data-card-hint role="status" aria-live="polite" aria-atomic="true" hidden>${copy.cardHint}</div>
           </div>
           <section id="playground-view-panel-code" class="playground-view-panel playground-code code-block" role="tabpanel" data-view-panel="code" aria-labelledby="playground-view-tab-code" hidden>
             <div class="code-toolbar playground-code-heading">

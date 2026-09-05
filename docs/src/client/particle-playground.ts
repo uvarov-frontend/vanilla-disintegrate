@@ -34,6 +34,7 @@ import Disintegrator, {
 import { formatFileSize, MAX_LOCAL_AUDIO_BYTES, audioDuration, MAX_LOCAL_AUDIO_SECONDS } from './playground-audio';
 import { highlightedEffectSource, effectSource } from './playground-code';
 import { PlaygroundPreview } from './playground-preview';
+import { mountPlaygroundCardHint } from './playground-card-hint';
 import {
   listPlaygroundAudio,
   savePlaygroundAudio,
@@ -63,6 +64,7 @@ function createPreviewCard() {
 /** Attaches behavior to the statically rendered particle configurator. */
 export function mountParticlePlayground(root: HTMLElement) {
   if (!root.querySelector('.particle-playground')) root.innerHTML = renderParticlePlayground(locale);
+  const cardHint = mountPlaygroundCardHint(root);
 
   const presetButtons = [...root.querySelectorAll<HTMLButtonElement>('[data-preset]')];
   const curveSelect = required<HTMLSelectElement>(root, '[data-curve]');
@@ -131,13 +133,14 @@ export function mountParticlePlayground(root: HTMLElement) {
     const morph = animate && frame !== null && parts.length > 0 && !reduced;
     // First: the geometry the browser is showing right now.
     const firstCard = morph ? card.getBoundingClientRect() : null;
+    const firstFrame = morph && frame !== null ? frame.getBoundingClientRect() : null;
     const firstParts = morph ? parts.map((part) => part.getBoundingClientRect()) : [];
 
     card.dataset.cardWidth = cardWidth;
     for (const button of widthButtons) {
       button.setAttribute('aria-pressed', String(button.dataset.widthOption === cardWidth));
     }
-    if (!morph || firstCard === null || frame === null) return;
+    if (!morph || firstCard === null || firstFrame === null || frame === null) return;
 
     // Last: the frame wraps between one column and two, so the cover jumps from
     // above the copy to beside it. Pinning both halves lets them travel instead.
@@ -151,12 +154,13 @@ export function mountParticlePlayground(root: HTMLElement) {
     };
     frame.dataset.morphing = '';
     const box = (first: DOMRect, origin: DOMRect) => ({
-      translate: `${first.left - origin.left}px ${first.top - origin.top}px`,
+      // Absolute offsets start inside the frame border, whereas rects include it.
+      translate: `${first.left - origin.left - frame.clientLeft}px ${first.top - origin.top - frame.clientTop}px`,
       width: `${first.width}px`,
       height: `${first.height}px`,
     });
     const running = parts.map((part, index) =>
-      part.animate([box(firstParts[index]!, firstCard), box(lastParts[index]!, lastFrame)], timing),
+      part.animate([box(firstParts[index]!, firstFrame), box(lastParts[index]!, lastFrame)], timing),
     );
     running.push(
       card.animate(
@@ -257,6 +261,7 @@ export function mountParticlePlayground(root: HTMLElement) {
   };
   const updateActions = () => {
     root.setAttribute('aria-busy', String(busy));
+    if (busy) cardHint.hide();
     // The wait before a switch's preview starts is still a window where a second
     // preset would swap the configuration out from under it, so it locks too.
     // The selected preset stays live so the current choice keeps its full contrast.
@@ -476,7 +481,9 @@ export function mountParticlePlayground(root: HTMLElement) {
     });
   };
 
-  slot.append(card);
+  // Keep the server-rendered SVG connected: appending it again detaches and
+  // reinserts the visible card, needlessly rebuilding its paint state in Chrome.
+  if (card.parentElement !== slot) slot.append(card);
   applyCardWidth(false);
   render();
   void (async () => {
@@ -771,9 +778,11 @@ export function mountParticlePlayground(root: HTMLElement) {
   });
 
   window.addEventListener('pagehide', (event) => {
+    cardHint.hide();
     previews.cancel();
     if (hashTimer !== null) flushHash();
     if (event.persisted) return;
+    cardHint.dispose();
     previews.dispose();
     themeObserver.disconnect();
     unregister();

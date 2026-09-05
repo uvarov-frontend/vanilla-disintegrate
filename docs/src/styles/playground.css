@@ -322,6 +322,22 @@
   position: relative;
 }
 
+.playground-card-hint {
+  bottom: 6px;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 8px 10px;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.playground-card-hint::after {
+  left: calc(50% - 4px);
+}
+
 .playground-view-tabs {
   margin-left: auto;
 }
