@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- `audioWaitTimeout` bounds operation audio preparation at 1500 ms by default, then continues silently; `false` preserves unlimited waiting.
+- `SnapdomCaptureOptions.maxCapturePixels` reduces capture density before rasterization, with an 8-million-pixel default and `false` to disable the limit.
+
+### Fixed
+
+- Restore pointer interaction on retained nodes when renderer setup fails.
+- Dispose snapshots independently of pending audio, including captures arriving after cancellation.
+- Release playground preset locks when manual actions replace queued previews, and serialize subsequent previews until the previous card has been reinserted.
+
+### Changed
+
+- Split playground state, localization, serialization, code generation, markup and preview scheduling into separate modules; split site styles while preserving their cascade.
+- Include capture in coverage and exercise real SnapDOM and WebGL resource lifecycles across browser engines.
+- Stub external analytics in browser tests so UI navigation does not depend on third-party network latency; keep the dedicated CSP and opt-out checks.
+- Prune old deployment releases and tagged images after successful health checks, retaining only the active release and its image.
+
 ## [1.4.0] - 2026-09-04
 
 ### Added

@@ -58,6 +58,8 @@ DOM, SVG, CSS, WAAPI 또는 원본 픽셀이 필요 없는 다른 렌더러를 �
 
 ## `createSnapdomCapture`(options?)
 
+`SnapdomCaptureOptions`는 SnapDOM의 `SnapdomOptions`에 `maxCapturePixels`를 추가하며 기본값은 **8,000,000**입니다. 측정된 경계와 요청한 출력 크기가 픽셀 예산을 넘으면 래스터화 전에 DPR을 낮춥니다. 큰 캡처에서도 요청한 밀도를 유지하려면 `false`를 지정하세요. 이 예산은 요청한 비트맵 크기를 제한하며 DOM 순회나 리소스 삽입 비용은 제한하지 않습니다. 사용자 플러그인과 캡처 어댑터는 자체 메모리 할당을 관리합니다. 파티클의 `renderQuality`는 캡처 이후 별도로 적용됩니다.
+
 ```ts
 import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
 
@@ -69,7 +71,9 @@ const capture = createSnapdomCapture({
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-SnapDOM 기반 `SnapshotCapture`를 반환합니다. `options`는 SnapDOM이 내보내는 `SnapdomOptions` 타입을 사용합니다. 호출자가 지정한 값은 다음 통합 기본값보다 우선합니다.
+SnapDOM 기반 `SnapshotCapture`를 반환합니다. `options`는 `vanilla-disintegrate/snapdom`에서 내보내는 `SnapdomCaptureOptions` 타입을 사용합니다. 상속된 `SnapdomOptions` 설정은 [SnapDOM 문서](https://snapdom.dev/docs/options/)를 참고하세요.
+
+호출자가 지정한 값은 다음 통합 기본값보다 우선합니다.
 
 ```ts
 {
@@ -94,7 +98,7 @@ SnapDOM은 진행 중인 캡처의 취소 기능을 제공하지 않습니다. �
 import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 type SnapdomDisintegratorOptions = DisintegratorOptions & {
-  snapdom?: SnapdomOptions;
+  snapdom?: SnapdomCaptureOptions;
 };
 
 const effects = new Disintegrator({

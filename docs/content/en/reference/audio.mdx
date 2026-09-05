@@ -85,6 +85,8 @@ effects.clearPreparedAudio();
 
 `audioPreparation: false` disables automatic work; explicit `prepareAudio()` still works. If native audio is not ready, visual and sound wait for decoding and start together. Custom player factories own their loading and are not invoked by preparation.
 
+`audioWaitTimeout` limits how long an operation waits for native audio: **1500 ms** by default. On timeout, `onError` receives the reason and the visual continues without sound. Set a different duration in milliseconds, or `false` to wait indefinitely. Cancellation stops waiting immediately. Shared loading may continue to prepare audio for later operations; explicit `prepareAudio()` still waits for decoding.
+
 Each instance has an 8 MiB LRU budget for decoded forward and reversed buffers. Instances on the same page share fetches, decoded buffers, and one reference-counted `AudioContext`. Configure the per-instance ownership budget through `audioPreparation.cacheByteBudget`; `destroy()` releases that instance's ownership.
 
 ## Pair removal and restoration

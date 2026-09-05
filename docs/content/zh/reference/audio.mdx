@@ -85,6 +85,8 @@ effects.clearPreparedAudio();
 
 `audioPreparation: false` 会关闭自动准备；显式 `prepareAudio()` 仍然可用。若原生音频尚未就绪，视觉与声音会等待解码完成后同步开始。自定义播放器工厂自行负责加载，准备阶段不会调用它们。
 
+`audioWaitTimeout` 限制操作等待原生音频的时间，默认 **1500 毫秒**。超时后，原因会传递给 `onError`，视觉动画将无声继续。可设置其他毫秒数，或使用 `false` 无限等待。取消操作会立即停止等待。共享加载仍可为后续操作准备音频；显式 `prepareAudio()` 仍会等待解码完成。
+
 每个实例拥有 8 MiB 的 LRU 预算，用于正向和反向解码缓冲区。同一页面的实例共享网络请求、解码缓冲区和一个引用计数的 `AudioContext`。可通过 `audioPreparation.cacheByteBudget` 设置实例所有权预算；`destroy()` 会释放该实例的所有权。
 
 ## 配对删除与恢复

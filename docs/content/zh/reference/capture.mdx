@@ -58,6 +58,8 @@ const effects = new Disintegrator({
 
 ## `createSnapdomCapture`(options?)
 
+`SnapdomCaptureOptions` 在 SnapDOM 的 `SnapdomOptions` 基础上增加 `maxCapturePixels`，默认 **8,000,000**。当测量边界与请求的输出尺寸超过像素预算时，适配器会在栅格化前降低 DPR。设为 `false` 可保持大型截图的请求密度。此预算限制请求的位图尺寸，不限制 DOM 遍历或资源嵌入的成本；自定义插件和截图适配器自行管理内存分配。粒子的 `renderQuality` 在截图后独立应用。
+
 ```ts
 import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
 
@@ -69,7 +71,9 @@ const capture = createSnapdomCapture({
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-返回由 SnapDOM 实现的 `SnapshotCapture`。`options` 使用 SnapDOM 导出的 `SnapdomOptions` 类型。调用方设置会覆盖以下集成默认值：
+返回由 SnapDOM 实现的 `SnapshotCapture`。`options` 使用从 `vanilla-disintegrate/snapdom` 导出的 `SnapdomCaptureOptions` 类型。继承的 `SnapdomOptions` 参数详见 [SnapDOM 文档](https://snapdom.dev/docs/options/)。
+
+调用方设置会覆盖以下集成默认值：
 
 ```ts
 {
@@ -94,7 +98,7 @@ SnapDOM 不支持取消进行中的捕获。适配器会拒绝在开始前已经
 import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 type SnapdomDisintegratorOptions = DisintegratorOptions & {
-  snapdom?: SnapdomOptions;
+  snapdom?: SnapdomCaptureOptions;
 };
 
 const effects = new Disintegrator({

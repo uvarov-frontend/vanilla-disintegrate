@@ -58,6 +58,8 @@ Set `needsSnapshot: false` on a custom effect phase that animates DOM, SVG, CSS,
 
 ## `createSnapdomCapture`(options?)
 
+`SnapdomCaptureOptions` extends SnapDOM’s `SnapdomOptions` with `maxCapturePixels` (default: **8,000,000**). The adapter reduces DPR before rasterization when the measured bounds and requested output dimensions exceed this pixel budget. Set `false` to preserve the requested density for large captures. This bounds the requested bitmap size, not the cost of traversing DOM or embedding resources; custom plugins or capture adapters control their own allocations. Particle `renderQuality` applies separately after capture.
+
 ```ts
 import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
 
@@ -69,7 +71,9 @@ const capture = createSnapdomCapture({
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-Returns a `SnapshotCapture` backed by SnapDOM. `options` uses SnapDOM's exported `SnapdomOptions` type. Caller values override these integration defaults:
+Returns a `SnapshotCapture` backed by SnapDOM. `options` uses `SnapdomCaptureOptions`, exported from `vanilla-disintegrate/snapdom`. Inherited `SnapdomOptions` settings are described in the [SnapDOM documentation](https://snapdom.dev/docs/options/).
+
+Caller values override these integration defaults:
 
 ```ts
 {
@@ -94,7 +98,7 @@ SnapDOM does not expose cancellation for an in-flight capture. The adapter rejec
 import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 type SnapdomDisintegratorOptions = DisintegratorOptions & {
-  snapdom?: SnapdomOptions;
+  snapdom?: SnapdomCaptureOptions;
 };
 
 const effects = new Disintegrator({

@@ -48,13 +48,14 @@ Shared options:
 | `layout`               | `boolean \| LayoutOptions`                                  | `true`          | Moves neighbours into their new places after removal               |
 | `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | Prepares snapshots for registered elements                         |
 | `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'idle'`        | Controls preparation and the decoded-audio ownership budget        |
+| `audioWaitTimeout`     | `number \| false`                                           | `1500`          | Maximum wait for audio before continuing silently                  |
 | `respectReducedMotion` | `boolean`                                                   | `true`          | Skips animation when the user requests less motion                 |
 | `fallback`             | `FallbackEffectDefinition`                                  | —               | Silently replaces a phase whose WebGL2 renderer is unavailable     |
 | `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | Turns an element into a canvas for snapshot-based effects          |
 | `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | Receives fixed-position animation overlays                         |
 | `zIndex`               | `number`                                                    | `2147483646`    | Sets the overlay stack level                                       |
 | `random`               | `() => number`                                              | `Math.random`   | Seeds one repeatable pseudo-random stream per operation            |
-| `snapdom`              | `SnapdomOptions`                                            | —               | Configures SnapDOM's `toCanvas()`; available only from `/snapdom`  |
+| `snapdom`              | `SnapdomCaptureOptions`                                     | —               | Configures SnapDOM's `toCanvas()`; available only from `/snapdom`  |
 | `onTrigger`            | `(context) => void`                                         | —               | Runs after validation and before capture                           |
 | `onStart`              | `(context) => void`                                         | —               | Runs after the DOM change as playback begins                       |
 | `onComplete`           | `(context) => void`                                         | —               | Runs after a visual phase completes normally                       |

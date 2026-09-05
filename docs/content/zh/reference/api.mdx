@@ -48,13 +48,14 @@ type DisintegratorOptions =
 | `layout`               | `boolean \| LayoutOptions`                                  | `true`          | 删除后把相邻元素移动到新位置                     |
 | `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | 为已注册元素准备快照                             |
 | `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'idle'`        | 控制准备与解码音频所有权预算                     |
+| `audioWaitTimeout`     | `number \| false`                                           | `1500`          | 无声继续前的最长音频等待时间                     |
 | `respectReducedMotion` | `boolean`                                                   | `true`          | 用户请求减少动态效果时跳过动画                   |
 | `fallback`             | `FallbackEffectDefinition`                                  | —               | WebGL2 渲染器不可用时静默替换该阶段              |
 | `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | 为需要快照的效果把元素转换成 canvas              |
 | `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | 接收固定定位的动画覆盖层                         |
 | `zIndex`               | `number`                                                    | `2147483646`    | 设置覆盖层层级                                   |
 | `random`               | `() => number`                                              | `Math.random`   | 为每次操作初始化可复现的伪随机流                 |
-| `snapdom`              | `SnapdomOptions`                                            | —               | 配置 SnapDOM 的 `toCanvas()`；仅 `/snapdom` 可用 |
+| `snapdom`              | `SnapdomCaptureOptions`                                     | —               | 配置 SnapDOM 的 `toCanvas()`；仅 `/snapdom` 可用 |
 | `onTrigger`            | `(context) => void`                                         | —               | 验证后、捕获前调用                               |
 | `onStart`              | `(context) => void`                                         | —               | DOM 变更后、播放开始时调用                       |
 | `onComplete`           | `(context) => void`                                         | —               | 视觉阶段正常完成后调用                           |

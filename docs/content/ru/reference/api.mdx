@@ -48,13 +48,14 @@ type DisintegratorOptions =
 | `layout`               | `boolean \| LayoutOptions`                                  | `true`          | Перемещает соседей на новые позиции после удаления                |
 | `preparation`          | `boolean \| PreparationOptions`                             | `visible-idle`  | Готовит снимки зарегистрированных элементов                       |
 | `audioPreparation`     | `false \| 'immediate' \| 'idle' \| AudioPreparationOptions` | `'idle'`        | Управляет подготовкой и бюджетом владения декодированным аудио    |
+| `audioWaitTimeout`     | `number \| false`                                           | `1500`          | Максимальное ожидание аудио перед продолжением без звука          |
 | `respectReducedMotion` | `boolean`                                                   | `true`          | Пропускает анимацию при запросе уменьшенного движения             |
 | `fallback`             | `FallbackEffectDefinition`                                  | —               | Бесшумно заменяет фазу, которой недоступен WebGL2                 |
 | `capture`              | `SnapshotCapture`                                           | SnapDOM¹        | Превращает элемент в canvas для эффектов, которым нужен снимок    |
 | `overlayRoot`          | `HTMLElement \| () => HTMLElement`                          | `document.body` | Принимает fixed-слои анимации                                     |
 | `zIndex`               | `number`                                                    | `2147483646`    | Задаёт уровень слоя                                               |
 | `random`               | `() => number`                                              | `Math.random`   | Инициализирует воспроизводимый поток случайных чисел для операции |
-| `snapdom`              | `SnapdomOptions`                                            | —               | Настраивает `toCanvas()` SnapDOM; доступно только из `/snapdom`   |
+| `snapdom`              | `SnapdomCaptureOptions`                                     | —               | Настраивает `toCanvas()` SnapDOM; доступно только из `/snapdom`   |
 | `onTrigger`            | `(context) => void`                                         | —               | Вызывается после проверки и до захвата                            |
 | `onStart`              | `(context) => void`                                         | —               | Вызывается после изменения DOM при старте воспроизведения         |
 | `onComplete`           | `(context) => void`                                         | —               | Вызывается после нормального завершения визуальной фазы           |

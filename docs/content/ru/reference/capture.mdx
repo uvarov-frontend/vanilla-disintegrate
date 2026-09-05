@@ -58,6 +58,8 @@ const effects = new Disintegrator({
 
 ## `createSnapdomCapture`(options?)
 
+`SnapdomCaptureOptions` расширяет `SnapdomOptions` параметром `maxCapturePixels` (по умолчанию **8 000 000**). Адаптер уменьшает DPR до растеризации, если измеренные границы и запрошенные размеры превышают бюджет пикселей. Значение `false` сохраняет запрошенную плотность больших снимков. Это ограничивает запрошенный размер bitmap, но не стоимость обхода DOM и встраивания ресурсов; пользовательские плагины и capture-адаптеры управляют собственными выделениями памяти. `renderQuality` частиц применяется отдельно, после capture.
+
 ```ts
 import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
 
@@ -69,7 +71,9 @@ const capture = createSnapdomCapture({
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-Возвращает `SnapshotCapture` на основе SnapDOM. Для `options` используется экспортируемый SnapDOM тип `SnapdomOptions`. Значения пользователя переопределяют следующие настройки интеграции:
+Возвращает `SnapshotCapture` на основе SnapDOM. Параметр `options` имеет тип `SnapdomCaptureOptions`, экспортируемый из `vanilla-disintegrate/snapdom`. Унаследованные параметры `SnapdomOptions` описаны в [документации SnapDOM](https://snapdom.dev/docs/options/).
+
+Значения пользователя переопределяют следующие настройки интеграции:
 
 ```ts
 {
@@ -94,7 +98,7 @@ SnapDOM не предоставляет отмену уже запущенног
 import Disintegrator from 'vanilla-disintegrate/snapdom';
 
 type SnapdomDisintegratorOptions = DisintegratorOptions & {
-  snapdom?: SnapdomOptions;
+  snapdom?: SnapdomCaptureOptions;
 };
 
 const effects = new Disintegrator({
