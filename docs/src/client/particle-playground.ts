@@ -787,7 +787,7 @@ export function mountParticlePlayground(root: HTMLElement) {
   });
 
   window.addEventListener('pagehide', (event) => {
-    cardHint.hide();
+    cardHint.hide(true);
     previews.cancel();
     if (hashTimer !== null) flushHash();
     if (event.persisted) return;
