@@ -90,8 +90,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       documentTitle: 'Vanilla Disintegrate · Particle effects for removing and restoring DOM elements',
       title: 'Modern, striking,',
       accent: 'versatile, and CSS-free',
-      headingRemoveHint: 'Click to scatter!',
-      headingRestoreHint: 'Click to reverse!',
+      headingRemoveHint: 'Snap to disintegrate!',
+      headingRestoreHint: 'Snap to restore!',
       headingRemoveEffect: 'Play the Thanos snap and remove the highlighted word',
       headingRestoreEffect: 'Reverse the snap and restore the highlighted word',
       description:
@@ -142,7 +142,7 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       title: 'Современная, эффектная,',
       accent: 'универсальная и без CSS-зависимостей',
       headingRemoveHint: 'Щёлкните, чтобы развеять!',
-      headingRestoreHint: 'Нажмите, чтобы обратить!',
+      headingRestoreHint: 'Щёлкните, чтобы вернуть!',
       headingRemoveEffect: 'Щёлкнуть перчаткой и удалить выделенное слово',
       headingRestoreEffect: 'Обратить время и восстановить выделенное слово',
       description:
@@ -192,8 +192,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       documentTitle: 'Vanilla Disintegrate · DOM 元素删除与恢复粒子动画',
       title: '现代、惊艳、',
       accent: '通用，无需 CSS 依赖',
-      headingRemoveHint: '点击以消散！',
-      headingRestoreHint: '点击以逆转！',
+      headingRemoveHint: '打个响指，让它消散！',
+      headingRestoreHint: '打个响指，让它复原！',
       headingRemoveEffect: '播放灭霸响指并移除高亮词语',
       headingRestoreEffect: '逆转响指并恢复高亮词语',
       description:
@@ -241,8 +241,8 @@ export const ui: Readonly<Record<Locale, UiCopy>> = {
       documentTitle: 'Vanilla Disintegrate · DOM 삭제 및 복원 파티클 애니메이션',
       title: '현대적이고 인상적이며,',
       accent: '범용적이고 CSS 의존성이 없습니다',
-      headingRemoveHint: '클릭하여 흩날리기!',
-      headingRestoreHint: '클릭하여 되돌리기!',
+      headingRemoveHint: '손가락을 튕겨 분해하세요!',
+      headingRestoreHint: '손가락을 튕겨 되돌리세요!',
       headingRemoveEffect: '타노스 스냅으로 강조된 단어 제거',
       headingRestoreEffect: '시간을 되돌려 강조된 단어 복원',
       description:

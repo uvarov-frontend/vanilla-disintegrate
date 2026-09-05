@@ -71,7 +71,7 @@ test('animates two localized heading words only after the visitor uses the snap 
       label: 'Современная, эффектная, универсальная и без CSS-зависимостей',
       action: 'Щёлкнуть перчаткой и удалить выделенное слово',
       removeHint: 'Щёлкните, чтобы развеять!',
-      restoreHint: 'Нажмите, чтобы обратить!',
+      restoreHint: 'Щёлкните, чтобы вернуть!',
     },
     {
       path: '/zh/',
@@ -79,8 +79,8 @@ test('animates two localized heading words only after the visitor uses the snap 
       words: ['现代、', '惊艳、'],
       label: '现代、惊艳、 通用，无需 CSS 依赖',
       action: '播放灭霸响指并移除高亮词语',
-      removeHint: '点击以消散！',
-      restoreHint: '点击以逆转！',
+      removeHint: '打个响指，让它消散！',
+      restoreHint: '打个响指，让它复原！',
     },
     {
       path: '/ko/',
@@ -88,8 +88,8 @@ test('animates two localized heading words only after the visitor uses the snap 
       words: ['현대적이고', '인상적이며,'],
       label: '현대적이고 인상적이며, 범용적이고 CSS 의존성이 없습니다',
       action: '타노스 스냅으로 강조된 단어 제거',
-      removeHint: '클릭하여 흩날리기!',
-      restoreHint: '클릭하여 되돌리기!',
+      removeHint: '손가락을 튕겨 분해하세요!',
+      restoreHint: '손가락을 튕겨 되돌리세요!',
     },
     {
       path: '/?lang=en',
@@ -97,8 +97,8 @@ test('animates two localized heading words only after the visitor uses the snap 
       words: ['Modern,', 'striking,'],
       label: 'Modern, striking, versatile, and CSS-free',
       action: 'Play the Thanos snap and remove the highlighted word',
-      removeHint: 'Click to scatter!',
-      restoreHint: 'Click to reverse!',
+      removeHint: 'Snap to disintegrate!',
+      restoreHint: 'Snap to restore!',
     },
   ] as const;
 
