@@ -8,6 +8,12 @@ import tableScroll from './docs/src/lib/rehype-table-scroll.mjs';
 
 export default defineConfig({
   adapter: node({ mode: 'standalone' }),
+  security: {
+    // No Astro Actions/forms in this project; disabled so the PostHog capture proxy
+    // (POST with Content-Type: text/plain, which posthog-js uses to avoid CORS preflight)
+    // isn't rejected by Astro's origin check before it reaches our middleware.
+    checkOrigin: false,
+  },
   build: {
     assets: 'assets',
   },
