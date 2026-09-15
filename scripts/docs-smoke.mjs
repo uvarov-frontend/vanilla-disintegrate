@@ -130,8 +130,8 @@ try {
     assert.ok(html.includes('/assets/'), `${path} must include built assets`);
     const contentSecurityPolicy = response.headers.get('content-security-policy') ?? '';
     assert.match(contentSecurityPolicy, /default-src 'self'/, path);
-    assert.match(contentSecurityPolicy, /frame-src 'self' blob: https:\/\/mc\.yandex\.ru/, path);
-    assert.match(contentSecurityPolicy, /frame-ancestors 'self' metrika\.yandex\.ru/, path);
+    assert.match(contentSecurityPolicy, /connect-src 'self'/, path);
+    assert.doesNotMatch(contentSecurityPolicy, /yandex|webvisor/i, path);
     assert.equal(response.headers.get('x-frame-options'), null, path);
     assert.equal(response.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains', path);
     assert.equal(response.headers.get('cache-control'), 'private, no-cache', path);
@@ -259,7 +259,7 @@ try {
   assert.ok(home.includes('data-menu-button'), 'home must expose its mobile navigation menu');
   assert.ok(home.includes('data-mobile-nav'), 'home must render its mobile navigation links');
   assert.ok(home.includes('href="/privacy/"'), 'home must link to the privacy controls');
-  assert.ok(!home.includes('/metrika/tag'), 'analytics loader must remain in the external client bundle');
+  assert.ok(!home.includes('posthog.init('), 'analytics loader must remain in the external client bundle');
   assert.ok(installation.includes('data-menu-button'), 'documentation must keep its mobile navigation menu');
   assert.ok(installation.includes('class="mobile-docs-global"'), 'documentation menu must include global links');
   assert.ok(installation.includes('Copyright © 2026 MIT License. | Design and development by'));

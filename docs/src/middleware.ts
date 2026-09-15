@@ -1,77 +1,23 @@
 import { defineMiddleware } from 'astro:middleware';
 
 import { isLocale, localePrefix, type Locale } from './i18n';
+import { forwardToPostHog } from './lib/posthog-proxy';
 
 const LOCALE_COOKIE = 'vanilla-disintegrate-locale';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
-const METRICA_HOSTS = [
-  'mc.yandex.ru',
-  'mc.yandex.az',
-  'mc.yandex.by',
-  'mc.yandex.co.il',
-  'mc.yandex.com',
-  'mc.yandex.com.am',
-  'mc.yandex.com.ge',
-  'mc.yandex.com.tr',
-  'mc.yandex.ee',
-  'mc.yandex.fr',
-  'mc.yandex.kg',
-  'mc.yandex.kz',
-  'mc.yandex.lt',
-  'mc.yandex.lv',
-  'mc.yandex.md',
-  'mc.yandex.tj',
-  'mc.yandex.tm',
-  'mc.yandex.uz',
-  'mc.webvisor.com',
-  'mc.webvisor.org',
-] as const;
-const METRICA_HTTPS_ORIGINS = METRICA_HOSTS.map((host) => `https://${host}`).join(' ');
-const METRICA_WSS_ORIGINS = METRICA_HOSTS.map((host) => `wss://${host}`).join(' ');
-const METRICA_FRAME_ANCESTORS = [
-  'metrika.yandex.ru',
-  'analytics.yandex.by',
-  'analytics.yandex.com',
-  'analytics.yandex.com.tr',
-  'analytics.yandex.kz',
-  'analytics.yandex.ru',
-  'metr.yandex.by',
-  'metr.yandex.com',
-  'metr.yandex.com.tr',
-  'metr.yandex.kz',
-  'metr.yandex.ru',
-  'metrica.ya.ru',
-  'metrica.yandex',
-  'metrica.yandex.by',
-  'metrica.yandex.com',
-  'metrica.yandex.com.tr',
-  'metrica.yandex.kz',
-  'metrica.yandex.ru',
-  'metrika.ya.ru',
-  'metrika.yandex',
-  'metrika.yandex.by',
-  'metrika.yandex.com',
-  'metrika.yandex.com.tr',
-  'metrika.yandex.kz',
-  'metrika.yandex.uz',
-  'webvisor.com',
-  '*.webvisor.com',
-  'webvisor.org',
-  '*.webvisor.org',
-].join(' ');
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "base-uri 'self'",
-  `connect-src 'self' ${METRICA_HTTPS_ORIGINS} ${METRICA_WSS_ORIGINS}`,
-  `child-src 'self' blob: ${METRICA_HTTPS_ORIGINS}`,
+  "connect-src 'self'",
+  "child-src 'self' blob:",
   "font-src 'self' data:",
   "form-action 'self'",
-  `frame-ancestors 'self' ${METRICA_FRAME_ANCESTORS}`,
-  `frame-src 'self' blob: ${METRICA_HTTPS_ORIGINS}`,
-  `img-src 'self' data: blob: ${METRICA_HTTPS_ORIGINS}`,
+  "frame-ancestors 'self'",
+  "frame-src 'self' blob:",
+  "img-src 'self' data: blob:",
   "media-src 'self' blob:",
   "object-src 'none'",
-  `script-src 'self' ${METRICA_HTTPS_ORIGINS} https://yastatic.net`,
+  "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "worker-src 'self' blob:",
   ...(import.meta.env.DEV ? [] : ['upgrade-insecure-requests']),
@@ -147,6 +93,8 @@ function secure(response: Response) {
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
+  if (context.url.pathname.startsWith('/ingest/')) return secure(await forwardToPostHog(context.request));
+
   const pathLocale = localeFromPath(context.url.pathname);
   const unlocalizedPath = withoutLocalePrefix(context.url.pathname);
   const canonicalPath = legacyRoutes[unlocalizedPath] ?? unlocalizedPath;

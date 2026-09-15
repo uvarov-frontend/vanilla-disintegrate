@@ -25,7 +25,7 @@ export default defineConfig({
     },
     {
       command: 'pnpm exec astro dev',
-      env: { ASTRO_DEV_BACKGROUND: '1' },
+      env: { ASTRO_DEV_BACKGROUND: '1', PUBLIC_POSTHOG_KEY: 'phc_test_00000000000000000000000000000000' },
       reuseExistingServer: !process.env.CI,
       url: 'http://localhost:4321/',
     },

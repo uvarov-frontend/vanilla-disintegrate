@@ -1,3 +1,5 @@
+import posthog from 'posthog-js';
+
 import { setupThemeSwitcher } from './theme';
 import Disintegrator from '../../../src/snapdom';
 import type { BuiltInPreset, EffectDefinition, EffectOperation, RemovalId, SoundSelection } from '../../../src/types';
@@ -225,19 +227,17 @@ function setupNavigation() {
 }
 
 const analyticsStorageKey = 'vanilla-disintegrate-analytics';
-const analyticsCounterId = 112076480;
+const posthogKey = import.meta.env.PUBLIC_POSTHOG_KEY as string | undefined;
 
 function setupAnalytics() {
   type AnalyticsChoice = 'granted' | 'denied';
-  type AnalyticsWindow = Window & {
-    ym?: ((...arguments_: unknown[]) => void) & { a?: unknown[][]; l?: number };
-  };
   let stored: string | null = null;
   try {
     stored = window.localStorage.getItem(analyticsStorageKey);
   } catch {
     // Analytics stays enabled by default when storage is unavailable.
   }
+  let loaded = false;
   const toggles = [...document.querySelectorAll<HTMLButtonElement>('[data-analytics-toggle]')];
   const syncToggles = () => {
     const disabled = stored === 'denied';
@@ -251,29 +251,17 @@ function setupAnalytics() {
     }
   };
   const load = () => {
-    const analyticsWindow = window as AnalyticsWindow;
-    if (document.querySelector<HTMLScriptElement>('[data-yandex-metrica]')) return;
-    analyticsWindow.ym ??= (...arguments_: unknown[]) => {
-      (analyticsWindow.ym!.a ??= []).push(arguments_);
-    };
-    analyticsWindow.ym.l = Date.now();
-    analyticsWindow.ym(analyticsCounterId, 'init', {
-      accurateTrackBounce: true,
-      clickmap: true,
-      referrer: document.referrer,
-      ssr: true,
-      trackHash: true,
-      trackLinks: true,
-      url: window.location.href,
-      webvisor: true,
+    if (!posthogKey || loaded) return;
+    loaded = true;
+    posthog.init(posthogKey, {
+      api_host: '/ingest',
+      ui_host: 'https://eu.posthog.com',
+      defaults: '2026-01-30',
+      person_profiles: 'identified_only',
+      disable_session_recording: true,
     });
-    const script = document.createElement('script');
-    script.async = true;
-    script.dataset.yandexMetrica = '';
-    script.src = `https://mc.webvisor.org/metrika/tag_ww.js?id=${String(analyticsCounterId)}`;
-    document.head.append(script);
   };
-  const select = (choice: AnalyticsChoice, reload = false) => {
+  const select = (choice: AnalyticsChoice) => {
     try {
       window.localStorage.setItem(analyticsStorageKey, choice);
     } catch {
@@ -281,20 +269,18 @@ function setupAnalytics() {
     }
     stored = choice;
     syncToggles();
-    if (choice === 'granted') load();
-    else {
-      Reflect.set(window, `disableYaCounter${analyticsCounterId}`, true);
-      if (reload) window.location.reload();
+    if (choice === 'denied') {
+      if (loaded) posthog.opt_out_capturing();
+      return;
     }
+    if (loaded) posthog.opt_in_capturing();
+    else load();
   };
 
   if (stored !== 'denied') load();
   syncToggles();
   for (const toggle of toggles) {
-    toggle.addEventListener('click', () => {
-      const choice: AnalyticsChoice = stored === 'denied' ? 'granted' : 'denied';
-      select(choice, choice === 'denied' && stored !== 'denied');
-    });
+    toggle.addEventListener('click', () => select(stored === 'denied' ? 'granted' : 'denied'));
   }
 }
 

@@ -124,6 +124,7 @@
     "fflate": "^0.8.3",
     "globals": "^16.3.0",
     "jsdom": "^29.0.1",
+    "posthog-js": "^1.433.4",
     "prettier": "^3.6.2",
     "prettier-plugin-astro": "^0.14.1",
     "publint": "^0.3.24",
