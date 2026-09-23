@@ -8,11 +8,11 @@
     "gzipBytes": 25759
   },
   "esmWithSnapdom": {
-    "minifiedBytes": 354188,
+    "minifiedBytes": 354187,
     "gzipBytes": 112864
   },
   "iife": {
-    "minifiedBytes": 329883,
-    "gzipBytes": 107097
+    "minifiedBytes": 329882,
+    "gzipBytes": 107093
   }
 }

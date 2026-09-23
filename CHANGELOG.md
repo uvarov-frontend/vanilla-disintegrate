@@ -15,6 +15,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Preserve the transform origin of rotated and scaled pseudo-elements in SnapDOM snapshots.
 - Enable layout reconciliation by default so grid items retain their content-sized and constrained widths.
 - Avoid counting table captions twice when sizing captured table rows.
+- Keep capture geometry compatible with ES2020 and fail the build on TypeScript declaration errors.
 
 ## [1.6.0] - 2026-09-23
 

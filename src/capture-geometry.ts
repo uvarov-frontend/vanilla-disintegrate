@@ -15,7 +15,7 @@ export function captureCrop(element: HTMLElement, meta: CaptureMeta, options: Sn
     (style.rotate && style.rotate !== 'none') ||
     (style.scale && style.scale !== 'none')
   ) {
-    const angle = style.rotate?.split(/\s+/).at(-1) ?? '0';
+    const angle = style.rotate?.split(/\s+/).pop() ?? '0';
     const degrees =
       parseFloat(angle) *
       (angle.endsWith('grad') ? 0.9 : angle.endsWith('rad') ? 180 / Math.PI : angle.endsWith('turn') ? 360 : 1);

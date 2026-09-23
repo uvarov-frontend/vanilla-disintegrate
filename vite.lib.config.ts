@@ -2,6 +2,7 @@ import { posix, resolve } from 'node:path';
 
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
+import ts from 'typescript';
 
 export default defineConfig({
   experimental: {
@@ -19,6 +20,11 @@ export default defineConfig({
       entryRoot: 'src',
       include: ['src'],
       insertTypesEntry: true,
+      afterDiagnostic(diagnostics) {
+        if (diagnostics.some(({ category }) => category === ts.DiagnosticCategory.Error)) {
+          throw new Error('Declaration generation failed with TypeScript errors.');
+        }
+      },
     }),
   ],
   build: {
