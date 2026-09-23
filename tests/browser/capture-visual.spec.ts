@@ -1,6 +1,18 @@
 import { expect, test, type Locator } from '@playwright/test';
 import { compareCapture } from './capture-comparison';
 
+test.use({
+  launchOptions: async ({ browserName, launchOptions }, use) => {
+    // Transparent SVG/canvas text uses grayscale antialiasing. Linux Chromium
+    // otherwise paints live DOM text with LCD subpixels, changing glyph colors.
+    await use(
+      browserName === 'chromium'
+        ? { ...launchOptions, args: [...(launchOptions.args ?? []), '--disable-lcd-text'] }
+        : launchOptions,
+    );
+  },
+});
+
 const cases = [
   'typography',
   'buttons',
