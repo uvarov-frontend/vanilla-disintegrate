@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Changed
+
+- Use SnapDOM `^3.1.0` with native option types, output sizing, automatic font embedding, filtering, image fallbacks, and repeat capture caching.
+- Give each capture its own canvas and use the SVG renderer with bounded output density.
+- Raise the bundled IIFE gzip budget to 110 KiB for the SnapDOM renderer; standalone ESM entry budgets remain unchanged.
+
+### Fixed
+
+- Reuse valid snapshots after cancelled removal and restoration, while releasing visual resources and rejecting invalidated or outdated sources.
+- Refresh playground snapshots when the theme changes during an animation.
+- Refresh capture engine caches through `SnapshotCaptureContext.invalidate` after explicit preparation, `invalidate()`, and `clearPrepared()`.
+- Align rotated and scaled snapshots with the element and crop filter bleed at export without stretching the source.
+- Keep Safari captures sharp and independently sized when a native capture is reused.
+- Allow alternate browser test ports through `PLAYWRIGHT_FIXTURE_PORT` and `PLAYWRIGHT_DOCS_PORT`, using an explicit loopback address across browsers.
+
 ## [1.5.0] - 2026-09-05
 
 ### Added

@@ -293,6 +293,8 @@ effects.invalidate(elements);
 effects.clearPrepared();
 ```
 
+`invalidate()` 通过 `context.invalidate` 同时刷新预备 canvas 和捕获引擎。显式 `prepare()` 也要求刷新；`clearPrepared()` 后的下一次捕获必须刷新。这包括 DOM 观察器无法检测的 CSSOM 修改。具有独立缓存的自定义适配器必须处理 `context.invalidate`。
+
 `register()` 遵循配置的策略。即使后台准备已关闭，`prepare()` 也会立即捕获。同一元素的重复注册采用引用计数；每个返回的取消函数只释放自己的注册。
 
 `register()` 返回幂等的 `() => void`；`prepare()` 返回 `Promise<void>`；`invalidate()` 和 `clearPrepared()` 返回 `void`。

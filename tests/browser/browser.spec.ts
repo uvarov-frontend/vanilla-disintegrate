@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { stubAnalytics } from './analytics';
+import { docsURL } from './urls';
 
 test.beforeEach(async ({ page, context }) => {
   await stubAnalytics(context);
@@ -58,6 +59,76 @@ test('captures real SnapDOM pixels at DPR 2 for both removal and concealed resto
   });
 });
 
+test('reuses SnapDOM snapshots after cancellation and refreshes invalidation and resized content', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { Disintegrator, createSnapdomCapture } = await import('../../src/snapdom');
+    const target = document.createElement('div');
+    target.style.cssText = 'width:96px;height:48px;background:red';
+    document.body.append(target);
+    const capture = createSnapdomCapture({ dpr: 1, embedFonts: false });
+    let captures = 0;
+    let started = () => {};
+    const sources: HTMLCanvasElement[] = [];
+    const samples: number[][] = [];
+    const animate = (context: import('../../src/types').AnimationContext) => {
+      sources.push(context.snapshot!);
+      samples.push(Array.from(context.snapshot!.getContext('2d')!.getImageData(8, 8, 1, 1).data));
+      return context.visual!.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 10_000 });
+    };
+    const effects = new Disintegrator({
+      capture: (element, context) => {
+        captures++;
+        return capture(element, context);
+      },
+      effect: { remove: { animate }, restore: { animate } },
+      preparation: { strategy: 'idle' },
+      layout: false,
+      sound: false,
+      onStart: () => started(),
+    });
+    const cancel = async (kind: 'remove' | 'restore') => {
+      const ready = new Promise<void>((resolve) => (started = resolve));
+      const operation = kind === 'remove' ? effects.remove(target, { retain: true }) : effects.restore(target);
+      await ready;
+      operation.cancel();
+      const result = await operation.finished;
+      if (kind === 'remove') {
+        // Allow ResizeObserver to report the detached node before it is restored.
+        await new Promise(requestAnimationFrame);
+        await new Promise(requestAnimationFrame);
+        document.body.append(effects.take(operation.removalId!)!);
+      }
+      return result.status;
+    };
+    try {
+      await effects.prepare(target);
+      effects.register(target);
+      const statuses = [];
+      for (const kind of ['remove', 'restore', 'remove', 'restore'] as const) statuses.push(await cancel(kind));
+      const repeated = { captures, sameSource: sources.every((source) => source === sources[0]) };
+      target.style.background = 'blue';
+      effects.invalidate(target);
+      await cancel('remove');
+      const invalidated = { captures, pixel: samples.at(-1) };
+      target.style.width = '120px';
+      await cancel('restore');
+      const resized = { captures, width: sources.at(-1)!.width };
+      effects.clearPrepared();
+      return { statuses, repeated, invalidated, resized, released: sources.every((source) => source.width === 0) };
+    } finally {
+      effects.destroy();
+      target.remove();
+    }
+  });
+  expect(result).toEqual({
+    statuses: ['cancelled', 'cancelled', 'cancelled', 'cancelled'],
+    repeated: { captures: 1, sameSource: true },
+    invalidated: { captures: 2, pixel: [0, 0, 255, 255] },
+    resized: { captures: 3, width: 120 },
+    released: true,
+  });
+});
+
 test('applies the capture pixel budget before creating a large bitmap', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const { createSnapdomCapture } = await import('../../src/snapdom');
@@ -76,6 +147,334 @@ test('applies the capture pixel budget before creating a large bitmap', async ({
   expect(result).toEqual([200, 200]);
 });
 
+test('uses native SnapDOM dimensions, scale precedence and pixel budgets', async ({ page }) => {
+  const captures = await page.evaluate(async () => {
+    const { createSnapdomCapture } = await import('../../src/snapdom');
+    const element = document.createElement('div');
+    element.style.cssText = 'width:80px;height:40px;background:rgb(23,145,217);';
+    document.body.append(element);
+    const results = [];
+    try {
+      for (const sizing of [
+        { scale: 2 },
+        { width: 120, scale: 2 },
+        { height: 60, scale: 0.5 },
+        { width: 120, height: 40, scale: 2 },
+        { width: 120, scale: 2, maxCapturePixels: 7200 },
+      ]) {
+        const capture = createSnapdomCapture({ ...sizing, dpr: 2, embedFonts: false });
+        const canvas = await capture(element, { operation: 'prepare', signal: new AbortController().signal });
+        results.push({
+          size: [canvas.width, canvas.height],
+          pixel: Array.from(canvas.getContext('2d')!.getImageData(canvas.width / 2, canvas.height / 2, 1, 1).data),
+        });
+        canvas.width = canvas.height = 0;
+      }
+      return results;
+    } finally {
+      element.remove();
+    }
+  });
+  expect(captures).toEqual(
+    [
+      [320, 160],
+      [240, 120],
+      [240, 120],
+      [240, 80],
+      [120, 60],
+    ].map((size) => ({
+      size,
+      pixel: [23, 145, 217, 255],
+    })),
+  );
+});
+
+test('preserves independent filter and exclude modes and reevaluates state on repeat capture', async ({ page }) => {
+  const captures = await page.evaluate(async () => {
+    const { createSnapdomCapture } = await import('../../src/snapdom');
+    const element = document.createElement('div');
+    element.style.cssText = 'display:flex;width:120px;height:20px;background:white;';
+    for (const [name, color] of [
+      ['private', 'red'],
+      ['toolbar', 'lime'],
+      ['content', 'blue'],
+    ]) {
+      const child = document.createElement('div');
+      child.className = name!;
+      child.style.cssText = `width:20px;height:20px;flex:none;background:${color};`;
+      element.append(child);
+    }
+    document.body.append(element);
+    let hidePrivate = true;
+    const capture = createSnapdomCapture({
+      dpr: 1,
+      embedFonts: false,
+      filter: (node) => !hidePrivate || !node.matches('.private'),
+      filterMode: 'hide',
+      exclude: ['.toolbar', (node) => node.hasAttribute('data-ignore')],
+      excludeMode: 'remove',
+    });
+    const results = [];
+    try {
+      for (const hidden of [true, false, true]) {
+        hidePrivate = hidden;
+        const canvas = await capture(element, { operation: 'prepare', signal: new AbortController().signal });
+        const context = canvas.getContext('2d')!;
+        results.push([10, 30, 50].map((x) => Array.from(context.getImageData(x, 10, 1, 1).data)));
+        canvas.width = canvas.height = 0;
+      }
+      return results;
+    } finally {
+      element.remove();
+    }
+  });
+  const white = [255, 255, 255, 255];
+  const blue = [0, 0, 255, 255];
+  expect(captures).toEqual([
+    [white, blue, white],
+    [[255, 0, 0, 255], blue, white],
+    [white, blue, white],
+  ]);
+});
+
+for (const withCanvas of [false, true]) {
+  test(`refreshes CSSOM on request and retains earlier snapshots (canvas: ${withCanvas})`, async ({ page }) => {
+    const samples = await page.evaluate(async (withCanvas) => {
+      const { createSnapdomCapture } = await import('../../src/snapdom');
+      const style = document.createElement('style');
+      style.textContent = '.capture-fresh { width:40px;height:20px;background:red; }';
+      document.head.append(style);
+      const element = document.createElement('div');
+      element.className = 'capture-fresh';
+      const source = document.createElement('canvas');
+      source.width = source.height = 20;
+      if (withCanvas) element.append(source);
+      document.body.append(element);
+      const capture = createSnapdomCapture({ dpr: 1, embedFonts: false });
+      const snapshots: HTMLCanvasElement[] = [];
+      try {
+        for (const color of ['red', 'blue', 'lime']) {
+          const context = source.getContext('2d')!;
+          context.fillStyle = color;
+          context.fillRect(0, 0, 20, 20);
+          (style.sheet!.cssRules[0] as CSSStyleRule).style.background = color;
+          snapshots.push(
+            await capture(element, { operation: 'prepare', signal: new AbortController().signal, invalidate: true }),
+          );
+        }
+        return snapshots.map((canvas) =>
+          [10, 30].map((x) => Array.from(canvas.getContext('2d')!.getImageData(x, 10, 1, 1).data)),
+        );
+      } finally {
+        for (const canvas of snapshots) canvas.width = canvas.height = 0;
+        element.remove();
+        style.remove();
+      }
+    }, withCanvas);
+    expect(samples).toEqual(
+      [
+        [255, 0, 0, 255],
+        [0, 0, 255, 255],
+        [0, 255, 0, 255],
+      ].map((pixel) => [pixel, pixel]),
+    );
+  });
+}
+
+test('reuses unchanged native captures and refreshes inline styles and explicit CSSOM changes', async ({ page }) => {
+  const result = await page.evaluate(async () => {
+    const { createSnapdomCapture } = await import('../../src/snapdom');
+    const style = document.createElement('style');
+    style.textContent = '.memo-target {width:40px;height:20px;background:red}';
+    document.head.append(style);
+    const element = document.createElement('div');
+    element.className = 'memo-target';
+    document.body.append(element);
+    let renders = 0;
+    const capture = createSnapdomCapture({
+      dpr: 2,
+      embedFonts: false,
+      plugins: [
+        {
+          name: 'count-renders',
+          pure: true,
+          beforeRender: () => {
+            renders++;
+          },
+        },
+      ],
+    });
+    const snapshots: HTMLCanvasElement[] = [];
+    try {
+      for (let i = 0; i < 3; i++)
+        snapshots.push(await capture(element, { operation: 'prepare', signal: new AbortController().signal }));
+      const unchangedRenders = renders;
+      element.style.background = 'blue';
+      snapshots.push(await capture(element, { operation: 'prepare', signal: new AbortController().signal }));
+      element.style.removeProperty('background');
+      (style.sheet!.cssRules[0] as CSSStyleRule).style.background = 'lime';
+      snapshots.push(
+        await capture(element, { operation: 'prepare', signal: new AbortController().signal, invalidate: true }),
+      );
+      return {
+        unchangedRenders,
+        distinct: new Set(snapshots).size,
+        samples: snapshots.map((canvas) => ({
+          size: [canvas.width, canvas.height],
+          pixel: Array.from(canvas.getContext('2d')!.getImageData(10, 10, 1, 1).data),
+        })),
+      };
+    } finally {
+      snapshots.forEach((canvas) => {
+        canvas.width = canvas.height = 0;
+      });
+      element.remove();
+      style.remove();
+    }
+  });
+  expect(result.unchangedRenders).toBe(1);
+  expect(result.distinct).toBe(5);
+  expect(result.samples).toEqual(
+    [
+      [255, 0, 0, 255],
+      [255, 0, 0, 255],
+      [255, 0, 0, 255],
+      [0, 0, 255, 255],
+      [0, 255, 0, 255],
+    ].map((pixel) => ({ size: [80, 40], pixel })),
+  );
+});
+
+for (const refresh of ['invalidate', 'clearPrepared', 'prepare'] as const) {
+  test(`propagates ${refresh} through prepared snapshots to the SnapDOM style cache`, async ({ page }) => {
+    const result = await page.evaluate(async (refresh) => {
+      const { Disintegrator } = await import('../../src/snapdom');
+      const style = document.createElement('style');
+      style.textContent = '.invalidated-target {width:40px;height:20px;background:red}';
+      document.head.append(style);
+      const element = document.createElement('div');
+      element.className = 'invalidated-target';
+      document.body.append(element);
+      let sample: number[] = [];
+      const animate = ({ snapshot }: { snapshot: HTMLCanvasElement | null }) => {
+        sample = Array.from(snapshot!.getContext('2d')!.getImageData(10, 10, 1, 1).data);
+        return Promise.resolve();
+      };
+      const effects = new Disintegrator({
+        snapdom: { dpr: 1, embedFonts: false, invalidate: false },
+        preparation: false,
+        layout: false,
+        effect: { remove: { animate }, restore: { animate } },
+      });
+      try {
+        await effects.prepare(element);
+        (style.sheet!.cssRules[0] as CSSStyleRule).style.background = 'blue';
+        if (refresh === 'clearPrepared') effects.clearPrepared();
+        else await effects[refresh](element);
+        const operation = await effects.remove(element).finished;
+        return { sample, status: operation.status };
+      } finally {
+        effects.destroy();
+        element.remove();
+        style.remove();
+      }
+    }, refresh);
+    expect(result).toEqual({ sample: [0, 0, 255, 255], status: 'completed' });
+  });
+}
+
+test('keeps failed image slots and supports native placeholders and fallback images', async ({ page }) => {
+  await page.route('**/missing-capture-image.png', (route) => route.fulfill({ status: 404, body: '' }));
+  const results = await page.evaluate(async () => {
+    const { createSnapdomCapture } = await import('../../src/snapdom');
+    const element = document.createElement('div');
+    element.style.cssText = 'display:flex;width:90px;height:30px;background:white';
+    element.innerHTML =
+      '<img src="/missing-capture-image.png" width="30" height="30"><span style="width:30px;height:30px;background:blue"></span>';
+    document.body.append(element);
+    await element
+      .querySelector('img')!
+      .decode()
+      .catch(() => {});
+    const fallback = document.createElement('canvas');
+    fallback.width = fallback.height = 30;
+    fallback.getContext('2d')!.fillStyle = 'lime';
+    fallback.getContext('2d')!.fillRect(0, 0, 30, 30);
+    const results = [];
+    try {
+      for (const options of [{ placeholders: false }, { fallbackURL: fallback.toDataURL() }]) {
+        const canvas = await createSnapdomCapture({ dpr: 1, embedFonts: false, ...options })(element, {
+          operation: 'prepare',
+          signal: new AbortController().signal,
+        });
+        results.push([15, 45].map((x) => Array.from(canvas.getContext('2d')!.getImageData(x, 15, 1, 1).data)));
+        canvas.width = canvas.height = 0;
+      }
+      return results;
+    } finally {
+      fallback.width = fallback.height = 0;
+      element.remove();
+    }
+  });
+  expect(results).toEqual([
+    [
+      [255, 255, 255, 255],
+      [0, 0, 255, 255],
+    ],
+    [
+      [0, 255, 0, 255],
+      [0, 0, 255, 255],
+    ],
+  ]);
+});
+
+test('aligns transformed snapshots and clips filter bleed without stretching the content', async ({ page }) => {
+  const results = await page.evaluate(async () => {
+    const { createSnapdomCapture } = await import('../../src/snapdom');
+    const results = [];
+    for (const transform of [
+      'rotate(12deg)',
+      'scale(1.4,.8)',
+      'skewX(15deg)',
+      'translate(40px,20px) rotate(12deg)',
+      'none',
+    ]) {
+      const element = document.createElement('div');
+      element.style.cssText = `position:relative;width:120px;height:60px;transform:${transform};transform-origin:20px 15px;margin:50px;background:white;${transform === 'none' ? 'filter:blur(3px)' : ''}`;
+      element.innerHTML =
+        '<span style="position:absolute;left:20px;top:20px;width:14px;height:14px;background:blue"></span>';
+      document.body.append(element);
+      try {
+        const bounds = element.getBoundingClientRect();
+        const marker = element.firstElementChild!.getBoundingClientRect();
+        const canvas = await createSnapdomCapture({ dpr: 2, embedFonts: false })(element, {
+          operation: 'prepare',
+          signal: new AbortController().signal,
+        });
+        const x = ((marker.x - bounds.x + marker.width / 2) / bounds.width) * canvas.width;
+        const y = ((marker.y - bounds.y + marker.height / 2) / bounds.height) * canvas.height;
+        results.push({
+          transform,
+          expected: [bounds.width * 2, bounds.height * 2],
+          size: [canvas.width, canvas.height],
+          marker: Array.from(canvas.getContext('2d')!.getImageData(Math.floor(x), Math.floor(y), 1, 1).data),
+        });
+        canvas.width = canvas.height = 0;
+      } finally {
+        element.remove();
+      }
+    }
+    return results;
+  });
+  for (const result of results) {
+    expect(Math.abs(result.size[0]! - result.expected[0]!), result.transform).toBeLessThan(1.1);
+    expect(Math.abs(result.size[1]! - result.expected[1]!), result.transform).toBeLessThan(1.1);
+    expect(result.marker[2], result.transform).toBe(255);
+    expect(result.marker[0], result.transform).toBeLessThan(25);
+    expect(result.marker[3], result.transform).toBe(255);
+  }
+});
+
 test('keeps the visible server-rendered card connected during playground initialization', async ({ page }) => {
   let releaseModule!: () => void;
   const moduleGate = new Promise<void>((resolve) => {
@@ -86,7 +485,7 @@ test('keeps the visible server-rendered card connected during playground initial
     await route.continue();
   });
   try {
-    await page.goto('http://localhost:4321/', { waitUntil: 'commit' });
+    await page.goto(`${docsURL}/`, { waitUntil: 'commit' });
     const card = page.locator('.playground-card');
     await card.scrollIntoViewIfNeeded();
     const observation = await card.evaluateHandle((element) => {
@@ -121,7 +520,7 @@ for (const initialWidth of [375, 1280]) {
     // Set the viewport before navigation: resizing a desktop page to mobile can
     // hide Chromium's incorrect initial resolved insets on flex descendants.
     await page.setViewportSize({ width: initialWidth, height: 900 });
-    await page.goto('http://localhost:4321/');
+    await page.goto(`${docsURL}/`);
     const card = page.locator('.playground-card');
     await card.scrollIntoViewIfNeeded();
 
@@ -173,7 +572,7 @@ for (const initialWidth of [375, 1280]) {
 
 test('keeps card geometry continuous at both ends of the shape animation', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.goto('http://localhost:4321/');
+  await page.goto(`${docsURL}/`);
   const root = page.locator('[data-particle-playground]');
   await root.scrollIntoViewIfNeeded();
   await expect(root.locator('[data-status]')).toHaveText('Ready', { timeout: 15_000 });
@@ -255,7 +654,7 @@ async function observePlaygroundOperations(page: Page) {
 for (const kind of ['remove', 'restore'] as const) {
   test(`interrupts a running ${kind} and previews the latest settings`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.goto('http://localhost:4321/');
+    await page.goto(`${docsURL}/`);
     await requireWebGL2(page);
     const root = page.locator('[data-particle-playground]');
     await expect(root.locator('[data-status]')).toHaveText('Ready', { timeout: 15_000 });
@@ -294,7 +693,7 @@ for (const kind of ['remove', 'restore'] as const) {
 
 test('replaces running previews with presets and manual actions without stale card reinsertion', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.goto('http://localhost:4321/');
+  await page.goto(`${docsURL}/`);
   await requireWebGL2(page);
   const root = page.locator('[data-particle-playground]');
   await expect(root.locator('[data-status]')).toHaveText('Ready', { timeout: 15_000 });
@@ -329,7 +728,7 @@ test('replaces running previews with presets and manual actions without stale ca
 
 for (const action of ['reset', 'remove', 'restore'] as const) {
   test(`keeps presets available when ${action} replaces a queued preview`, async ({ page }) => {
-    await page.goto('http://localhost:4321/');
+    await page.goto(`${docsURL}/`);
     const root = page.locator('[data-particle-playground]');
     await root.scrollIntoViewIfNeeded();
     // aria-busy is also false during initial snapshot preparation. Start this
@@ -445,7 +844,7 @@ test('animates two localized heading words only after the visitor uses the snap 
   ] as const;
 
   for (const variant of variants) {
-    await page.goto(`http://localhost:4321${variant.path}`);
+    await page.goto(`${docsURL}${variant.path}`);
     const heading = page.locator('[data-disintegrating-text]');
     await expect(heading).toHaveAccessibleName(variant.label);
     await expect(heading).toHaveAttribute('data-disintegrating-text-state', 'reduced-motion');
@@ -664,7 +1063,7 @@ test('preserves the heading lifecycle when WebGL2 is unavailable', async ({ page
     HTMLMediaElement.prototype.play = () =>
       Promise.reject(new DOMException('Muted by the browser test.', 'NotAllowedError'));
   });
-  await page.goto('http://localhost:4321/?lang=en');
+  await page.goto(`${docsURL}/?lang=en`);
 
   const heading = page.locator('[data-disintegrating-text]');
   const trigger = heading.locator('[data-disintegrating-text-trigger]');
@@ -684,7 +1083,7 @@ test('preserves the heading lifecycle when WebGL2 is unavailable', async ({ page
 test('configures and runs the home-page particle playground', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   test.setTimeout(45_000);
-  await page.goto('http://localhost:4321/');
+  await page.goto(`${docsURL}/`);
 
   const root = page.locator('[data-particle-playground]');
   await root.scrollIntoViewIfNeeded();
@@ -780,7 +1179,7 @@ test('releases a queued preset lock when the playground enters the back-forward 
   browserName,
 }) => {
   test.skip(browserName !== 'chromium');
-  await page.goto('http://localhost:4321/');
+  await page.goto(`${docsURL}/`);
 
   const root = page.locator('[data-particle-playground]');
   await root.scrollIntoViewIfNeeded();
@@ -797,7 +1196,7 @@ test('releases a queued preset lock when the playground enters the back-forward 
 
 test('keeps the documentation header above particle overlays', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
-  await page.goto('http://localhost:4321/');
+  await page.goto(`${docsURL}/`);
 
   const root = page.locator('[data-particle-playground]');
   await root.scrollIntoViewIfNeeded();
@@ -836,7 +1235,7 @@ test('keeps the documentation header above particle overlays', async ({ page, br
 test('uses the system colour scheme until the user selects a theme', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
   await page.emulateMedia({ colorScheme: 'light' });
-  await page.goto('http://localhost:4321/ru/');
+  await page.goto(`${docsURL}/ru/`);
 
   const root = page.locator('html');
   await expect(root).toHaveAttribute('data-theme-preference', 'system');
@@ -856,7 +1255,7 @@ test('uses the system colour scheme until the user selects a theme', async ({ pa
 
 test('keeps documentation sidebars stationary while the article scrolls', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
-  await page.goto('http://localhost:4321/ru/docs/reference/api/');
+  await page.goto(`${docsURL}/ru/docs/reference/api/`);
 
   const positions = async () =>
     page.locator('.docs-layout').evaluate(() => ({
@@ -874,7 +1273,7 @@ test('keeps documentation sidebars stationary while the article scrolls', async 
 
 test('accepts exact numeric input for every playground range', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
-  await page.goto('http://localhost:4321/');
+  await page.goto(`${docsURL}/`);
 
   const root = page.locator('[data-particle-playground]');
   const ranges = root.locator('[data-option]');
@@ -991,7 +1390,7 @@ test('accepts exact numeric input for every playground range', async ({ page, br
 
 test('keeps localized sound controls in an aligned grid', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
-  await page.goto('http://localhost:4321/ru/');
+  await page.goto(`${docsURL}/ru/`);
 
   const root = page.locator('[data-particle-playground]');
   await root.locator('[data-group-tab="sound"]').click();
@@ -1043,7 +1442,7 @@ test('keeps localized sound controls in an aligned grid', async ({ page, browser
 
 test('keeps independent presets across operation tabs and hash reloads', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
-  await page.goto('http://localhost:4321/');
+  await page.goto(`${docsURL}/`);
 
   const root = page.locator('[data-particle-playground]');
   const scatter = root.locator('[data-preset="scatter"]');
@@ -1058,11 +1457,11 @@ test('keeps independent presets across operation tabs and hash reloads', async (
 
   await root.locator('[data-operation="restore"]').click();
   await scatter.click();
+  await expect(root).toHaveAttribute('aria-busy', 'true');
   await expect(scatter).toHaveAttribute('aria-pressed', 'true');
   await expect(code).toContainText('restore: particlePresets.scatter');
   await expect(code).toContainText('duration: 1450');
   await expect(code).toContainText('createParticleEffect');
-  await expect(root).toHaveAttribute('aria-busy', 'true');
   await expect(root).toHaveAttribute('aria-busy', 'false');
 
   await root.locator('[data-operation="remove"]').click();
@@ -1097,7 +1496,7 @@ test('keeps independent presets across operation tabs and hash reloads', async (
 
 test('restores an isolated playground snapshot with undo', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
-  await page.goto('http://localhost:4321/');
+  await page.goto(`${docsURL}/`);
 
   const root = page.locator('[data-particle-playground]');
   const states = await root.evaluate((element) => {
@@ -1141,7 +1540,7 @@ test('restores an isolated playground snapshot with undo', async ({ page, browse
 
 test('deduplicates shared custom particle options in generated code', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
-  await page.goto('http://localhost:4321/');
+  await page.goto(`${docsURL}/`);
 
   const root = page.locator('[data-particle-playground]');
   const code = root.locator('[data-code]');
@@ -1198,7 +1597,7 @@ test('deduplicates shared custom particle options in generated code', async ({ p
 
 test('recognizes preset values after edits and keeps audio toggles independent', async ({ page, browserName }) => {
   test.skip(browserName !== 'chromium');
-  await page.goto('http://localhost:4321/');
+  await page.goto(`${docsURL}/`);
 
   const root = page.locator('[data-particle-playground]');
   const dust = root.locator('[data-preset="dust"]');

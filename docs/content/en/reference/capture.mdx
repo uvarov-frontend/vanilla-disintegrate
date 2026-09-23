@@ -20,6 +20,7 @@ type SnapshotCapture = (
 interface SnapshotCaptureContext {
   operation: 'remove' | 'restore' | 'prepare';
   signal: AbortSignal;
+  invalidate?: boolean;
   restoreRootOpacity?: string;
 }
 ```
@@ -30,6 +31,7 @@ The adapter must return a canvas containing the current visual representation of
 | -------------------- | ---------------------------------------------------------------------------------------------- |
 | `operation`          | `prepare` for background capture, otherwise the active `remove` or `restore` operation         |
 | `signal`             | Aborts when preparation, the operation, or the owning instance is cancelled                    |
+| `invalidate`         | Requests a fresh engine capture after explicit preparation or cache invalidation               |
 | `restoreRootOpacity` | Original computed opacity of the root before `restore()` temporarily conceals the live element |
 
 Check `signal.aborted` before expensive work and stop promptly when the underlying engine supports cancellation. During restoration, apply `restoreRootOpacity` to the captured root instead of capturing the temporary concealed state.
@@ -44,6 +46,7 @@ const capture: SnapshotCapture = async (element, context) => {
 
   return captureWithMyEngine(element, {
     signal: context.signal,
+    invalidate: context.invalidate,
     rootOpacity: context.restoreRootOpacity,
   });
 };
@@ -58,39 +61,34 @@ Set `needsSnapshot: false` on a custom effect phase that animates DOM, SVG, CSS,
 
 ## `createSnapdomCapture`(options?)
 
-`SnapdomCaptureOptions` extends SnapDOM’s `SnapdomOptions` with `maxCapturePixels` (default: **8,000,000**). The adapter reduces DPR before rasterization when the measured bounds and requested output dimensions exceed this pixel budget. Set `false` to preserve the requested density for large captures. This bounds the requested bitmap size, not the cost of traversing DOM or embedding resources; custom plugins or capture adapters control their own allocations. Particle `renderQuality` applies separately after capture.
+The adapter uses **SnapDOM ^3.1.0** and its SVG renderer. `SnapdomCaptureOptions` accepts native `SnapdomOptions` except `canvas` and `engine`: each capture returns an independently owned canvas that the effect can release safely.
+
+Explicit `width` or `height` takes precedence over `scale`; `dpr` multiplies the output resolution. For example, `{ width: 200, scale: 2, dpr: 2 }` requests a 400-pixel-wide canvas before the pixel budget applies.
+
+`maxCapturePixels` defaults to **8,000,000**. The adapter reduces DPR before rasterization to fit that budget; `false` disables it. The budget covers the output bitmap, not DOM traversal or resource embedding. Particle `renderQuality` is applied separately after capture.
 
 ```ts
 import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
 
 const capture = createSnapdomCapture({
   dpr: 2,
-  filter: (node) => !(node instanceof Element) || !node.matches('[data-capture-ignore]'),
+  exclude: '[data-capture-ignore]',
 });
 
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-Returns a `SnapshotCapture` backed by SnapDOM. `options` uses `SnapdomCaptureOptions`, exported from `vanilla-disintegrate/snapdom`. Inherited `SnapdomOptions` settings are described in the [SnapDOM documentation](https://snapdom.dev/docs/options/).
+The adapter follows SnapDOM defaults, including `embedFonts: 'auto'`, `reconcile: false`, `invalidate: false`, and `filterMode: 'hide'`. Automatic DPR is limited to `2`; an explicit `dpr` overrides that limit. Eligible unchanged captures use SnapDOM's automatic memoization.
 
-Caller values override these integration defaults:
+Images use SnapDOM's resource handling. Set `placeholders: false` to keep an empty slot for a failed image, or provide `fallbackURL`. A custom `filter` is passed through unchanged. Pending resources may delay capture; prepare custom lazy images before starting an effect.
 
-```ts
-{
-  embedFonts: true,
-  fast: true,
-  filterMode: 'remove',
-  outerShadows: false,
-  outerTransforms: true,
-  reconcile: true,
-  scale: 1,
-  dpr: Math.min(Math.max(devicePixelRatio, 1), 2),
-}
-```
+By default the exported image matches the root box, including its rotation and scale, without extra shadow or blur padding. Explicit `clip`, enabled `outerShadows`, or `outerTransforms: false` selects SnapDOM's requested capture geometry. Safari receives a density correction to keep embedded fonts and SVG sharp. Restore captures preserve the root's original opacity while the live element remains concealed.
 
-When `clip` is not supplied, the adapter clips capture to the element's current document bounds. Images that have not loaded successfully are excluded, and a custom `filter` is applied in addition to that check. During restore it preserves the root's pre-concealment opacity.
+After CSSOM changes such as `sheet.insertRule()` or `CSSStyleRule.style`, call `effects.invalidate(element)`. This discards prepared snapshots and requests a fresh SnapDOM style capture, even with `snapdom.invalidate: false`. Explicit `prepare()` also requests a refresh; `clearPrepared()` requests one on subsequent captures. With a standalone capture function, pass `context.invalidate: true` for that call or configure `invalidate: true` to refresh on every call.
 
-SnapDOM does not expose cancellation for an in-flight capture. The adapter rejects work that is already aborted before it starts, but `signal` cannot interrupt SnapDOM after rendering has begun.
+Prepared canvases have a separate lifecycle. Their mutation observation is disabled by default: call `effects.invalidate()` after visual changes, or enable `preparation.observeMutations` for DOM changes. CSSOM edits still require explicit invalidation. Plugins follow the [SnapDOM plugin contract](https://snapdom.dev/docs/plugins/).
+
+SnapDOM cannot cancel an in-flight capture. The adapter rejects an already-aborted call; the library disposes results that arrive after an operation is cancelled.
 
 ## The /snapdom constructor
 

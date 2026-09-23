@@ -134,6 +134,28 @@ describe('remove and restore lifecycle', () => {
     effect.destroy();
   });
 
+  it('retains a ready snapshot when cancellation interrupts the audio wait', async () => {
+    const { target, container } = createTarget();
+    const captured = snapshot();
+    const capture = vi.fn(() => captured);
+    const pendingSound = deferred<null>();
+    vi.spyOn(SoundPlayer.prototype, 'prepare').mockReturnValue(pendingSound.promise);
+    const animate = vi.fn<AnimationFactory>(() => playback());
+    const effect = new Disintegrator({ capture, effect: customEffect(animate), layout: false });
+    const operation = effect.remove(target, { retain: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    operation.cancel();
+    expect((await operation.finished).status).toBe('cancelled');
+    expect(captured.width).toBe(240);
+    expect(animate).not.toHaveBeenCalled();
+    pendingSound.resolve(null);
+    container.append(effect.take(operation.removalId!)!);
+    await effect.restore(target).finished;
+    expect(capture).toHaveBeenCalledOnce();
+    expect(captured.width).toBe(0);
+    effect.destroy();
+  });
+
   it('continues silently at the audio deadline and ignores late audio readiness', async () => {
     vi.useFakeTimers();
     const { target } = createTarget();

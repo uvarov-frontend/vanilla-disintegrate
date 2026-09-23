@@ -72,6 +72,8 @@ effects.invalidate(elements); // 删除旧快照并重新排队
 effects.clearPrepared(); // 清空整个缓存
 ```
 
+捕获完成后，取消动画可以将快照放回同一个有容量限制的缓存。保留元素的移除操作会保留快照，恢复操作则会为已注册元素保留快照。仅修改效果设置无需重新捕获；失效处理、尺寸检查、缓存淘汰和实例销毁仍然有效。
+
 操作绝不会用一份没把握的快照来做动画。如果快照缺失、还在生成、已经过期或被清出缓存，它会先重新捕获一份。
 
 ## 缓存预算
@@ -85,3 +87,5 @@ effects.clearPrepared(); // 清空整个缓存
 `invalidateOnResize` 默认为 `true`，而 `observeMutations` 默认为 `false`，因为观察整个 DOM 子树的成本可能很高。内容外观改变后应主动调用 `invalidate()`。
 
 启用 `observeMutations: true` 后，新增节点、文本修改、除 `style` 之外的属性变化以及后代资源加载都会使快照失效并重新安排后台准备。内联 `style` 写入只会丢弃过期快照，因为动画库可能每帧更新它，自动重新捕获会形成循环。下一次操作会按需捕获当前状态。若样式只发生一次稳定变化，并希望重新进行后台准备，请调用 `invalidate()`。
+
+`invalidate()` 通过 `context.invalidate` 同时刷新预备 canvas 和捕获引擎。显式 `prepare()` 也要求刷新；`clearPrepared()` 后的下一次捕获必须刷新。这包括 DOM 观察器无法检测的 CSSOM 修改。具有独立缓存的自定义适配器必须处理 `context.invalidate`。

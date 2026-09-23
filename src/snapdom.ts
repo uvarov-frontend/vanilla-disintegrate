@@ -5,8 +5,8 @@ import type { DisintegratorOptions } from './types';
 /** Options for the SnapDOM-enabled entry point. */
 export type SnapdomDisintegratorOptions = DisintegratorOptions & {
   /**
-   * Forwarded to SnapDOM's `toCanvas()` on top of the library defaults. Capture
-   * density follows the display DPR, capped at `2`, unless `dpr` is set, and is
+   * Configures native SnapDOM capture. Explicit width/height take precedence over scale.
+   * Density follows the display DPR, capped at `2`, unless `dpr` is set, and is
    * reduced for large bitmaps by `maxCapturePixels` unless that budget is disabled.
    */
   readonly snapdom?: SnapdomCaptureOptions;

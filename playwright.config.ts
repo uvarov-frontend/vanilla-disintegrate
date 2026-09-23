@@ -1,4 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
+import { docsPort, docsURL } from './tests/browser/urls';
+
+const fixturePort = Number(process.env.PLAYWRIGHT_FIXTURE_PORT ?? 4174);
+const fixtureURL = `http://127.0.0.1:${fixturePort}`;
 
 export default defineConfig({
   testDir: './tests/browser',
@@ -7,7 +11,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4174',
+    baseURL: fixtureURL,
     trace: 'retain-on-failure',
   },
   projects: [
@@ -19,15 +23,15 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: 'pnpm exec vite --config vite.browser.config.ts --host 127.0.0.1 --port 4174 --strictPort',
+      command: `pnpm exec vite --config vite.browser.config.ts --host 127.0.0.1 --port ${fixturePort} --strictPort`,
       reuseExistingServer: !process.env.CI,
-      url: 'http://127.0.0.1:4174/tests/browser/fixture.html',
+      url: `${fixtureURL}/tests/browser/fixture.html`,
     },
     {
-      command: 'pnpm exec astro dev',
+      command: `pnpm exec astro dev --ignore-lock --host 127.0.0.1 --port ${docsPort}`,
       env: { ASTRO_DEV_BACKGROUND: '1', PUBLIC_POSTHOG_KEY: 'phc_test_00000000000000000000000000000000' },
       reuseExistingServer: !process.env.CI,
-      url: 'http://localhost:4321/',
+      url: `${docsURL}/`,
     },
   ],
 });

@@ -101,7 +101,7 @@
     "prepublishOnly": "pnpm run check"
   },
   "peerDependencies": {
-    "@zumer/snapdom": "^2.24.12"
+    "@zumer/snapdom": "^3.1.0"
   },
   "peerDependenciesMeta": {
     "@zumer/snapdom": {
@@ -117,7 +117,7 @@
     "@playwright/test": "^1.62.1",
     "@types/node": "^22.18.0",
     "@vitest/coverage-v8": "^4.1.11",
-    "@zumer/snapdom": "^2.24.15",
+    "@zumer/snapdom": "^3.1.0",
     "astro": "^7.2.10",
     "esbuild": "^0.28.2",
     "eslint": "^10.0.2",

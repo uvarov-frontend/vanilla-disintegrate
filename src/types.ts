@@ -49,6 +49,8 @@ export interface SnapshotCaptureContext {
   readonly operation: EffectOperationKind | 'prepare';
   /** Aborts when the associated preparation or operation is cancelled. */
   readonly signal: AbortSignal;
+  /** Refresh engine caches after explicit preparation, invalidate(), or clearPrepared(). */
+  readonly invalidate?: boolean;
   /** The computed opacity the captured root had before a restore operation concealed the live element. */
   readonly restoreRootOpacity?: string;
 }

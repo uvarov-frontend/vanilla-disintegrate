@@ -25,6 +25,14 @@ interface CaptureWaiter {
   reject(error: Error): void;
 }
 
+interface SnapshotClaim {
+  readonly element: HTMLElement;
+  readonly generation: number;
+  readonly revision: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 const MUTATION_OPTIONS: MutationObserverInit = {
   attributes: true,
   characterData: true,
@@ -57,6 +65,9 @@ export class SnapshotPreparation {
   private readonly captureWaiters: CaptureWaiter[] = [];
   private readonly mutationWatchers = new Map<HTMLElement, MutationWatcher>();
   private readonly revisions = new WeakMap<HTMLElement, number>();
+  private readonly invalidated = new WeakSet<HTMLElement>();
+  private readonly captureGenerations = new WeakMap<HTMLElement, number>();
+  private readonly claims = new WeakMap<HTMLCanvasElement, SnapshotClaim>();
   private intersectionObserver: IntersectionObserver | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private cancelScheduled: (() => void) | null = null;
@@ -96,6 +107,7 @@ export class SnapshotPreparation {
           release = await this.acquireCaptureSlot();
           this.assertCurrent(generation, element, revision);
           this.invalidateElement(element, false);
+          this.invalidated.add(element);
           const prepared = this.createPreparation(element);
           await prepared.promise;
         } catch (error) {
@@ -112,6 +124,7 @@ export class SnapshotPreparation {
     this.assertAlive();
     for (const element of elements) {
       this.bumpRevision(element);
+      this.invalidated.add(element);
       this.invalidateElement(element, true);
     }
   }
@@ -157,7 +170,7 @@ export class SnapshotPreparation {
   }
 
   /**
-   * Transfers a successfully restored operation snapshot into the preparation
+   * Transfers a completed or cancelled restore snapshot into the preparation
    * cache. This avoids recapturing the same visible element solely to prepare
    * its next removal.
    */
@@ -170,12 +183,8 @@ export class SnapshotPreparation {
    * original element is inserted again, restore() can claim it without a new
    * capture when its dimensions still match.
    */
-  cacheRetained(
-    element: HTMLElement,
-    snapshot: HTMLCanvasElement | null,
-    bounds: Pick<DOMRectReadOnly, 'width' | 'height'>,
-  ) {
-    return this.cacheSnapshot(element, snapshot, true, bounds);
+  cacheRetained(element: HTMLElement, snapshot: HTMLCanvasElement | null) {
+    return this.cacheSnapshot(element, snapshot, true);
   }
 
   async take(
@@ -185,9 +194,12 @@ export class SnapshotPreparation {
     context: Pick<SnapshotCaptureContext, 'restoreRootOpacity'> = {},
   ) {
     this.assertAlive();
-    const capture = this.requireCapture();
+    this.requireCapture();
+    const generation = this.generation;
+    const revision = this.revision(element);
     const bounds = element.getBoundingClientRect();
     const existing = this.prepared.get(element);
+    let snapshot: HTMLCanvasElement;
     if (
       existing !== undefined &&
       existing.snapshot !== null &&
@@ -197,10 +209,22 @@ export class SnapshotPreparation {
       this.prepared.delete(element);
       existing.claimed = true;
       this.cachedPixels -= existing.pixels;
-      return existing.promise;
+      snapshot = existing.snapshot;
+    } else {
+      if (existing !== undefined) this.invalidateElement(element, false);
+      snapshot = await this.captureElement(element, { operation, signal, ...context });
     }
-    if (existing !== undefined) this.invalidateElement(element, false);
-    return Promise.resolve(capture(element, { operation, signal, ...context }));
+    if (!signal.aborted && generation === this.generation && revision === this.revision(element)) {
+      const sourceBounds = existing?.snapshot === snapshot ? existing : bounds;
+      this.claims.set(snapshot, {
+        element,
+        generation,
+        revision,
+        width: sourceBounds.width,
+        height: sourceBounds.height,
+      });
+    }
+    return snapshot;
   }
 
   destroy() {
@@ -231,6 +255,9 @@ export class SnapshotPreparation {
       this.resizeObserver ??= new ResizeObserver((entries) => {
         for (const entry of entries) {
           if (!(entry.target instanceof HTMLElement)) continue;
+          // Active operations own their source; removal itself reports a zero-sized box.
+          // Returned snapshots keep their captured dimensions and take() checks them again.
+          if (!entry.target.isConnected || this.suspended.has(entry.target)) continue;
           const prepared = this.prepared.get(entry.target);
           if (prepared !== undefined) {
             const bounds = entry.target.getBoundingClientRect();
@@ -395,7 +422,7 @@ export class SnapshotPreparation {
   }
 
   private createPreparation(element: HTMLElement) {
-    const capture = this.requireCapture();
+    this.requireCapture();
     const rect = element.getBoundingClientRect();
     const controller = new AbortController();
     const generation = this.generation;
@@ -413,14 +440,7 @@ export class SnapshotPreparation {
       claimed: false,
     };
     this.prepared.set(element, prepared);
-    let result: HTMLCanvasElement | Promise<HTMLCanvasElement>;
-    try {
-      result = capture(element, { operation: 'prepare', signal: controller.signal });
-    } catch (error) {
-      if (this.prepared.get(element) === prepared) this.prepared.delete(element);
-      throw error;
-    }
-    prepared.promise = Promise.resolve(result)
+    prepared.promise = this.captureElement(element, { operation: 'prepare', signal: controller.signal })
       .then((snapshot) => {
         if (
           prepared.cancelled ||
@@ -490,28 +510,45 @@ export class SnapshotPreparation {
     return this.capture;
   }
 
-  private cacheSnapshot(
-    element: HTMLElement,
-    snapshot: HTMLCanvasElement | null,
-    retained: boolean,
-    bounds: Pick<DOMRectReadOnly, 'width' | 'height'> = element.getBoundingClientRect(),
-  ) {
+  private async captureElement(element: HTMLElement, context: SnapshotCaptureContext) {
+    const generation = this.generation;
+    const revision = this.revision(element);
+    const invalidate = this.invalidated.has(element) || (this.captureGenerations.get(element) ?? 0) !== generation;
+    const snapshot = await this.requireCapture()(element, { ...context, ...(invalidate ? { invalidate: true } : {}) });
+    // Failed, cancelled or superseded work must not consume a newer refresh request.
+    if (!context.signal.aborted && generation === this.generation && revision === this.revision(element)) {
+      this.invalidated.delete(element);
+      this.captureGenerations.set(element, generation);
+    }
+    return snapshot;
+  }
+
+  private cacheSnapshot(element: HTMLElement, snapshot: HTMLCanvasElement | null, retained: boolean) {
+    const claim = snapshot === null ? undefined : this.claims.get(snapshot);
     if (
       !this.options.enabled ||
       this.destroyed ||
+      claim?.element !== element ||
+      claim.generation !== this.generation ||
+      claim.revision !== this.revision(element) ||
+      this.invalidated.has(element) ||
+      (this.captureGenerations.get(element) ?? 0) !== this.generation ||
       (!retained && !this.registered.has(element)) ||
       snapshot === null ||
-      bounds.width <= 0 ||
-      bounds.height <= 0
+      snapshot.width <= 0 ||
+      snapshot.height <= 0 ||
+      claim.width <= 0 ||
+      claim.height <= 0
     ) {
       return false;
     }
+    this.claims.delete(snapshot);
     this.invalidateElement(element, false);
     const prepared: PreparedSnapshot = {
       element,
       controller: new AbortController(),
-      width: bounds.width,
-      height: bounds.height,
+      width: claim.width,
+      height: claim.height,
       retained,
       promise: Promise.resolve(snapshot),
       snapshot,

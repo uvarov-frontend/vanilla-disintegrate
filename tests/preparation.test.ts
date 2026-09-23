@@ -2,6 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Disintegrator } from '../src/disintegrator';
 import { defineEffect } from '../src/effects';
+import { SnapshotPreparation } from '../src/preparation';
+import { resolvePreparation } from '../src/defaults';
+import type { AnimationContext, SnapshotCapture, SnapshotCaptureContext } from '../src/types';
 
 function rect(): DOMRect {
   return {
@@ -44,6 +47,75 @@ beforeEach(() => {
 });
 
 describe('snapshot preparation', () => {
+  it.each(['invalidate', 'clear'] as const)('does not retain an operation snapshot after %s', async (action) => {
+    const target = element();
+    const preparation = new SnapshotPreparation(() => snapshot(), resolvePreparation(true), vi.fn());
+    const captured = await preparation.take(target, 'remove', new AbortController().signal);
+    if (action === 'invalidate') preparation.invalidate([target]);
+    else preparation.clear();
+    expect(preparation.cacheRetained(target, captured)).toBe(false);
+    captured.width = captured.height = 0;
+    preparation.destroy();
+  });
+
+  it.each(['invalidate', 'clear'] as const)('rejects an old claim after %s and a newer capture', async (action) => {
+    const target = element();
+    const preparation = new SnapshotPreparation(() => snapshot(), resolvePreparation(true), vi.fn());
+    const signal = new AbortController().signal;
+    const stale = await preparation.take(target, 'remove', signal);
+    if (action === 'invalidate') preparation.invalidate([target]);
+    else preparation.clear();
+    const fresh = await preparation.take(target, 'restore', signal);
+    expect(preparation.cacheRetained(target, fresh)).toBe(true);
+    expect(preparation.cacheRetained(target, stale)).toBe(false);
+    expect(fresh.width).toBe(10);
+    stale.width = stale.height = 0;
+    preparation.destroy();
+    expect(fresh.width).toBe(0);
+  });
+  it('consumes explicit engine invalidation only after a successful current capture', async () => {
+    const target = element();
+    const capture = vi.fn<(element: HTMLElement, context: SnapshotCaptureContext) => Promise<HTMLCanvasElement>>(() =>
+      Promise.resolve(snapshot()),
+    );
+    const preparation = new SnapshotPreparation(capture, resolvePreparation(false), vi.fn());
+    const signal = new AbortController().signal;
+    preparation.invalidate([target]);
+    capture.mockRejectedValueOnce(new Error('Capture failed'));
+    await expect(preparation.take(target, 'remove', signal)).rejects.toThrow('Capture failed');
+    await preparation.take(target, 'remove', signal);
+    await preparation.take(target, 'remove', signal);
+    expect(capture.mock.calls.map((call) => call[1].invalidate)).toEqual([true, true, undefined]);
+    preparation.clear();
+    await preparation.take(target, 'remove', signal);
+    expect(capture.mock.calls.at(-1)?.[1].invalidate).toBe(true);
+    preparation.destroy();
+  });
+
+  it('does not consume an invalidation that arrived while another capture was running', async () => {
+    const target = element();
+    let release!: (canvas: HTMLCanvasElement) => void;
+    const capture = vi.fn<(element: HTMLElement, context: SnapshotCaptureContext) => Promise<HTMLCanvasElement>>(() =>
+      Promise.resolve(snapshot()),
+    );
+    capture.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    const preparation = new SnapshotPreparation(capture, resolvePreparation(false), vi.fn());
+    const signal = new AbortController().signal;
+    preparation.invalidate([target]);
+    const pending = preparation.take(target, 'remove', signal);
+    preparation.invalidate([target]);
+    release(snapshot());
+    await pending;
+    await preparation.take(target, 'remove', signal);
+    expect(capture.mock.calls.map((call) => call[1].invalidate)).toEqual([true, true]);
+    preparation.destroy();
+  });
+
   it('drops a stale snapshot without recapturing during inline style churn', async () => {
     const target = element();
     const capturedColors: string[] = [];
@@ -571,6 +643,135 @@ describe('snapshot preparation', () => {
     expect(operations).toEqual(['prepare']);
     effect.destroy();
   });
+
+  it('reuses one snapshot across cancelled removal and restoration while releasing every visual', async () => {
+    const source = snapshot();
+    const capture = vi.fn(() => source);
+    const cancel = vi.fn();
+    const dispose = vi.fn();
+    const cleanup = vi.fn();
+    const seen: HTMLCanvasElement[] = [];
+    const animate = (context: AnimationContext) => {
+      seen.push(context.snapshot!);
+      context.addCleanup(cleanup);
+      return { finished: new Promise<void>(() => {}), cancel, dispose };
+    };
+    const effect = new Disintegrator({
+      capture,
+      effect: { remove: { animate }, restore: { animate } },
+      preparation: { strategy: 'idle', invalidateOnResize: false },
+      layout: false,
+      sound: false,
+    });
+    const target = element();
+    await effect.prepare(target);
+    effect.register(target);
+    try {
+      for (const [index, kind] of (['remove', 'restore', 'remove', 'restore'] as const).entries()) {
+        const operation = kind === 'remove' ? effect.remove(target, { retain: true }) : effect.restore(target);
+        await vi.waitFor(() => expect(seen).toHaveLength(index + 1));
+        operation.cancel();
+        expect((await operation.finished).status).toBe('cancelled');
+        expect(source.width).toBe(10);
+        if (kind === 'remove') document.body.append(effect.take(operation.removalId!)!);
+        expect(target.style.pointerEvents).toBe('');
+        expect(document.querySelector('[aria-hidden="true"]')).toBeNull();
+      }
+      expect(seen).toEqual([source, source, source, source]);
+      expect(capture).toHaveBeenCalledOnce();
+      expect(cancel).toHaveBeenCalledTimes(4);
+      expect(dispose).toHaveBeenCalledTimes(4);
+      expect(cleanup).toHaveBeenCalledTimes(4);
+      effect.clearPrepared();
+      expect(source.width).toBe(0);
+    } finally {
+      effect.destroy();
+    }
+  });
+
+  it.each(['invalidate', 'clearPrepared'] as const)(
+    'recaptures after cancellation when %s was called during the animation',
+    async (action) => {
+      const source = snapshot();
+      const capture = vi.fn<SnapshotCapture>(() => snapshot()).mockReturnValueOnce(source);
+      const animate = vi.fn(() => new Promise<void>(() => {}));
+      const effect = new Disintegrator({
+        capture,
+        effect: { remove: { animate }, restore: { animate } },
+        layout: false,
+        sound: false,
+      });
+      const target = element();
+      const operation = effect.remove(target, { retain: true });
+      await vi.waitFor(() => expect(animate).toHaveBeenCalledOnce());
+      if (action === 'invalidate') effect.invalidate(target);
+      else effect.clearPrepared();
+      operation.cancel();
+      await operation.finished;
+      expect(source.width).toBe(0);
+      document.body.append(effect.take(operation.removalId!)!);
+      await effect.restore(target, { effect: snapshotEffect() }).finished;
+      expect(capture).toHaveBeenCalledTimes(2);
+      expect(capture.mock.calls.at(-1)?.[1]).toMatchObject({ invalidate: true });
+      effect.destroy();
+    },
+  );
+
+  it('keeps the captured dimensions when a restore is resized before cancellation', async () => {
+    const capture = vi.fn(() => snapshot());
+    const animate = vi.fn(() => new Promise<void>(() => {}));
+    const effect = new Disintegrator({
+      capture,
+      effect: { remove: { animate }, restore: { animate } },
+      preparation: { strategy: 'idle', invalidateOnResize: false },
+      layout: false,
+      sound: false,
+    });
+    const target = element();
+    await effect.prepare(target);
+    effect.register(target);
+    const operation = effect.restore(target);
+    await vi.waitFor(() => expect(animate).toHaveBeenCalledOnce());
+    Object.defineProperty(target, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({ ...rect(), width: 20 }),
+    });
+    operation.cancel();
+    await operation.finished;
+    await effect.remove(target, { effect: snapshotEffect() }).finished;
+    expect(capture).toHaveBeenCalledTimes(2);
+    effect.destroy();
+  });
+
+  it.each(['disabled', 'budget', 'discard', 'destroy', 'failure'] as const)(
+    'releases a retained operation source on %s',
+    async (reason) => {
+      const source = snapshot();
+      const capture = vi.fn(() => source);
+      let reject!: (error: Error) => void;
+      const animate = vi.fn(() => new Promise<void>((_resolve, fail) => (reject = fail)));
+      const effect = new Disintegrator({
+        capture,
+        effect: { remove: { animate }, restore: { animate } },
+        preparation: reason === 'disabled' ? false : { cachePixelBudget: reason === 'budget' ? 1 : 100 },
+        layout: false,
+        sound: false,
+        onError: vi.fn(),
+      });
+      const operation = effect.remove(element(), { retain: true });
+      await vi.waitFor(() => expect(animate).toHaveBeenCalledOnce());
+      if (reason === 'destroy') effect.destroy();
+      else if (reason === 'failure') reject(new Error('Playback failed'));
+      else {
+        if (reason === 'discard') effect.discard(operation.removalId!);
+        operation.cancel();
+      }
+      expect((await operation.finished).status).toBe(reason === 'failure' ? 'skipped' : 'cancelled');
+      expect(source.width).toBe(0);
+      expect(source.height).toBe(0);
+      effect.destroy();
+    },
+  );
 
   it('recaptures a retained element when its restoration size changed', async () => {
     const operations: string[] = [];

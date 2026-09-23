@@ -18,7 +18,8 @@ export const bundleBudgets = {
   'dist/particles.js': 12 * 1024,
   'dist/sounds.js': 4 * 1024,
   'dist/snapdom.js': 31 * 1024,
-  'dist/vanilla-disintegrate.iife.min.js': 90 * 1024,
+  // SnapDOM 3.1 brings the bundled renderer to about 104 KiB gzip.
+  'dist/vanilla-disintegrate.iife.min.js': 110 * 1024,
 };
 
 /** Encoded audio stays external to JavaScript, so it needs an independent transfer budget. */

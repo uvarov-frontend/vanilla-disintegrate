@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { stubAnalytics } from './analytics';
+import { fulfillAnalytics, stubAnalytics } from './analytics';
+import { docsURL } from './urls';
 
 test.beforeEach(async ({ context }) => {
   await stubAnalytics(context);
@@ -14,7 +15,7 @@ test('lays out every bundle variant without horizontal overflow', async ({ page 
 
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    await page.goto('http://localhost:4321/');
+    await page.goto(`${docsURL}/`);
 
     const panel = page.locator('.bundle-size-panel');
     await expect(panel.locator('dt')).toHaveCount(4);
@@ -43,7 +44,7 @@ test('keeps localized documentation within the mobile viewport', async ({ page }
   await page.setViewportSize({ height: 844, width: 390 });
 
   for (const path of ['/ru/docs/learn/installation/', '/ru/docs/reference/api/']) {
-    await page.goto(`http://localhost:4321${path}`);
+    await page.goto(`${docsURL}${path}`);
     await expect(page.locator('main')).toBeVisible();
     const layout = await page.locator('.docs-layout').evaluate((element) => ({
       hasPageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -65,7 +66,7 @@ test('reduces page padding at responsive breakpoints', async ({ browserName, pag
 
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
-    await page.goto('http://localhost:4321/docs/learn/installation/');
+    await page.goto(`${docsURL}/docs/learn/installation/`);
 
     const padding = await page.locator('.docs-layout').evaluate((element) => ({
       bottom: getComputedStyle(element).paddingBottom,
@@ -75,7 +76,7 @@ test('reduces page padding at responsive breakpoints', async ({ browserName, pag
   }
 
   await page.setViewportSize({ height: 844, width: 320 });
-  await page.goto('http://localhost:4321/ru/privacy/');
+  await page.goto(`${docsURL}/ru/privacy/`);
   await expect(page.locator('.privacy-page')).toHaveCSS('padding-block', '48px');
   const headingLayout = await page.locator('.privacy-page').evaluate((pageElement) => ({
     hasPageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
@@ -92,7 +93,7 @@ test('keeps default analytics and opt-out CSP-clean', async ({ browser, browserN
 
   const serverOnlyContext = await browser.newContext({ javaScriptEnabled: false });
   const serverOnlyPage = await serverOnlyContext.newPage();
-  await serverOnlyPage.goto('http://localhost:4321/privacy/');
+  await serverOnlyPage.goto(`${docsURL}/privacy/`);
   await expect(serverOnlyPage.locator('[data-analytics-toggle]')).toBeHidden();
   await expect(serverOnlyPage.locator('.analytics-toggle-skeleton')).toBeVisible();
   const serverOnlyWidths = await serverOnlyPage.locator('[data-analytics-toggle-slot]').evaluate((slot) => ({
@@ -110,10 +111,10 @@ test('keeps default analytics and opt-out CSP-clean', async ({ browser, browserN
   });
   await page.route('**/ingest/**', async (route) => {
     analyticsRequests += 1;
-    await route.fulfill({ body: '{"status":1}', contentType: 'application/json' });
+    await fulfillAnalytics(route);
   });
 
-  const response = await page.goto('http://localhost:4321/');
+  const response = await page.goto(`${docsURL}/`);
   expect(response?.status()).toBe(200);
   const headers = response?.headers() ?? {};
   expect(headers['content-security-policy']).toContain("connect-src 'self'");
@@ -123,7 +124,7 @@ test('keeps default analytics and opt-out CSP-clean', async ({ browser, browserN
   await expect(page.locator('[data-analytics-notice]')).toHaveCount(0);
   const requestsAfterHome = analyticsRequests;
 
-  await page.goto('http://localhost:4321/privacy/');
+  await page.goto(`${docsURL}/privacy/`);
   await expect.poll(() => analyticsRequests).toBeGreaterThan(requestsAfterHome);
   const toggle = page.locator('[data-analytics-toggle]');
   await expect(toggle).toHaveText('Disable analytics');
@@ -137,8 +138,8 @@ test('keeps default analytics and opt-out CSP-clean', async ({ browser, browserN
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   const requestsAfterOptOut = analyticsRequests;
 
-  await page.goto('http://localhost:4321/');
-  await page.goto('http://localhost:4321/privacy/');
+  await page.goto(`${docsURL}/`);
+  await page.goto(`${docsURL}/privacy/`);
   expect(analyticsRequests).toBe(requestsAfterOptOut);
   await expect(toggle).toHaveText('Enable analytics');
   await expect(toggle).toHaveAttribute('data-analytics-ready', '');

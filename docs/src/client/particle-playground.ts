@@ -513,7 +513,8 @@ export function mountParticlePlayground(root: HTMLElement) {
     appliedTheme = theme;
     // One frame lets the new palette paint before the capture reads the card.
     requestAnimationFrame(() => {
-      if (!busy) void prepare();
+      if (busy) instance.invalidate(card);
+      else void prepare();
     });
   });
   themeObserver.observe(document.documentElement, { attributeFilter: ['data-theme'] });

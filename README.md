@@ -62,6 +62,8 @@ If it helps your project, consider giving it a 🌟 star on [GitHub](https://git
 npm install vanilla-disintegrate @zumer/snapdom
 ```
 
+The `/snapdom` entry requires SnapDOM `^3.1.0` as an optional peer. The IIFE bundle includes it. See the [capture API](https://disintegrate.uvarov.tech/docs/reference/capture/) for native sizing, resource handling, and cache invalidation.
+
 ### Use a Built-in Preset
 
 ```ts

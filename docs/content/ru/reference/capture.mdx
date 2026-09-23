@@ -20,6 +20,7 @@ type SnapshotCapture = (
 interface SnapshotCaptureContext {
   operation: 'remove' | 'restore' | 'prepare';
   signal: AbortSignal;
+  invalidate?: boolean;
   restoreRootOpacity?: string;
 }
 ```
@@ -30,6 +31,7 @@ interface SnapshotCaptureContext {
 | -------------------- | --------------------------------------------------------------------------------------------- |
 | `operation`          | `prepare` для фонового захвата либо активная операция `remove` или `restore`                  |
 | `signal`             | Прерывается при отмене подготовки, операции или владеющего экземпляра                         |
+| `invalidate`         | Запрашивает обновление кешей движка после явной подготовки или инвалидации                    |
 | `restoreRootOpacity` | Исходная вычисленная прозрачность корня до того, как `restore()` временно скрыл живой элемент |
 
 Проверяйте `signal.aborted` до дорогой работы и быстро останавливайтесь, если используемый движок поддерживает отмену. При восстановлении применяйте `restoreRootOpacity` к захватываемому корню, чтобы не снимать его временно скрытое состояние.
@@ -44,6 +46,7 @@ const capture: SnapshotCapture = async (element, context) => {
 
   return captureWithMyEngine(element, {
     signal: context.signal,
+    invalidate: context.invalidate,
     rootOpacity: context.restoreRootOpacity,
   });
 };
@@ -58,39 +61,34 @@ const effects = new Disintegrator({
 
 ## `createSnapdomCapture`(options?)
 
-`SnapdomCaptureOptions` расширяет `SnapdomOptions` параметром `maxCapturePixels` (по умолчанию **8 000 000**). Адаптер уменьшает DPR до растеризации, если измеренные границы и запрошенные размеры превышают бюджет пикселей. Значение `false` сохраняет запрошенную плотность больших снимков. Это ограничивает запрошенный размер bitmap, но не стоимость обхода DOM и встраивания ресурсов; пользовательские плагины и capture-адаптеры управляют собственными выделениями памяти. `renderQuality` частиц применяется отдельно, после capture.
+Адаптер использует **SnapDOM ^3.1.0** и его SVG-рендерер. `SnapdomCaptureOptions` принимает актуальные `SnapdomOptions`, кроме `canvas` и `engine`: каждый захват возвращает собственный canvas, который эффект может безопасно освободить.
+
+Явные `width` или `height` имеют приоритет над `scale`; `dpr` умножает разрешение результата. Например, `{ width: 200, scale: 2, dpr: 2 }` запрашивает canvas шириной 400 пикселей до применения бюджета.
+
+`maxCapturePixels` по умолчанию равен **8 000 000**. Адаптер уменьшает DPR до растеризации, чтобы уложиться в бюджет; `false` отключает ограничение. Бюджет относится к итоговому bitmap, а не к обходу DOM и встраиванию ресурсов. `renderQuality` частиц применяется отдельно после захвата.
 
 ```ts
 import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
 
 const capture = createSnapdomCapture({
   dpr: 2,
-  filter: (node) => !(node instanceof Element) || !node.matches('[data-capture-ignore]'),
+  exclude: '[data-capture-ignore]',
 });
 
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-Возвращает `SnapshotCapture` на основе SnapDOM. Параметр `options` имеет тип `SnapdomCaptureOptions`, экспортируемый из `vanilla-disintegrate/snapdom`. Унаследованные параметры `SnapdomOptions` описаны в [документации SnapDOM](https://snapdom.dev/docs/options/).
+Адаптер следует настройкам SnapDOM по умолчанию, включая `embedFonts: 'auto'`, `reconcile: false`, `invalidate: false` и `filterMode: 'hide'`. Автоматический DPR ограничен значением `2`; явный `dpr` переопределяет этот предел. Подходящие неизменившиеся снимки переиспользуются штатным кешем SnapDOM.
 
-Значения пользователя переопределяют следующие настройки интеграции:
+Изображения обрабатывает SnapDOM. `placeholders: false` сохраняет пустое место сломанной картинки; `fallbackURL` задаёт замену. Пользовательский `filter` передаётся без изменений. Ожидание ресурсов может задержать захват; нестандартную ленивую загрузку подготовьте до запуска эффекта.
 
-```ts
-{
-  embedFonts: true,
-  fast: true,
-  filterMode: 'remove',
-  outerShadows: false,
-  outerTransforms: true,
-  reconcile: true,
-  scale: 1,
-  dpr: Math.min(Math.max(devicePixelRatio, 1), 2),
-}
-```
+По умолчанию итоговый снимок соответствует прямоугольнику корня с учётом поворота и масштаба, без дополнительного отступа для теней и размытия. Явный `clip`, включённый `outerShadows` или `outerTransforms: false` выбирают запрошенную геометрию SnapDOM. Для Safari применяется коррекция плотности, сохраняющая резкость встроенных шрифтов и SVG. При восстановлении снимок сохраняет исходную прозрачность корня, пока живой элемент скрыт.
 
-Если `clip` не передан, адаптер ограничивает снимок текущими границами элемента в документе. Не загрузившиеся изображения исключаются, а пользовательский `filter` применяется дополнительно к этой проверке. При восстановлении адаптер сохраняет прозрачность корня до его временного скрытия.
+После изменений CSSOM, например `sheet.insertRule()` или `CSSStyleRule.style`, вызывайте `effects.invalidate(element)`. Метод удаляет подготовленные снимки и запрашивает обновление стилей SnapDOM, даже при `snapdom.invalidate: false`. Явный `prepare()` также запрашивает обновление; после `clearPrepared()` оно выполняется при следующих захватах. При самостоятельном вызове capture передайте `context.invalidate: true` для конкретного снимка либо настройте `invalidate: true` для обновления при каждом вызове.
 
-SnapDOM не предоставляет отмену уже запущенного захвата. Адаптер отклоняет работу, отменённую до старта, но `signal` не может прервать SnapDOM после начала рендера.
+У подготовленных canvas отдельный жизненный цикл. Наблюдение за мутациями по умолчанию выключено: после визуальных изменений вызывайте `effects.invalidate()` либо включайте `preparation.observeMutations` для изменений DOM. Изменения CSSOM требуют явной инвалидации. Плагины следуют [контракту SnapDOM](https://snapdom.dev/docs/plugins/).
+
+SnapDOM не умеет отменять уже запущенный захват. Адаптер отклоняет заранее отменённый вызов; библиотека освобождает результат, если он пришёл после отмены операции.
 
 ## Конструктор /snapdom
 

@@ -20,6 +20,7 @@ type SnapshotCapture = (
 interface SnapshotCaptureContext {
   operation: 'remove' | 'restore' | 'prepare';
   signal: AbortSignal;
+  invalidate?: boolean;
   restoreRootOpacity?: string;
 }
 ```
@@ -30,6 +31,7 @@ interface SnapshotCaptureContext {
 | -------------------- | --------------------------------------------------------------- |
 | `operation`          | 后台捕获时为 `prepare`，否则为当前的 `remove` 或 `restore` 操作 |
 | `signal`             | 准备任务、操作或所属实例被取消时触发中止                        |
+| `invalidate`         | 显式准备或缓存失效后，要求捕获引擎刷新自己的缓存                |
 | `restoreRootOpacity` | `restore()` 临时隐藏真实元素之前，根元素的原始计算 opacity      |
 
 在执行昂贵工作前检查 `signal.aborted`；如果底层引擎支持取消，应尽快停止。恢复时应把 `restoreRootOpacity` 应用于被捕获的根元素，避免捕获其临时隐藏状态。
@@ -44,6 +46,7 @@ const capture: SnapshotCapture = async (element, context) => {
 
   return captureWithMyEngine(element, {
     signal: context.signal,
+    invalidate: context.invalidate,
     rootOpacity: context.restoreRootOpacity,
   });
 };
@@ -58,39 +61,34 @@ const effects = new Disintegrator({
 
 ## `createSnapdomCapture`(options?)
 
-`SnapdomCaptureOptions` 在 SnapDOM 的 `SnapdomOptions` 基础上增加 `maxCapturePixels`，默认 **8,000,000**。当测量边界与请求的输出尺寸超过像素预算时，适配器会在栅格化前降低 DPR。设为 `false` 可保持大型截图的请求密度。此预算限制请求的位图尺寸，不限制 DOM 遍历或资源嵌入的成本；自定义插件和截图适配器自行管理内存分配。粒子的 `renderQuality` 在截图后独立应用。
+适配器使用 **SnapDOM ^3.1.0** 及其 SVG 渲染器。`SnapdomCaptureOptions` 接受当前的 `SnapdomOptions`，但不包括 `canvas` 和 `engine`：每次捕获返回独立拥有的 canvas，效果可以安全地释放它。
+
+显式 `width` 或 `height` 优先于 `scale`；`dpr` 乘以输出分辨率。例如，`{ width: 200, scale: 2, dpr: 2 }` 在应用像素预算前请求宽 400 像素的 canvas。
+
+`maxCapturePixels` 默认为 **8,000,000**。适配器在栅格化前降低 DPR 以满足预算；`false` 禁用此限制。预算针对输出位图，不限制 DOM 遍历或资源内嵌的成本。粒子的 `renderQuality` 在捕获后单独应用。
 
 ```ts
 import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
 
 const capture = createSnapdomCapture({
   dpr: 2,
-  filter: (node) => !(node instanceof Element) || !node.matches('[data-capture-ignore]'),
+  exclude: '[data-capture-ignore]',
 });
 
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-返回由 SnapDOM 实现的 `SnapshotCapture`。`options` 使用从 `vanilla-disintegrate/snapdom` 导出的 `SnapdomCaptureOptions` 类型。继承的 `SnapdomOptions` 参数详见 [SnapDOM 文档](https://snapdom.dev/docs/options/)。
+适配器遵循 SnapDOM 的默认设置，包括 `embedFonts: 'auto'`、`reconcile: false`、`invalidate: false` 和 `filterMode: 'hide'`。自动 DPR 上限为 `2`；显式 `dpr` 可覆盖该限制。符合条件且未改变的捕获使用 SnapDOM 的自动缓存。
 
-调用方设置会覆盖以下集成默认值：
+图片由 SnapDOM 处理。`placeholders: false` 为失败图片保留空白位置；`fallbackURL` 指定替代图片。自定义 `filter` 原样传递。等待资源可能延迟捕获；请在启动效果前准备自定义懒加载图片。
 
-```ts
-{
-  embedFonts: true,
-  fast: true,
-  filterMode: 'remove',
-  outerShadows: false,
-  outerTransforms: true,
-  reconcile: true,
-  scale: 1,
-  dpr: Math.min(Math.max(devicePixelRatio, 1), 2),
-}
-```
+默认情况下，导出图像与根元素的矩形一致，包含旋转和缩放，不包含阴影或模糊的额外边距。显式 `clip`、启用 `outerShadows` 或 `outerTransforms: false` 使用所请求的 SnapDOM 几何。Safari 使用密度校正来保持内嵌字体和 SVG 清晰。恢复捕获保留根元素原始透明度，同时真实元素继续隐藏。
 
-未提供 `clip` 时，适配器会把捕获范围限制为元素当前的文档边界。未成功加载的图片会被排除，自定义 `filter` 会在此检查之外继续应用。恢复时，适配器会保留根元素在临时隐藏之前的 opacity。
+修改 CSSOM（如 `sheet.insertRule()` 或 `CSSStyleRule.style`）后调用 `effects.invalidate(element)`。这会丢弃预备快照并要求 SnapDOM 刷新样式，即使设置了 `snapdom.invalidate: false`。显式 `prepare()` 也要求刷新；`clearPrepared()` 要求后续捕获刷新。单独调用 capture 时，为本次调用传入 `context.invalidate: true`，或配置 `invalidate: true` 以便每次刷新。
 
-SnapDOM 不支持取消进行中的捕获。适配器会拒绝在开始前已经中止的任务，但渲染开始后，`signal` 无法中断 SnapDOM。
+预备 canvas 有独立生命周期。默认不观察 DOM 变更：视觉变化后调用 `effects.invalidate()`，或启用 `preparation.observeMutations` 来观察 DOM 变化。CSSOM 修改仍需显式失效。插件遵循 [SnapDOM 插件契约](https://snapdom.dev/docs/plugins/)。
+
+SnapDOM 无法取消正在进行的捕获。适配器拒绝开始前已取消的调用；操作取消后才返回的结果由库负责释放。
 
 ## /snapdom 构造器
 

@@ -20,6 +20,7 @@ type SnapshotCapture = (
 interface SnapshotCaptureContext {
   operation: 'remove' | 'restore' | 'prepare';
   signal: AbortSignal;
+  invalidate?: boolean;
   restoreRootOpacity?: string;
 }
 ```
@@ -30,6 +31,7 @@ interface SnapshotCaptureContext {
 | -------------------- | ---------------------------------------------------------------------------- |
 | `operation`          | 백그라운드 캡처에서는 `prepare`, 그 외에는 현재 `remove` 또는 `restore` 작업 |
 | `signal`             | 준비, 작업 또는 소유 인스턴스가 취소될 때 중단됨                             |
+| `invalidate`         | 명시적 준비 또는 캐시 무효화 후 캡처 엔진의 캐시 갱신을 요청합니다           |
 | `restoreRootOpacity` | `restore()`가 실제 요소를 일시적으로 감추기 전 루트의 계산된 opacity         |
 
 비용이 큰 작업 전에 `signal.aborted`를 확인하고, 기반 엔진이 취소를 지원하면 즉시 중단하세요. 복원 시에는 일시적으로 감춰진 상태가 캡처되지 않도록 캡처 루트에 `restoreRootOpacity`를 적용하세요.
@@ -44,6 +46,7 @@ const capture: SnapshotCapture = async (element, context) => {
 
   return captureWithMyEngine(element, {
     signal: context.signal,
+    invalidate: context.invalidate,
     rootOpacity: context.restoreRootOpacity,
   });
 };
@@ -58,39 +61,34 @@ DOM, SVG, CSS, WAAPI 또는 원본 픽셀이 필요 없는 다른 렌더러를 �
 
 ## `createSnapdomCapture`(options?)
 
-`SnapdomCaptureOptions`는 SnapDOM의 `SnapdomOptions`에 `maxCapturePixels`를 추가하며 기본값은 **8,000,000**입니다. 측정된 경계와 요청한 출력 크기가 픽셀 예산을 넘으면 래스터화 전에 DPR을 낮춥니다. 큰 캡처에서도 요청한 밀도를 유지하려면 `false`를 지정하세요. 이 예산은 요청한 비트맵 크기를 제한하며 DOM 순회나 리소스 삽입 비용은 제한하지 않습니다. 사용자 플러그인과 캡처 어댑터는 자체 메모리 할당을 관리합니다. 파티클의 `renderQuality`는 캡처 이후 별도로 적용됩니다.
+어댑터는 **SnapDOM ^3.1.0**과 SVG 렌더러를 사용합니다. `SnapdomCaptureOptions`는 `canvas`와 `engine`을 제외한 현재 `SnapdomOptions`를 받습니다. 각 캡처는 효과가 안전하게 해제할 수 있는 독립적인 canvas를 반환합니다.
+
+명시적인 `width` 또는 `height`가 `scale`보다 우선하며, `dpr`은 출력 해상도를 곱합니다. 예를 들어 `{ width: 200, scale: 2, dpr: 2 }`는 픽셀 예산 적용 전 너비 400픽셀의 canvas를 요청합니다.
+
+`maxCapturePixels`의 기본값은 **8,000,000**입니다. 어댑터는 래스터화 전에 DPR을 낮춰 예산을 지킵니다. `false`는 제한을 해제합니다. 예산은 출력 비트맵에 적용되며 DOM 순회나 리소스 임베딩 비용을 제한하지 않습니다. 파티클의 `renderQuality`는 캡처 후 별도로 적용됩니다.
 
 ```ts
 import Disintegrator, { createSnapdomCapture } from 'vanilla-disintegrate/snapdom';
 
 const capture = createSnapdomCapture({
   dpr: 2,
-  filter: (node) => !(node instanceof Element) || !node.matches('[data-capture-ignore]'),
+  exclude: '[data-capture-ignore]',
 });
 
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-SnapDOM 기반 `SnapshotCapture`를 반환합니다. `options`는 `vanilla-disintegrate/snapdom`에서 내보내는 `SnapdomCaptureOptions` 타입을 사용합니다. 상속된 `SnapdomOptions` 설정은 [SnapDOM 문서](https://snapdom.dev/docs/options/)를 참고하세요.
+어댑터는 `embedFonts: 'auto'`, `reconcile: false`, `invalidate: false`, `filterMode: 'hide'` 등 SnapDOM 기본값을 따릅니다. 자동 DPR의 상한은 `2`이며 명시적인 `dpr`은 이를 재정의합니다. 조건에 맞는 변경되지 않은 캡처는 SnapDOM의 자동 캐시를 사용합니다.
 
-호출자가 지정한 값은 다음 통합 기본값보다 우선합니다.
+이미지는 SnapDOM이 처리합니다. `placeholders: false`는 실패한 이미지의 자리를 비워 두고, `fallbackURL`은 대체 이미지를 지정합니다. 사용자 `filter`는 그대로 전달됩니다. 리소스 대기로 캡처가 지연될 수 있으므로 사용자 정의 지연 로딩 이미지는 효과를 시작하기 전에 준비하세요.
 
-```ts
-{
-  embedFonts: true,
-  fast: true,
-  filterMode: 'remove',
-  outerShadows: false,
-  outerTransforms: true,
-  reconcile: true,
-  scale: 1,
-  dpr: Math.min(Math.max(devicePixelRatio, 1), 2),
-}
-```
+기본 출력은 회전과 배율을 포함한 루트 요소의 사각형에 맞으며 그림자나 블러의 추가 여백을 포함하지 않습니다. 명시적인 `clip`, 활성화된 `outerShadows`, 또는 `outerTransforms: false`는 요청한 SnapDOM 캡처 영역을 사용합니다. Safari에서는 임베딩된 글꼴과 SVG의 선명도를 유지하도록 밀도를 보정합니다. 복원 캡처는 실제 요소를 숨긴 채 루트의 원래 불투명도를 유지합니다.
 
-`clip`을 지정하지 않으면 어댑터가 요소의 현재 문서 경계로 캡처 영역을 제한합니다. 정상적으로 로드되지 않은 이미지는 제외되며, 사용자 `filter`는 이 검사와 함께 적용됩니다. 복원 시에는 루트가 일시적으로 감춰지기 전의 opacity를 보존합니다.
+`sheet.insertRule()` 또는 `CSSStyleRule.style` 같은 CSSOM 변경 후에는 `effects.invalidate(element)`를 호출하세요. 준비된 스냅샷을 버리고 SnapDOM 스타일 갱신을 요청하며, `snapdom.invalidate: false`인 경우에도 적용됩니다. 명시적인 `prepare()`도 갱신을 요청하고 `clearPrepared()`는 다음 캡처에서 갱신하도록 합니다. capture를 단독 호출할 때는 해당 호출에 `context.invalidate: true`를 전달하거나, 매번 갱신하려면 `invalidate: true`를 설정하세요.
 
-SnapDOM은 진행 중인 캡처의 취소 기능을 제공하지 않습니다. 어댑터는 시작 전에 이미 중단된 작업을 거부하지만, 렌더링이 시작된 뒤에는 `signal`로 SnapDOM을 중단할 수 없습니다.
+준비된 canvas는 별도의 수명 주기를 가집니다. 변경 관찰은 기본적으로 꺼져 있습니다. 시각적 변경 후 `effects.invalidate()`를 호출하거나 DOM 변경에 대해 `preparation.observeMutations`를 켜세요. CSSOM 변경은 여전히 명시적 무효화가 필요합니다. 플러그인은 [SnapDOM 플러그인 계약](https://snapdom.dev/docs/plugins/)을 따릅니다.
+
+SnapDOM은 진행 중인 캡처를 취소할 수 없습니다. 어댑터는 시작 전에 취소된 호출을 거부하며, 작업 취소 후 도착한 결과는 라이브러리가 해제합니다.
 
 ## /snapdom 생성자
 

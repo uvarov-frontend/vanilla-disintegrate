@@ -75,6 +75,7 @@ interface RunningOperation {
   settled: boolean;
   readonly finished: Promise<EffectOperationResult>;
   cancelVisual: () => void;
+  releaseSnapshot: (reuse: boolean) => void;
   releasePreparation: () => void;
   finish: (status: EffectOperationStatus) => void;
 }
@@ -203,11 +204,18 @@ export class OperationRunner {
       settled: false,
       finished,
       cancelVisual: noop,
+      releaseSnapshot: noop,
       releasePreparation: noop,
       finish: (status) => {
         if (running.settled) return;
         running.settled = true;
         running.cancelVisual = noop;
+        this.cleanupStep(
+          () => running.releaseSnapshot(status !== 'skipped' && !this.destroyed),
+          { operation: kind, element, overlay: null, removalId },
+          callbacks,
+        );
+        running.releaseSnapshot = noop;
         try {
           running.releasePreparation();
         } catch (error) {
@@ -312,11 +320,27 @@ export class OperationRunner {
       }
 
       running.releasePreparation = this.preparation.suspend(element);
+      // The operation owns its source until it settles, independently of visual cleanup.
+      running.releaseSnapshot = (reuse) => {
+        const source = snapshot;
+        snapshot = null;
+        if (source === null) return;
+        let preserved = false;
+        try {
+          preserved =
+            reuse &&
+            ((running.kind === 'restore' && this.preparation.cache(element, source)) ||
+              (running.kind === 'remove' &&
+                running.removalId !== null &&
+                this.retained.has(running.removalId, element) &&
+                this.preparation.cacheRetained(element, source)));
+        } finally {
+          if (!preserved) disposeSnapshot(source);
+        }
+      };
       previousPointerEvents = element.style.pointerEvents;
       running.cancelVisual = () => {
         this.restoreElement(element, previousPointerEvents, reveal, emptyContext, callbacks);
-        disposeSnapshot(snapshot);
-        snapshot = null;
       };
       if (running.kind === 'restore') {
         restoreRootOpacity = getComputedStyle(element).opacity || '1';
@@ -438,8 +462,7 @@ export class OperationRunner {
     let layout: LayoutPlayback = { finished: Promise.resolve(), cancel: noop };
     let stopSound = noop;
     let stopScroll = noop;
-    let snapshotHandled = false;
-    const cleanup = (cancel: boolean, preserveSnapshot = false) => {
+    const cleanup = (cancel: boolean) => {
       const currentAnimation = animation;
       animation = null;
       const currentLayout = layout;
@@ -460,10 +483,6 @@ export class OperationRunner {
       stopScroll = noop;
       this.cleanupStep(releaseScroll, context, callbacks);
       this.cleanupStep(() => overlay.remove(), context, callbacks);
-      if (!snapshotHandled) {
-        snapshotHandled = true;
-        if (!preserveSnapshot) this.cleanupStep(() => disposeSnapshot(snapshot), context, callbacks);
-      }
     };
     running.cancelVisual = () => {
       cleanup(true);
@@ -523,14 +542,7 @@ export class OperationRunner {
       await Promise.race([Promise.all([animation.finished, layout.finished]), aborted]);
       if (running.settled) return;
 
-      const preserveSnapshot =
-        (running.kind === 'restore' && this.preparation.cache(element, snapshot)) ||
-        (running.kind === 'remove' &&
-          running.removalId !== null &&
-          this.retained.has(running.removalId, element) &&
-          this.preparation.cacheRetained(element, snapshot, bounds));
-      if (running.settled) return;
-      cleanup(false, preserveSnapshot);
+      cleanup(false);
       if (running.kind === 'restore') this.restoreElement(element, previousPointerEvents, reveal, context, callbacks);
       runCallback('onComplete', context, callbacks);
       running.finish('completed');

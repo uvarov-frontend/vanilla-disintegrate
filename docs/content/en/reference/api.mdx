@@ -293,6 +293,8 @@ effects.invalidate(elements);
 effects.clearPrepared();
 ```
 
+`invalidate()` invalidates both prepared canvases and the capture engine through `context.invalidate`. `prepare()` explicitly refreshes the engine too; after `clearPrepared()`, the next capture must refresh. This also covers CSSOM edits, which DOM mutation observers cannot detect. Custom adapters with their own caches must honor `context.invalidate`.
+
 `register()` follows the configured strategy. `prepare()` captures immediately even when background preparation is disabled. Repeated registrations of the same element are reference-counted; every returned unregister function releases only its own registration.
 
 `register()` returns an idempotent `() => void`; `prepare()` returns `Promise<void>`; `invalidate()` and `clearPrepared()` return `void`.
