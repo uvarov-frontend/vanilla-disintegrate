@@ -108,10 +108,11 @@ describe('SnapDOM capture adapter', () => {
     expect(options).toEqual(original);
   });
 
-  it('leaves native policies unchanged and allows repeat memoization', async () => {
+  it('reconciles layout by default and allows repeat memoization', async () => {
     await createSnapdomCapture()(document.createElement('article'), context());
     expect(snapdom.mock.calls[0]?.[1]).toEqual({
       dpr: 1,
+      reconcile: true,
       engine: 'svg',
       plugins: [expect.objectContaining({ pure: true })],
     });
@@ -127,6 +128,7 @@ describe('SnapDOM capture adapter', () => {
       fallbackURL: '/fallback.png',
       placeholders: false,
       cache: 'soft',
+      reconcile: false,
     };
     await createSnapdomCapture(options)(document.createElement('article'), context());
     expect(snapdom.mock.calls[0]?.[1]).toMatchObject(options);

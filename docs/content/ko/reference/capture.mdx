@@ -78,7 +78,7 @@ const capture = createSnapdomCapture({
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-어댑터는 `embedFonts: 'auto'`, `reconcile: false`, `invalidate: false`, `filterMode: 'hide'` 등 SnapDOM 기본값을 따릅니다. 자동 DPR의 상한은 `2`이며 명시적인 `dpr`은 이를 재정의합니다. 조건에 맞는 변경되지 않은 캡처는 SnapDOM의 자동 캐시를 사용합니다.
+어댑터는 스냅샷에서 요소 크기와 텍스트 줄바꿈을 유지하도록 기본적으로 `reconcile: true`를 사용합니다. 레이아웃 측정 단계가 추가되며, `reconcile: false`로 건너뛸 수 있습니다. 나머지 설정은 `embedFonts: 'auto'`, `invalidate: false`, `filterMode: 'hide'` 등 SnapDOM 기본값을 따릅니다. 자동 DPR의 상한은 `2`이며 명시적인 `dpr`은 이를 재정의합니다. 조건에 맞는 변경되지 않은 캡처는 SnapDOM의 자동 캐시를 사용합니다.
 
 이미지는 SnapDOM이 처리합니다. `placeholders: false`는 실패한 이미지의 자리를 비워 두고, `fallbackURL`은 대체 이미지를 지정합니다. 사용자 `filter`는 그대로 전달됩니다. 리소스 대기로 캡처가 지연될 수 있으므로 사용자 정의 지연 로딩 이미지는 효과를 시작하기 전에 준비하세요.
 

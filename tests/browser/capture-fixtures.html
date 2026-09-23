@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Snapshot fidelity fixtures</title>
+    <link rel="stylesheet" href="./capture-fixtures.css" />
+    <script type="module" src="./capture-fixtures.ts"></script>
+  </head>
+  <body>
+    <main>
+      <h1>Snapshot fidelity fixtures</h1>
+      <p>Each specimen is compared with its live browser rendering during removal and restoration.</p>
+
+      <article data-case="typography" class="surface">
+        <h2>Text without controls</h2>
+        <p>Latin and Cyrillic: <strong>снимок элемента</strong>, <em>emphasis</em>, <a href="#">a link</a>.</p>
+        <p class="narrow">A constrained paragraph must keep its wrapping, spacing and embedded web font.</p>
+        <ol>
+          <li>First numbered item</li>
+          <li>Second item with <code>inline code</code></li>
+        </ol>
+      </article>
+
+      <article data-case="buttons" class="surface">
+        <h2>Buttons and links</h2>
+        <div class="toolbar">
+          <button type="button" class="primary">Continue →</button>
+          <button type="button">Cancel</button>
+          <button type="button" disabled>Disabled</button>
+          <a class="button" href="#">Link button</a>
+          <button type="button" class="icon" aria-label="Add"><span aria-hidden="true">+</span></button>
+        </div>
+      </article>
+
+      <article data-case="promo" class="promo">
+        <span class="promo-grid">
+          <span class="promo-heading"><span class="badge">NEW</span><b>Vanilla Disintegrate</b></span>
+          <span class="promo-description"
+            >Animations that remove and restore page elements. Настройка частиц, времени и звука без изменения
+            вёрстки.</span
+          >
+          <span class="promo-cta">See it in action <span aria-hidden="true">→</span></span>
+        </span>
+      </article>
+
+      <article data-case="calendar" class="surface">
+        <section class="calendar" aria-label="September 2026">
+          <header>
+            <button type="button" class="arrow previous" aria-label="Previous month"></button><b>September 2026</b
+            ><button type="button" class="arrow next" aria-label="Next month"></button>
+          </header>
+          <div class="weekdays"><b>Mo</b><b>Tu</b><b>We</b><b>Th</b><b>Fr</b><b>Sa</b><b>Su</b></div>
+          <div class="days" data-calendar-days></div>
+        </section>
+      </article>
+
+      <article data-case="form" class="surface">
+        <h2>Current form state</h2>
+        <form class="form-grid">
+          <label>Name<input name="name" value="Initial value" /></label>
+          <label
+            >Plan<select name="plan">
+              <option>Basic</option>
+              <option>Professional</option>
+            </select></label
+          >
+          <label class="wide">Notes<textarea name="notes" rows="2">Initial notes</textarea></label>
+          <label class="choice"><input type="checkbox" name="enabled" /> Enabled</label>
+          <label class="choice"><input type="radio" name="mode" value="auto" /> Automatic</label>
+          <button type="button" class="primary">Save changes</button>
+        </form>
+      </article>
+
+      <article data-case="table" class="surface">
+        <table>
+          <caption>
+            Table without buttons
+          </caption>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Quantity</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Calendar</td>
+              <td>12</td>
+              <td><span class="badge">Ready</span></td>
+            </tr>
+            <tr>
+              <td>Banner with wrapped text</td>
+              <td>3</td>
+              <td>Pending</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2">Total</td>
+              <td>15</td>
+            </tr>
+          </tfoot>
+        </table>
+      </article>
+
+      <table data-case="table-sized" class="fixed-table">
+        <caption>
+          Fixed-height table captured as the root
+        </caption>
+        <tbody>
+          <tr>
+            <td>First row</td>
+            <td>12</td>
+          </tr>
+          <tr>
+            <td>Second row</td>
+            <td>24</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <article data-case="media" class="surface">
+        <h2>Images, SVG and canvas</h2>
+        <div class="media-grid">
+          <img src="./capture-landscape.svg" alt="Local SVG image" width="120" height="80" />
+          <img data-raster alt="Raster image with object-fit" width="120" height="80" />
+          <div class="background-image" aria-label="CSS background image"></div>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="120"
+            height="80"
+            viewBox="0 0 120 80"
+            aria-label="Inline vector"
+          >
+            <rect width="120" height="80" rx="12" fill="#324ca8" />
+            <circle cx="40" cy="40" r="24" fill="#70e1cb" />
+            <path d="M72 56V24L100 40Z" fill="#ffffff" />
+          </svg>
+          <canvas width="120" height="80" aria-label="Canvas chart"></canvas>
+        </div>
+      </article>
+
+      <article data-case="clipping" class="clipping">
+        <div class="glow"></div>
+        <h2>Rounded, translucent and clipped</h2>
+        <div class="transformed">A transformed child</div>
+        <div class="scroll-window">
+          <div>
+            <p>First row above the viewport</p>
+            <p>Visible row with <strong>content</strong></p>
+            <p>Last row below the viewport</p>
+          </div>
+        </div>
+      </article>
+
+      <article data-case="shadow" class="surface">
+        <h2>Open shadow DOM and a slot</h2>
+        <div data-shadow-host><span slot="label">Slotted content</span></div>
+      </article>
+    </main>
+  </body>
+</html>

@@ -78,7 +78,7 @@ const capture = createSnapdomCapture({
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-The adapter follows SnapDOM defaults, including `embedFonts: 'auto'`, `reconcile: false`, `invalidate: false`, and `filterMode: 'hide'`. Automatic DPR is limited to `2`; an explicit `dpr` overrides that limit. Eligible unchanged captures use SnapDOM's automatic memoization.
+The adapter enables `reconcile: true` to preserve element sizes and text wrapping in snapshots. This adds a layout measurement pass; set `reconcile: false` to skip it. Other policies follow SnapDOM defaults, including `embedFonts: 'auto'`, `invalidate: false`, and `filterMode: 'hide'`. Automatic DPR is limited to `2`; an explicit `dpr` overrides that limit. Eligible unchanged captures use SnapDOM's automatic memoization.
 
 Images use SnapDOM's resource handling. Set `placeholders: false` to keep an empty slot for a failed image, or provide `fallbackURL`. A custom `filter` is passed through unchanged. Pending resources may delay capture; prepare custom lazy images before starting an effect.
 

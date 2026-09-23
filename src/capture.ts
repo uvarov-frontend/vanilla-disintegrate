@@ -137,6 +137,29 @@ function createGeometryPlugin(options: SnapdomCaptureOptions, maximum: number | 
   return {
     name: 'vanilla-disintegrate:capture-geometry',
     pure: true,
+    beforeRender: ({ clone, nodeMap }) => {
+      if (!clone || !(nodeMap instanceof Map)) return;
+      // A table's computed height includes its caption, but CSS height sizes the
+      // grid alone. Keep the captured row heights and let them size the table.
+      const tables = [...clone.querySelectorAll<HTMLTableElement>('table')];
+      if (clone.localName === 'table') tables.push(clone as HTMLTableElement);
+      for (const table of tables) {
+        if (table.caption) table.style.height = 'auto';
+      }
+      // SnapDOM materializes pseudo-elements as spans. Its property pruning can omit
+      // their default transform origin while the snapshot reset sets it to 0 0.
+      // Read the original pseudo, including explicit/custom origins, before rasterizing.
+      for (const pseudo of clone.querySelectorAll<HTMLElement>('[data-snapdom-pseudo]')) {
+        const kind = pseudo.dataset.snapdomPseudo;
+        if (kind !== '::before' && kind !== '::after') continue;
+        const source = (nodeMap as ReadonlyMap<Element | null, Element>).get(pseudo.parentElement);
+        if (!source) continue;
+        const style = source.ownerDocument.defaultView?.getComputedStyle(source, kind);
+        if (style && [style.transform, style.rotate, style.scale].some((value) => value && value !== 'none')) {
+          pseudo.style.transformOrigin = style.transformOrigin;
+        }
+      }
+    },
     afterRender: (context: CaptureContext) => {
       if (context.svgString == null || context.dataURL === undefined || context.meta === undefined) return;
       const crop = captureCrop(context.element as HTMLElement, context.meta, options);
@@ -173,7 +196,7 @@ function captureDensity(dataURL: string): readonly number[] | null {
   return density?.length === 2 && density.every((value) => Number.isFinite(value) && value > 0) ? density : null;
 }
 
-/** Creates an adapter using native SnapDOM capture policies and independently owned canvases. */
+/** Creates an adapter with layout reconciliation and independently owned canvases. */
 export function createSnapdomCapture({ maxCapturePixels, ...options }: SnapdomCaptureOptions = {}): SnapshotCapture {
   const geometryPlugin = createGeometryPlugin(options, maxCapturePixels);
   return async (element, context) => {
@@ -191,6 +214,7 @@ export function createSnapdomCapture({ maxCapturePixels, ...options }: SnapdomCa
     plugins.push(geometryPlugin);
     const captureOptions: NativeSnapdomOptions = {
       dpr: resolveCaptureDpr(),
+      reconcile: true,
       ...options,
       engine: 'svg',
       ...(context.invalidate ? { invalidate: true } : {}),

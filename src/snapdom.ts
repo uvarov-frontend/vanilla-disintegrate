@@ -6,6 +6,7 @@ import type { DisintegratorOptions } from './types';
 export type SnapdomDisintegratorOptions = DisintegratorOptions & {
   /**
    * Configures native SnapDOM capture. Explicit width/height take precedence over scale.
+   * Layout reconciliation is enabled by default to preserve captured element sizes.
    * Density follows the display DPR, capped at `2`, unless `dpr` is set, and is
    * reduced for large bitmaps by `maxCapturePixels` unless that budget is disabled.
    */

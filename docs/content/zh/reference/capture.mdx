@@ -78,7 +78,7 @@ const capture = createSnapdomCapture({
 const effects = new Disintegrator({ preset: 'dust', capture });
 ```
 
-适配器遵循 SnapDOM 的默认设置，包括 `embedFonts: 'auto'`、`reconcile: false`、`invalidate: false` 和 `filterMode: 'hide'`。自动 DPR 上限为 `2`；显式 `dpr` 可覆盖该限制。符合条件且未改变的捕获使用 SnapDOM 的自动缓存。
+适配器默认启用 `reconcile: true`，以保持快照中的元素尺寸和文本换行。这会增加一次布局测量；设置 `reconcile: false` 可跳过该步骤。其他设置遵循 SnapDOM 默认值，包括 `embedFonts: 'auto'`、`invalidate: false` 和 `filterMode: 'hide'`。自动 DPR 上限为 `2`；显式 `dpr` 可覆盖该限制。符合条件且未改变的捕获使用 SnapDOM 的自动缓存。
 
 图片由 SnapDOM 处理。`placeholders: false` 为失败图片保留空白位置；`fallbackURL` 指定替代图片。自定义 `filter` 原样传递。等待资源可能延迟捕获；请在启动效果前准备自定义懒加载图片。
 

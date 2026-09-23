@@ -59,6 +59,164 @@ test('captures real SnapDOM pixels at DPR 2 for both removal and concealed resto
   });
 });
 
+test('keeps rotated pseudo-elements at their default and custom transform origins', async ({ page }) => {
+  const samples = await page.evaluate(async () => {
+    const { createSnapdomCapture } = await import('../../src/snapdom');
+    const style = document.createElement('style');
+    style.textContent = `
+      #pseudo-capture { position:relative; width:160px; height:80px; }
+      #pseudo-capture > div { position:absolute; left:32px; top:32px; width:20px; height:12px; }
+      #pseudo-capture > div + div { left:112px; }
+      #pseudo-capture .before::before, #pseudo-capture .after::after {
+        content:""; position:absolute; inset:0; width:20px; height:12px;
+      }
+      #pseudo-capture .before::before { background:rgb(255,0,0); transform:rotate(90deg); }
+      #pseudo-capture .after::after { background:rgb(0,0,255); transform:rotate(-90deg); }
+    `;
+    const element = document.createElement('div');
+    element.id = 'pseudo-capture';
+    element.innerHTML = '<div class="before"></div><div class="after"></div>';
+    document.head.append(style);
+    document.body.append(element);
+    const samples = [];
+    const context = { operation: 'prepare' as const, signal: new AbortController().signal };
+    try {
+      for (const origin of ['default', '0px 0px', '25% 75%']) {
+        if (origin !== 'default') {
+          style.sheet!.insertRule(
+            `#pseudo-capture .before::before, #pseudo-capture .after::after { transform-origin:${origin}; }`,
+            style.sheet!.cssRules.length,
+          );
+        }
+        for (const dpr of [1, 2, 3]) {
+          const capture = createSnapdomCapture({ dpr, embedFonts: false });
+          for (const invalidate of [true, false]) {
+            const canvas = await capture(element, { ...context, invalidate });
+            const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+            const bounds = [0, 2].map((channel) => {
+              let left = canvas.width;
+              let top = canvas.height;
+              let right = -1;
+              let bottom = -1;
+              for (let y = 0; y < canvas.height; y++) {
+                for (let x = 0; x < canvas.width; x++) {
+                  const offset = (y * canvas.width + x) * 4;
+                  if (pixels[offset + channel]! < 250 || pixels[offset + 3]! < 250) continue;
+                  left = Math.min(left, x);
+                  top = Math.min(top, y);
+                  right = Math.max(right, x);
+                  bottom = Math.max(bottom, y);
+                }
+              }
+              return [left / dpr, top / dpr, (right - left + 1) / dpr, (bottom - top + 1) / dpr];
+            });
+            samples.push({ origin, dpr, invalidate, bounds });
+            canvas.width = canvas.height = 0;
+          }
+        }
+      }
+    } finally {
+      element.remove();
+      style.remove();
+    }
+    return samples;
+  });
+  const expected = {
+    default: [
+      [36, 28, 12, 20],
+      [116, 28, 12, 20],
+    ],
+    '0px 0px': [
+      [20, 32, 12, 20],
+      [112, 12, 12, 20],
+    ],
+    '25% 75%': [
+      [34, 36, 12, 20],
+      [108, 26, 12, 20],
+    ],
+  };
+  for (const sample of samples) {
+    expect(sample.bounds, JSON.stringify(sample)).toEqual(expected[sample.origin as keyof typeof expected]);
+  }
+});
+
+test('preserves fit-content and constrained text widths inside grid snapshots', async ({ page }) => {
+  const samples = await page.evaluate(async () => {
+    const { createSnapdomCapture } = await import('../../src/snapdom');
+    const element = document.createElement('div');
+    const style = document.createElement('style');
+    style.textContent = `
+      #grid-capture > span { display:grid; gap:8px; }
+      #grid-capture .description { max-width:60%; background:blue; color:white; }
+      #grid-capture .cta { display:inline-flex; width:fit-content; padding:8px 16px; background:red; color:white; }
+    `;
+    document.head.append(style);
+    element.id = 'grid-capture';
+    element.style.cssText = 'width:320px;font:16px/20px monospace;';
+    element.innerHTML = `
+      <span>
+        <span class="description">Alpha beta gamma delta epsilon zeta</span>
+        <span class="cta">Continue →</span>
+      </span>
+    `;
+    document.body.append(element);
+    const capture = createSnapdomCapture({ dpr: 2, embedFonts: false });
+    const samples = [];
+    try {
+      for (const width of [320, 180]) {
+        element.style.width = `${width}px`;
+        for (const operation of ['remove', 'restore'] as const) {
+          element.style.opacity = operation === 'restore' ? '0' : '1';
+          const root = element.getBoundingClientRect();
+          const expected = [...element.firstElementChild!.children].map((child) => {
+            const rect = child.getBoundingClientRect();
+            return [rect.x - root.x, rect.y - root.y, rect.width, rect.height];
+          });
+          const canvas = await capture(element, {
+            operation,
+            signal: new AbortController().signal,
+            restoreRootOpacity: '1',
+          });
+          const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+          const bounds = [2, 0].map((channel) => {
+            let left = canvas.width;
+            let top = canvas.height;
+            let right = -1;
+            let bottom = -1;
+            for (let y = 0; y < canvas.height; y++) {
+              for (let x = 0; x < canvas.width; x++) {
+                const offset = (y * canvas.width + x) * 4;
+                if (pixels[offset + channel]! < 250 || pixels[offset + 1]! > 5 || pixels[offset + 3]! < 250) continue;
+                left = Math.min(left, x);
+                top = Math.min(top, y);
+                right = Math.max(right, x);
+                bottom = Math.max(bottom, y);
+              }
+            }
+            return [left / 2, top / 2, (right - left + 1) / 2, (bottom - top + 1) / 2];
+          });
+          samples.push({ width, operation, expected, bounds });
+          canvas.width = canvas.height = 0;
+        }
+      }
+    } finally {
+      element.remove();
+      style.remove();
+    }
+    return samples;
+  });
+  for (const sample of samples) {
+    for (let index = 0; index < sample.expected.length; index++) {
+      for (let axis = 0; axis < 4; axis++) {
+        expect(
+          Math.abs(sample.bounds[index]![axis]! - sample.expected[index]![axis]!),
+          JSON.stringify(sample),
+        ).toBeLessThanOrEqual(1);
+      }
+    }
+  }
+});
+
 test('reuses SnapDOM snapshots after cancellation and refreshes invalidation and resized content', async ({ page }) => {
   const result = await page.evaluate(async () => {
     const { Disintegrator, createSnapdomCapture } = await import('../../src/snapdom');
@@ -1671,8 +1829,8 @@ test('recognizes preset values after edits and keeps audio toggles independent',
   await expect(dust).toHaveAttribute('aria-pressed', 'true');
   await expect(code).toContainText("preset: 'dust'");
   await expect(code).not.toContainText('createParticleEffect');
-  await expect(page).toHaveURL(/#p=[\w-]+$/);
-  await expect.poll(() => page.evaluate(() => window.location.hash)).not.toBe(customHash);
+  // Read navigation state without scheduling page JavaScript during the preview capture.
+  await expect(page).toHaveURL((url) => /^#p=[\w-]+$/.test(url.hash) && url.hash !== customHash);
 
   await page.reload();
   await expect(dust).toHaveAttribute('aria-pressed', 'true');

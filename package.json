@@ -1,6 +1,6 @@
 {
   "name": "vanilla-disintegrate",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Lightweight, framework-agnostic DOM removal and restoration animations with pluggable snapshot capture.",
   "keywords": [
     "animation",
@@ -94,6 +94,7 @@
     "smoke": "node scripts/smoke.mjs",
     "test": "vitest run",
     "test:browser": "playwright test",
+    "test:visual": "playwright test capture-visual.spec.ts",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit && astro check",
@@ -116,6 +117,7 @@
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
     "@types/node": "^22.18.0",
+    "@types/pngjs": "^6.0.5",
     "@vitest/coverage-v8": "^4.1.11",
     "@zumer/snapdom": "^3.1.0",
     "astro": "^7.2.10",
@@ -124,6 +126,8 @@
     "fflate": "^0.8.3",
     "globals": "^16.3.0",
     "jsdom": "^29.0.1",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
     "posthog-js": "^1.433.4",
     "prettier": "^3.6.2",
     "prettier-plugin-astro": "^0.14.1",
